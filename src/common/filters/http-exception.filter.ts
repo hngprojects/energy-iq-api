@@ -7,6 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { SYS_MSG } from '../constants/sys-msg';
+import { StandardResponse } from '../responses/standard-response';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -18,7 +20,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string | string[] = 'Internal server error';
+    let message: string | string[] = SYS_MSG.INTERNAL_SERVER_ERROR;
     let error = 'InternalServerError';
 
     if (exception instanceof HttpException) {
@@ -43,13 +45,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response.status(status).json({
-      success: false,
-      statusCode: status,
-      error,
-      message,
-      path: request.url,
-      timestamp: new Date().toISOString(),
-    });
+    response.status(status).json(
+      StandardResponse.error(message, {
+        request,
+        statusCode: status,
+        error,
+      }),
+    );
   }
 }
