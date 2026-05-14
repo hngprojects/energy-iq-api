@@ -107,8 +107,17 @@
             exit-code: 0
             format: table
 
+        - name: Check Trivy SARIF output
+          if: always()
+          run: |
+            if [ -f trivy-results.sarif ]; then
+              echo "trivy-results.sarif found"
+            else
+              echo "trivy-results.sarif not found; skipping SARIF upload"
+            fi
+
         - name: Upload Trivy SARIF to GitHub Security
+          if: always() && hashFiles('trivy-results.sarif') != ''
           uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
-          if: always()   
           with:
             sarif_file: trivy-results.sarif
