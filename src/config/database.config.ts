@@ -1,5 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategy';
 import { env } from './env';
 
 export const databaseConfig = registerAs(
@@ -16,6 +17,7 @@ export const databaseConfig = registerAs(
     synchronize: env.DATABASE_SYNC,
     logging: env.DATABASE_LOGGING,
     ssl: env.DATABASE_SSL ? { rejectUnauthorized: false } : false,
+    namingStrategy: new SnakeNamingStrategy(),
     autoLoadEntities: true,
   }),
 );

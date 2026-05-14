@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { env } from '../../../config/env';
+import type { ConfigType } from '@nestjs/config';
+import { jwtConfig } from '../../../config/jwt.config';
 
 export interface JwtPayload {
   sub: string;
@@ -10,11 +11,14 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor() {
+  constructor(
+    @Inject(jwtConfig.KEY)
+    private readonly jwtCfg: ConfigType<typeof jwtConfig>,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: env.JWT_ACCESS_SECRET,
+      secretOrKey: jwtCfg.accessSecret,
     });
   }
 
