@@ -1,0 +1,107 @@
+  name: CI Quality & Security Gate
+
+  on:
+    pull_request:
+      branches:
+        - dev
+        - staging
+    workflow_dispatch:
+
+  concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+  permissions:
+    contents: read
+
+  env:
+    NODE_VERSION: "20"
+    PNPM_VERSION: "10"
+
+  jobs:
+    quality-gate:
+      name: Lint, Test & Build
+      runs-on: ubuntu-latest
+      timeout-minutes: 30
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: pnpm
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Lint
+          run: pnpm run lint
+
+        - name: Unit tests
+          run: pnpm run test
+
+        - name: E2E tests
+          run: pnpm run test:e2e
+
+        - name: Build
+          run: pnpm run build
+
+    security-scan:
+      name: Security & Vulnerability Scan
+      runs-on: ubuntu-latest
+      timeout-minutes: 15
+      permissions:
+        contents: read
+        security-events: write
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
+          with:
+            version: ${{ env.PNPM_VERSION }}
+
+        - name: Setup Node.js
+          uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+          with:
+            node-version: ${{ env.NODE_VERSION }}
+            cache: pnpm
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Run Trivy filesystem scan
+          uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+          with:
+            scan-type: fs
+            scan-ref: .
+            severity: CRITICAL,HIGH
+            exit-code: 1
+            format: sarif
+            output: trivy-results.sarif
+
+        - name: Print Trivy table summary
+          if: always()
+          uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.29.0
+          with:
+            scan-type: fs
+            scan-ref: .
+            severity: CRITICAL,HIGH
+            exit-code: 0
+            format: table
+
+        - name: Upload Trivy SARIF to GitHub Security
+          uses: github/codeql-action/upload-sarif@v3
+          if: always()   
+          with:
+            sarif_file: trivy-results.sarif
