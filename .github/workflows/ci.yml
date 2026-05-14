@@ -108,7 +108,7 @@
             format: table
 
         - name: Upload Trivy SARIF to GitHub Security
-          uses: github/codeql-action/upload-sarif@v3
+          uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
           if: always()   
           with:
             sarif_file: trivy-results.sarif
