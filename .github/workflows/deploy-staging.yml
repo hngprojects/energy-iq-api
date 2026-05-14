@@ -1,0 +1,95 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Require CI Pass
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Confirm CI workflow passed for this commit
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: 'staging',
+              event: 'push',
+              status: 'success',
+              per_page: 5,
+            });
+            const passed = runs.data.workflow_runs.some(
+              r => r.head_sha === context.sha &&
+                   r.name === 'CI Quality & Security Gate'
+            );
+            if (!passed) {
+              core.setFailed('CI Quality & Security Gate has not passed for this commit.');
+            }
+
+  deploy:
+    name: Deploy to Staging Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality-gate
+    environment:
+      name: staging
+      url: https://api.staging.energy-iq.hng14.com/api/v1/health
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@2afe43f7b62e2c02e5e5bc5de3c4059bc81f5fe0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            sudo -u appuser bash -c '
+              cd /home/appuser/backend/staging/
+
+              git pull origin staging
+
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+              pnpm install --frozen-lockfile
+              pnpm migration:run
+              pnpm build
+
+              pm2 reload be-staging --update-env || pm2 start dist/main.js --name be-staging
+              pm2 save
+            '
+
+      - name: Health check
+        run: |
+          echo "Waiting for staging service to be ready..."
+          for i in $(seq 1 12); do
+            if curl --silent --fail --max-time 10 \
+                https://api.staging.energy-iq.hng14.com/api/v1/health; then
+              echo "Health check passed on attempt $i."
+              exit 0
+            fi
+            echo "Attempt $i/12 failed — retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after 2 minutes."
+          exit 1
