@@ -19,9 +19,7 @@ async function bootstrap() {
     credentials: true,
   });
   app.setGlobalPrefix('api', { exclude: ['health'] });
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(app.get(Reflector)),
-  );
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
   app.enableShutdownHooks();
 
   if (env.SWAGGER_ENABLED) {

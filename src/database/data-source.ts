@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { DataSource, DataSourceOptions } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategy';
 import { env } from '../config/env';
 
 export const dataSourceOptions: DataSourceOptions = {
@@ -14,6 +15,7 @@ export const dataSourceOptions: DataSourceOptions = {
   synchronize: false,
   logging: env.DATABASE_LOGGING,
   ssl: env.DATABASE_SSL ? { rejectUnauthorized: false } : false,
+  namingStrategy: new SnakeNamingStrategy(),
 };
 
 const dataSource = new DataSource(dataSourceOptions);

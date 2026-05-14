@@ -12,27 +12,38 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CreateUserDto } from './dto/create-user.dto';
-import { PaginationDto } from './dto/pagination.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
+import { PaginationDto } from '../../common/dto/pagination.do';
+import { UpdateUserDto } from './dto/update-user.dto';
 
-@ApiTags('users')
+@ApiTags('Users')
 @ApiBearerAuth()
-@Controller('users')
+@Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  @Post()
-  @ApiOperation({ summary: 'Create a user' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
-  }
 
   @Get()
   @ApiOperation({ summary: 'List users (paginated)' })
   findAll(@Query() pagination: PaginationDto) {
     return this.usersService.findAll(pagination);
+  }
+
+  @Post('onboard')
+  @ApiOperation({ summary: 'Connect user inverter brand' })
+  connectInverter(
+    @Body() dto: InverterConnectorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.connectUserInverter(dto, user.sub);
+  }
+
+  @Get('onboard/status')
+  @ApiOperation({ summary: 'Get onboarding step and completion status' })
+  getOnboardingStatus(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getOnboardingStatus(user.sub);
   }
 
   @Get(':id')
@@ -43,10 +54,7 @@ export class UsersController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a user' })
-  update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateUserDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
   }
 
