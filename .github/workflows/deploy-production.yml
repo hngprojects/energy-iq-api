@@ -56,23 +56,22 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            set -e
-                    
-            sudo -u appuser bash -c '
-              cd /home/appuser/backend/production
+            set -e                    
+            
+            cd /home/appuser/backend/production
 
-              git pull origin main
+            git pull origin main
 
-              export NVM_DIR="$HOME/.nvm"
-              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-              pnpm install --frozen-lockfile
-              pnpm migration:run
-              pnpm build
+            pnpm install --frozen-lockfile
+            pnpm migration:run
+            pnpm build
 
-              pm2 reload be-prod --update-env || pm2 start dist/main.js --name be-prod
-              pm2 save
-            '
+            pm2 reload be-prod --update-env || pm2 start dist/main.js --name be-prod
+            pm2 save
+            
 
       - name: Health check
         run: |
