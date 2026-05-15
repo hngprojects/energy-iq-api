@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  typeorm: 0.3.28
+
 importers:
 
   .:
@@ -96,11 +99,11 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
       typeorm:
-        specifier: ^0.3.28
-        version: 0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
+        specifier: 0.3.28
+        version: 0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
       typeorm-naming-strategy:
         specifier: ^2.0.17
-        version: 2.0.17(typeorm@0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3)))
+        version: 2.0.17(typeorm@0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3)))
       zod:
         specifier: ^4.3.6
         version: 4.4.3
@@ -1017,7 +1020,7 @@ packages:
       '@nestjs/core': ^10.0.0 || ^11.0.0
       reflect-metadata: ^0.1.13 || ^0.2.0
       rxjs: ^7.2.0
-      typeorm: ^0.3.0 || ^1.0.0-dev
+      typeorm: 0.3.28
 
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
@@ -3753,10 +3756,10 @@ packages:
     resolution: {integrity: sha512-uSzcONlBfGC9i40q9fLVcO5+Q4n7dz2OI9dIO8plSVrJb9dJq21wdc51ESuVlj11WGniND2VEv59NObgBDGc2Q==}
     engines: {node: ^12.20.0 || >=14.13.0}
     peerDependencies:
-      typeorm: ^0.3
+      typeorm: 0.3.28
 
-  typeorm@0.3.29:
-    resolution: {integrity: sha512-wwPEX/df4l72gCmOsrs0otJZYLGA9lLQkUZCkukbsymEycV4zXv2KM7wU7v2r8L01TaCgY9ApSSqHQWBOUhEoQ==}
+  typeorm@0.3.28:
+    resolution: {integrity: sha512-6GH7wXhtfq2D33ZuRXYwIsl/qM5685WZcODZb7noOOcRMteM9KF2x2ap3H0EBjnSV0VO4gNAfJT5Ukp0PkOlvg==}
     engines: {node: '>=16.13.0'}
     hasBin: true
     peerDependencies:
@@ -4432,7 +4435,7 @@ snapshots:
       class-validator: 0.14.4
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
-      typeorm: 0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
     transitivePeerDependencies:
       - '@fastify/static'
       - '@google-cloud/spanner'
@@ -5093,7 +5096,7 @@ snapshots:
       '@nestjs/core': 11.1.20(@nestjs/common@11.1.20(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.20)(reflect-metadata@0.2.2)(rxj
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
-      typeorm: 0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
 
   '@noble/hashes@1.8.0': {}
 
@@ -8004,11 +8007,11 @@ snapshots:
 
   typedarray@0.0.6: {}
 
-  typeorm-naming-strategy@2.0.17(typeorm@0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))):
+  typeorm-naming-strategy@2.0.17(typeorm@0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))):
     dependencies:
-      typeorm: 0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3))
 
-  typeorm@0.3.29(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3)):
+  typeorm@0.3.28(ioredis@5.10.1)(pg@8.20.0)(ts-node@10.9.2(@types/node@25.7.0)(typescript@6.0.3)):
     dependencies:
       '@sqltools/formatter': 1.2.5
       ansis: 4.3.0
