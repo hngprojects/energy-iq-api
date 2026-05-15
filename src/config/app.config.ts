@@ -8,6 +8,7 @@ export const appConfig = registerAs('app', () => ({
   swaggerEnabled: env.SWAGGER_ENABLED,
   resendApiKey: env.RESEND_API_KEY,
   resendFrom: env.RESEND_FROM,
+  supportEmail: env.SUPPORT_EMAIL,
   clientUrl: env.CLIENT_URL,
   allowedRedirectOrigins: env.ALLOWED_REDIRECT_ORIGINS.split(',')
     .map((o) => o.trim())
