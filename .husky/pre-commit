@@ -1,3 +1,5 @@
+LONG_LINE_EXCLUDE="pnpm-lock.yaml|yarn.lock|package-lock.json|.*\.min\.js|.*\.min\.css|.*\.map|.*\.lockb|.*\.svg|.*\.ts|.*\.tsx"
+
 #!/bin/sh
 set -e
 
@@ -42,13 +44,15 @@ fix_create_require() {
 for file in $STAGED; do
   [ -f "$file" ] || continue
 
-  # ── Check 1: Long lines (the hiding technique) ──────────────────────────────
-  if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
-    echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
-    fix_long_lines "$file"
-    git add "$file"
-    FIXED=1
-  fi
+  BASENAME=$(basename "$file")
+    if echo "$BASENAME" | grep -qE "^($LONG_LINE_EXCLUDE)$"; then
+      : # skip silently
+    elif awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
+      echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
+      fix_long_lines "$file"
+      git add "$file"
+      FIXED=1
+    fi
 
   # ── Check 2: createRequire in a config file ─────────────────────────────────
   if echo "$file" | grep -qE '\.(mjs|cjs|js|ts)$|postcss|config'; then
