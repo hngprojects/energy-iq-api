@@ -18,10 +18,8 @@ async function bootstrap() {
     origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
     credentials: true,
   });
-  app.setGlobalPrefix('api', { exclude: ['health'] });
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(app.get(Reflector)),
-  );
+  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
   app.enableShutdownHooks();
 
   if (env.SWAGGER_ENABLED) {
@@ -35,7 +33,7 @@ async function bootstrap() {
       )
       .build();
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('docs', app, document, {
+    SwaggerModule.setup('api/docs', app, document, {
       swaggerOptions: { persistAuthorization: true },
     });
   }
@@ -45,7 +43,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   logger.log(`Application running on http://localhost:${env.PORT}`);
   if (env.SWAGGER_ENABLED) {
-    logger.log(`Swagger docs at http://localhost:${env.PORT}/docs`);
+    logger.log(`Swagger docs at http://localhost:${env.PORT}/api/docs`);
   }
 }
 
