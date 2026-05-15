@@ -26,6 +26,7 @@ import { WellKnownModule } from './modules/well-known/well-known.module';
 import { InvertersModule } from './modules/inverters/inverters.module';
 import { InvertersMetricsModule } from './modules/inverters-metrics/inverters-metrics.module';
 import { MetricsStreamModule } from './modules/metrics-stream/metrics-stream.module';
+import { ContactModule } from './modules/contact/contact.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 
@@ -57,15 +58,11 @@ import { AlertsModule } from './modules/alerts/alerts.module';
         limit: 60,
       },
     ]),
-    HealthModule,
-    UsersModule,
-    AuthModule,
-    EmailModule,
-    RedisModule,
     WellKnownModule,
     InvertersModule,
     InvertersMetricsModule,
     MetricsStreamModule,
+    ContactModule,
     ChatbotModule,
     AlertsModule,
   ],
