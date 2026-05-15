@@ -23,25 +23,50 @@ jobs:
       contents: read
     steps:
       - name: Confirm CI workflow passed for this commit
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
         with:
           script: |
-            const runs = await github.rest.actions.listWorkflowRunsForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              branch: 'staging',
-              event: 'push',
-              status: 'completed',
-              per_page: 5,
-            });
-            const passed = runs.data.workflow_runs.some(
-              r => r.head_sha === context.sha &&
-                   r.name === 'CI Quality & Security Gate' &&
-                   r.conclusion === 'success'
-            );
-            if (!passed) {
-              core.setFailed('CI Quality & Security Gate has not passed for this commit.');
+            const maxAttempts = 20;
+            const delayMs = 30000;
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+            
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              console.log(`Checking CI status (Attempt ${attempt}/${maxAttempts})...`);
+              
+              const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: 'staging',
+                event: 'push',
+                per_page: 20, 
+              });
+
+              const targetRun = runs.data.workflow_runs.find(
+                r => r.head_sha === context.sha && r.name === 'CI Quality & Security Gate'
+              );
+
+              if (targetRun) {
+                if (targetRun.status === 'completed') {
+                  if (targetRun.conclusion === 'success') {
+                    console.log('CI Quality & Security Gate passed successfully!');
+                    return;
+                  } else {
+                    core.setFailed(`CI Quality & Security Gate finished with conclusion: ${targetRun.conclusion}`);
+                    return;
+                  }
+                } else {
+                  console.log(`CI run is currently: ${targetRun.status}. Waiting...`);
+                }
+              } else {
+                console.log('CI workflow run not detected yet. Waiting for it to trigger...');
+              }
+
+              if (attempt < maxAttempts) {
+                await sleep(delayMs);
+              }
             }
+
+            core.setFailed('Timed out waiting for CI Quality & Security Gate to complete.');
 
   deploy:
     name: Deploy to Staging Server
@@ -54,10 +79,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@2afe43f7b62e2c02e5e5bc5de3c4059bc81f5fe0
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
