@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { QUEUES } from '../../common/constants/queue';
 import { Queue } from 'bullmq';
 import {
-  ContactUsJobData,
   EMAIL_JOBS,
   LinkExpiredJobData,
   PasswordResetJobData,
@@ -76,21 +75,5 @@ export class EmailService {
       verifyCode,
       clientUrl,
     } satisfies VerifyEmailJobData);
-  }
-
-  async sendContactUs(
-    firstName: string,
-    lastName: string,
-    email: string,
-    message: string,
-    phoneNumber?: string,
-  ): Promise<void> {
-    await this.emailQueue.add(EMAIL_JOBS.CONTACT_US, {
-      firstName,
-      lastName,
-      email,
-      message,
-      phoneNumber,
-    } satisfies ContactUsJobData);
   }
 }

@@ -74,9 +74,7 @@ function makeMetric(inverterId = 'inv-uuid-1'): NormalisedMetric {
 // fast-check arbitrary for NormalisedMetric
 const normalisedMetricArb = fc.record<NormalisedMetric>({
   inverterId: fc.uuid(),
-  recordedAt: fc
-    .integer({ min: 0, max: Date.now() })
-    .map((ms) => new Date(ms).toISOString()),
+  recordedAt: fc.date().map((d) => d.toISOString()),
   inverterStatus: fc.constantFrom('normal', 'fault', 'standby', 'unknown'),
   batterySoc: fc.option(fc.float({ min: 0, max: 100, noNaN: true }), {
     nil: null,
