@@ -11,6 +11,7 @@ import {
   PasswordUpdateJobData,
   VerifyEmailJobData,
   WelcomeJobData,
+  ContactUsJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -48,6 +49,8 @@ export class EmailProcessor extends WorkerHost {
         return this.handlePasswordUpdate(job as Job<PasswordUpdateJobData>);
       case EMAIL_JOBS.LINK_EXPIRE:
         return this.handleLinkExpire(job as Job<LinkExpiredJobData>);
+      case EMAIL_JOBS.CONTACT_US:
+        return this.handleContactUs(job as Job<ContactUsJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -214,6 +217,44 @@ export class EmailProcessor extends WorkerHost {
 
     this.logger.log(
       `Link expire email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
+
+  private async handleContactUs(job: Job<ContactUsJobData>): Promise<void> {
+    const { firstName, lastName, email, message, phoneNumber } = job.data;
+    this.logger.log(
+      `Sending contact us notification for ${this.maskEmail(email)}`,
+    );
+
+    const fromAddress = this.appCfg.resendFrom;
+    const supportInbox = this.appCfg.supportEmail;
+
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to: supportInbox,
+      replyTo: email,
+      subject: `Contact Us: Message from ${firstName} ${lastName}`,
+      html: `
+        <p><strong>Name:</strong> ${firstName} ${lastName}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        ${phoneNumber ? `<p><strong>Phone:</strong> ${phoneNumber}</p>` : ''}
+        <p><strong>Message:</strong></p>
+        <p>${message}</p>
+      `,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Contact us email failed for ${this.maskEmail(email)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Contact us email sent successfully for ${this.maskEmail(email)}`,
     );
   }
 

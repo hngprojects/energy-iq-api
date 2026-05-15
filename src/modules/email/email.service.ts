@@ -9,6 +9,7 @@ import {
   PasswordUpdateJobData,
   VerifyEmailJobData,
   WelcomeJobData,
+  ContactUsJobData,
 } from './email.jobs';
 
 @Injectable()
@@ -75,5 +76,21 @@ export class EmailService {
       verifyCode,
       clientUrl,
     } satisfies VerifyEmailJobData);
+  }
+
+  async sendContactUs(
+    firstName: string,
+    lastName: string,
+    email: string,
+    message: string,
+    phoneNumber?: string,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.CONTACT_US, {
+      firstName,
+      lastName,
+      email,
+      message,
+      phoneNumber,
+    } satisfies ContactUsJobData);
   }
 }
