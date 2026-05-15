@@ -17,7 +17,7 @@ jobs:
   quality-gate:
     name: Require CI Pass
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
