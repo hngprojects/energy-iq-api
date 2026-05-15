@@ -31,12 +31,13 @@ jobs:
               repo: context.repo.repo,
               branch: 'staging',
               event: 'push',
-              status: 'success',
+              status: 'completed',
               per_page: 5,
             });
             const passed = runs.data.workflow_runs.some(
               r => r.head_sha === context.sha &&
-                   r.name === 'CI Quality & Security Gate'
+                   r.name === 'CI Quality & Security Gate' &&
+                   r.conclusion === 'success'
             );
             if (!passed) {
               core.setFailed('CI Quality & Security Gate has not passed for this commit.');
