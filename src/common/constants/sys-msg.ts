@@ -33,4 +33,6 @@ export const SYS_MSG = {
   INVALID_TOKEN: 'The token is invalid',
   INVERTER_DEACTIVATED: 'Inverter deactivated successfully',
   INVERTER_ALREADY_INACTIVE: 'This inverter is already deactivated',
+  GOOGLE_MOBILE_AUTH_FAILED: 'Google authentication failed',
+  INVALID_GOOGLE_TOKEN: 'Invalid Google token payload',
 } as const;

@@ -27,6 +27,9 @@ import { GoogleOAuthDto } from './dto/google-oauth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { PasswordUtil } from '../../common/utils/password.util';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { googleConfig } from '../../config/google.config';
+import { OAuth2Client } from 'google-auth-library';
+import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 
 export interface AuthTokens {
   accessToken: string;
@@ -39,16 +42,22 @@ export interface AuthResponse extends AuthTokens {
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
+
   constructor(
     @Inject(jwtConfig.KEY)
     private readonly jwtCfg: ConfigType<typeof jwtConfig>,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
+    @Inject(googleConfig.KEY)
+    private readonly googleCfg: ConfigType<typeof googleConfig>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
+  }
 
   async register(dto: RegisterDto): Promise<PublicUser> {
     const user = await this.usersService.create({
@@ -82,6 +91,36 @@ export class AuthService {
     }
 
     return this.issueTokens(user);
+  }
+
+  async googleMobileLogin(dto: GoogleMobileLoginDto): Promise<AuthResponse> {
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.idToken,
+        audience: this.googleCfg.googleClientId,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        throw new UnauthorizedException(SYS_MSG.INVALID_GOOGLE_TOKEN);
+      }
+      if (!payload.given_name || !payload.family_name) {
+        throw new UnauthorizedException(SYS_MSG.MISSING_GOOGLE_PROFILE_INFO);
+      }
+      const googleOAuthDto = {
+        email: payload.email,
+        firstName: payload.given_name,
+        lastName: payload.family_name,
+        googleId: payload.sub,
+      };
+
+      const user = await this.usersService.findOrCreateByGoogle(googleOAuthDto);
+
+      return this.issueTokens(user);
+    } catch (err) {
+        if (err instanceof UnauthorizedException) throw err;
+        throw new UnauthorizedException(SYS_MSG.GOOGLE_MOBILE_AUTH_FAILED);
+    }
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse | PublicUser> {
