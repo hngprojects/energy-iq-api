@@ -97,9 +97,7 @@ export class AuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: dto.idToken,
-        audience: [
-          this.googleCfg.googleClientId,
-        ],
+        audience: [this.googleCfg.googleClientId],
       });
 
       const payload = ticket.getPayload();
@@ -107,13 +105,19 @@ export class AuthService {
         throw new UnauthorizedException(SYS_MSG.INVALID_GOOGLE_TOKEN);
       }
       if (!payload.email_verified) {
-        throw new UnauthorizedException(SYS_MSG.UNVERIFIED_GOOGLE_ACCOUNT_EMAIL);
+        throw new UnauthorizedException(
+          SYS_MSG.UNVERIFIED_GOOGLE_ACCOUNT_EMAIL,
+        );
       }
       if (payload.email.length === 0 || payload.email === '') {
         throw new UnauthorizedException(SYS_MSG.MISSING_GOOGLE_PROFILE_INFO);
       }
-      const firstName = payload.given_name ?? payload.name?.split(' ')[0] ?? 'User'
-      const lastName = payload.family_name ?? payload.email.split(' ').slice(1).join(' ') ?? ''
+      const firstName =
+        payload.given_name ?? payload.name?.split(' ')[0] ?? 'User';
+      const lastName =
+        payload.family_name ??
+        payload.email.split(' ').slice(1).join(' ') ??
+        '';
       const googleOAuthDto = {
         email: payload.email,
         firstName,
@@ -125,8 +129,8 @@ export class AuthService {
 
       return this.issueTokens(user);
     } catch (err) {
-        if (err instanceof UnauthorizedException) throw err;
-        throw new UnauthorizedException(SYS_MSG.GOOGLE_MOBILE_AUTH_FAILED);
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException(SYS_MSG.GOOGLE_MOBILE_AUTH_FAILED);
     }
   }
 
