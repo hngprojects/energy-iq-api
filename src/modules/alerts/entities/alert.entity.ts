@@ -1,7 +1,6 @@
 import { Column, Entity } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
-import { AlertResolutionStatus } from '../enums/resolution-status.enum';
-import { AlertSeverity } from '../enums/severity.enum';
+import { AlertResolutionStatus, AlertSeverity } from '../../../common/enums';
 
 @Entity('alerts')
 export class Alert extends AbstractBaseEntity {

@@ -11,8 +11,7 @@ import { noTransaction } from '../../common/constants/transaction-options';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { ResolveAlertDetailsDto } from './dto/resolve-alert.dto';
 import { AlertSummaryDto } from './dto/alert-summary.dto';
-import { AlertResolutionStatus } from './enums/resolution-status.enum';
-import { AlertSeverity } from './enums/severity.enum';
+import { AlertResolutionStatus, AlertSeverity } from '../../common/enums';
 
 export class GetAlertsDto {
   alert_type?: string;
