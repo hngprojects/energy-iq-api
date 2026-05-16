@@ -30,7 +30,7 @@ export class ChatController {
     @CurrentUser('sub', ParseUUIDPipe) userId: string,
     @Body() dto: StartChatDto,
   ) {
-    return this.chatbotService.startChat({ ...dto, initiatorId: userId });
+    return this.chatbotService.startChat(dto, userId);
   }
 
   @Get('')
