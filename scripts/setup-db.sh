@@ -23,14 +23,12 @@ PG_HBA="${PG_CONF_DIR}/pg_hba.conf"
 echo "Using Postgres ${PG_VERSION} config in ${PG_CONF_DIR}"
 
 # ---- Create role and database ----
+# Use top-level SELECT with \gexec so psql variable substitution works
 sudo -u postgres psql -v ON_ERROR_STOP=1 \
   -v db_user="${DB_USER}" -v db_name="${DB_NAME}" -v db_password="${DB_PASSWORD}" <<'SQL'
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user') THEN
-    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', :'db_user', :'db_password');
-  END IF;
-END $$;
+SELECT 'CREATE ROLE ' || quote_ident(:'db_user') || ' LOGIN PASSWORD ' || quote_literal(:'db_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user')\gexec
+
 SELECT 'CREATE DATABASE ' || quote_ident(:'db_name') || ' OWNER ' || quote_ident(:'db_user')
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name')\gexec
 SQL

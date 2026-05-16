@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -51,19 +50,16 @@ export class ChatService {
     socket.emit(ChatSocketEvent.JOINED, chats);
   }
 
-  async startChat(dto: StartChatDto) {
-    console.log(dto);
-    if (dto.initiatorId !== dto.userId)
-      throw new ConflictException(SYS_MSG.CONFLICT);
-
-    await this.usersService.findOne(dto.userId);
+  async startChat(dto: StartChatDto, userId: string) {
+    // Ensure the authenticated user exists
+    await this.usersService.findOne(userId);
 
     const chatPayload: Partial<Chat> = {
       contextLength: this.chatbotCfg.chatContextLength,
       expirationTimeoutSeconds: this.chatbotCfg.chatExpirationTimeoutSeconds,
       messages: [],
       roomId: randomUUID(),
-      userId: dto.userId,
+      userId,
     };
 
     const chat = await this.chatModelAction.createChat(chatPayload);
@@ -74,7 +70,7 @@ export class ChatService {
         contentType: MessageContentType.TEXT,
         deliveryStatus: MessageDeliveryStatus.DELIVERED,
         isTransitioning: false,
-        senderId: dto.userId,
+        senderId: userId,
       });
       if (chat.messages) chat.messages.push(message);
       else chat.messages = [message];
