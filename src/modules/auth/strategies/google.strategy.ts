@@ -30,20 +30,19 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const { emails, name } = profile;
     if (
       !emails ||
-      emails.length === 0 ||
-      !name ||
-      !name.givenName ||
-      !name.familyName
+      emails.length === 0
     ) {
       throw new UnauthorizedException(SYS_MSG.MISSING_GOOGLE_PROFILE_INFO);
     }
     if (!emails[0].verified) {
       throw new UnauthorizedException(SYS_MSG.UNVERIFIED_GOOGLE_ACCOUNT_EMAIL);
     }
+    const firstName = name?.givenName ?? profile.displayName.split(' ')[0] ?? 'User';
+    const lastName = name?.familyName ?? profile.displayName.split(' ').slice(1).join(' ') ?? '';
     const authResponse = await this.authService.findOrCreateGoogleOAuthUser({
       email: emails[0].value,
-      firstName: name.givenName,
-      lastName: name.familyName,
+      firstName,
+      lastName,
       googleId: profile.id,
     });
     done(null, authResponse);

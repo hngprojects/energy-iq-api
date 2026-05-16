@@ -106,13 +106,18 @@ export class AuthService {
       if (!payload || !payload.email) {
         throw new UnauthorizedException(SYS_MSG.INVALID_GOOGLE_TOKEN);
       }
-      if (!payload.given_name || !payload.family_name) {
+      if (!payload.email_verified) {
+        throw new UnauthorizedException(SYS_MSG.UNVERIFIED_GOOGLE_ACCOUNT_EMAIL);
+      }
+      if (payload.email.length === 0 || payload.email === '') {
         throw new UnauthorizedException(SYS_MSG.MISSING_GOOGLE_PROFILE_INFO);
       }
+      const firstName = payload.given_name ?? payload.name?.split(' ')[0] ?? 'User'
+      const lastName = payload.family_name ?? payload.email.split(' ').slice(1).join(' ') ?? ''
       const googleOAuthDto = {
         email: payload.email,
-        firstName: payload.given_name,
-        lastName: payload.family_name,
+        firstName,
+        lastName,
         googleId: payload.sub,
       };
 
