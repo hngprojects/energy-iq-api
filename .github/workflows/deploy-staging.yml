@@ -1,81 +1,29 @@
 name: Deploy to Staging
 
 on:
-  push:
-    branches:
-      - staging
+  workflow_run:
+    workflows:
+      - "CI Quality & Security Gate"
+    types:
+      - completed
   workflow_dispatch:
-
-concurrency:
-  group: deploy-staging
-  cancel-in-progress: false
 
 permissions:
   contents: read
 
+concurrency:
+  group: backend-deploy-staging
+  cancel-in-progress: true
+
 jobs:
-  quality-gate:
-    name: Require CI Pass
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - name: Confirm CI workflow passed for this commit
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
-        with:
-          script: |
-            const maxAttempts = 20;
-            const delayMs = 30000;
-            const sleep = ms => new Promise(r => setTimeout(r, ms));
-            
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              console.log(`Checking CI status (Attempt ${attempt}/${maxAttempts})...`);
-              
-              const runs = await github.rest.actions.listWorkflowRunsForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: 'staging',
-                event: 'push',
-                per_page: 20, 
-              });
-
-              const targetRun = runs.data.workflow_runs.find(
-                r => r.head_sha === context.sha && r.name === 'CI Quality & Security Gate'
-              );
-
-              if (targetRun) {
-                if (targetRun.status === 'completed') {
-                  if (targetRun.conclusion === 'success') {
-                    console.log('CI Quality & Security Gate passed successfully!');
-                    return;
-                  } else {
-                    core.setFailed(`CI Quality & Security Gate finished with conclusion: ${targetRun.conclusion}`);
-                    return;
-                  }
-                } else {
-                  console.log(`CI run is currently: ${targetRun.status}. Waiting...`);
-                }
-              } else {
-                console.log('CI workflow run not detected yet. Waiting for it to trigger...');
-              }
-
-              if (attempt < maxAttempts) {
-                await sleep(delayMs);
-              }
-            }
-
-            core.setFailed('Timed out waiting for CI Quality & Security Gate to complete.');
-
   deploy:
     name: Deploy to Staging Server
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: quality-gate
-    environment:
-      name: staging
-      url: https://api.staging.energy-iq.hng14.com/api/v1/health
+    timeout-minutes: 25
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'staging')
 
     steps:
       - name: Checkout
@@ -110,7 +58,7 @@ jobs:
           echo "Waiting for staging service to be ready..."
           for i in $(seq 1 12); do
             if curl --silent --fail --max-time 10 \
-                https://api.staging.energy-iq.hng14.com/api/v1/health; then
+                "${{ secrets.STAGING_HEALTH_URL }}"; then
               echo "Health check passed on attempt $i."
               exit 0
             fi
