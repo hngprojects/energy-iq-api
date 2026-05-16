@@ -1,6 +1,6 @@
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
-import { User } from '../../users/entities/user.entity';
+import { User } from './user.entity';
 
 @Entity('user_settings')
 export class UserSettings extends AbstractBaseEntity {
