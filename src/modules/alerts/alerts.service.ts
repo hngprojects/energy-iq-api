@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -11,18 +12,33 @@ import { noTransaction } from '../../common/constants/transaction-options';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { ResolveAlertDetailsDto } from './dto/resolve-alert.dto';
 import { AlertSummaryDto } from './dto/alert-summary.dto';
-import { AlertResolutionStatus, AlertSeverity } from '../../common/enums';
-
-export class GetAlertsDto {
-  alert_type?: string;
-  page_number?: number;
-  page_size: number;
-  userId: string;
-}
+import {
+  AlertResolutionStatus,
+  AlertSeverity,
+  AlertType,
+} from '../../common/enums';
+import { InverterMetricsModelAction } from '../inverters-metrics/actions/inverter-metrics.action';
+import { UserModelAction } from '../users/actions/users.action';
+import { Cron } from '@nestjs/schedule';
+import { InvertersMetrics } from '../inverters-metrics/entities/inverters-metrics.entity';
+import { CRON_JOB_LABELS } from '../../common/constants/cron-job-labels';
+import { GetAlertsDto } from './dto/get-alerts-dto';
+import { type ConfigType } from '@nestjs/config';
+import { appConfig } from '../../config/app.config';
+import { ProcessingStatus } from '../../common/constants/processing-status';
+import { alertMessages } from './helpers/alert-messages';
+import { AlertDeliveryService } from './alert-delivery.service';
 
 @Injectable()
 export class AlertsService {
-  constructor(private readonly alertAction: AlertModelAction) {}
+  constructor(
+    private readonly alertAction: AlertModelAction,
+    private readonly alertDeliveryService: AlertDeliveryService,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
+    private readonly inverterMetricsAction: InverterMetricsModelAction,
+    private readonly userModelAction: UserModelAction,
+  ) {}
 
   async getAlerts(dto: GetAlertsDto) {
     const findOptions: FindOptionsWhere<Alert> = {
@@ -83,5 +99,89 @@ export class AlertsService {
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
 
     return await this.alertAction.markAsResolved(dto.alertId);
+  }
+
+  @Cron('*/2 * * * * *', { name: CRON_JOB_LABELS.SCAN_ALERTS }) // every two minutes
+  async scanAlerts() {
+    let twoMinutesAgo = new Date().getTime();
+    twoMinutesAgo = twoMinutesAgo - 120_000; // 120_000 is two minutes in milliseconds
+
+    const metrics = await this.inverterMetricsAction.getMetricsCreatedSince(
+      new Date(twoMinutesAgo),
+    );
+    const alerts = await this.generateAlertsFromMetrics(metrics);
+    for (const alert of alerts) {
+      this.alertDeliveryService.deliverAlertViaWhatsapp(alert);
+    }
+  }
+
+  private async generateAlertsFromMetrics(metrics: InvertersMetrics[]) {
+    const alerts: Partial<Alert>[] = [];
+
+    for (const metric of metrics) {
+      if (metric.batterySocPercent < this.appCfg.criticalBatteryThreshold) {
+        const alert = {
+          userId: metric.inverter.userId,
+          type: AlertType.BATTERY_PERCENTAGE,
+          platform: metric.inverter.brand.toLowerCase(),
+          severity: AlertSeverity.CRITICAL,
+          message: alertMessages.batteryLevelCritical,
+          resolutionStatus: AlertResolutionStatus.UNRESOLVED,
+          triggeredAt: metric.metricTimestamp,
+          isActive: true,
+          deliveryProcesingStatus: ProcessingStatus.pending,
+        };
+
+        await this.appendAlertIfExisting(alert as Alert, alerts);
+        await this.alertAction.createalert(alert);
+      } else if (metric.batterySocPercent < this.appCfg.lowBatteryThreshold) {
+        const alert = {
+          userId: metric.inverter.userId,
+          type: AlertType.BATTERY_PERCENTAGE,
+          platform: metric.inverter.brand.toLowerCase(),
+          severity: AlertSeverity.HIGH,
+          message: alertMessages.batteryLevelCritical,
+          resolutionStatus: AlertResolutionStatus.UNRESOLVED,
+          triggeredAt: metric.metricTimestamp,
+          isActive: true,
+          deliveryProcesingStatus: ProcessingStatus.pending,
+        };
+
+        await this.appendAlertIfExisting(alert as Alert, alerts);
+        await this.alertAction.createalert(alert);
+      }
+      if (
+        metric.batteryTemperatureC &&
+        metric.batteryTemperatureC > this.appCfg.highBatteryTemperatureThreshold
+      ) {
+        const alert = {
+          userId: metric.inverter.userId,
+          type: AlertType.BATTERY_TEMPERATURE,
+          platform: metric.inverter.brand.toLowerCase(),
+          severity: AlertSeverity.HIGH,
+          message: alertMessages.batteryLevelCritical,
+          resolutionStatus: AlertResolutionStatus.UNRESOLVED,
+          triggeredAt: metric.metricTimestamp,
+          isActive: true,
+          deliveryProcesingStatus: ProcessingStatus.pending,
+        };
+
+        await this.appendAlertIfExisting(alert as Alert, alerts);
+        await this.alertAction.createalert(alert);
+      }
+    }
+
+    return alerts;
+  }
+
+  private async appendAlertIfExisting(alert: Alert, alerts: Partial<Alert>[]) {
+    const existingAlert = await this.alertAction.get({
+      identifierOptions: {
+        type: alert.type,
+        severity: alert.severity,
+        resolutionStatus: alert.resolutionStatus!,
+      },
+    });
+    if (!existingAlert) alerts.push(alert);
   }
 }

@@ -80,6 +80,22 @@ export const env = createEnv({
     SUNSYNK_API_BASE_URL: z.url().default('https://globalapi.solarmanpv.com'),
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
+
+    METRIC_LOW_BATTERY_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
+    METRIC_CRITICAL_BATTERY_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
+    METRIC_HIGH_BATTERY_TEMP_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

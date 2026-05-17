@@ -1,4 +1,4 @@
-import { AlertSeverity } from '../../../common/enums';
+import { AlertSeverity, AlertType } from '../../../common/enums';
 
 export class FindAlertsDto {
   count?: number;
@@ -7,6 +7,6 @@ export class FindAlertsDto {
   resolved?: boolean;
   severity?: AlertSeverity;
   start_date?: Date;
-  type?: string;
+  type?: AlertType;
   userId?: string;
 }

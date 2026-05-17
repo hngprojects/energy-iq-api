@@ -19,6 +19,13 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
     super(repository, Alert);
   }
 
+  async createalert(alert: Partial<Alert>) {
+    return this.create({
+      ...noTransaction(),
+      createPayload: alert,
+    });
+  }
+
   findById(id: string) {
     return this.get({
       identifierOptions: {
@@ -51,6 +58,30 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
       where: whereOptions,
     };
     if (options.count) queryOptions.take = options.count;
+
+    const alerts = await this.repository.find(queryOptions);
+    return alerts;
+  }
+
+  async findAlertsSinceTimestampWhere(
+    timestamp: Date,
+    options: Partial<Alert>,
+  ) {
+    const whereOptions: FindOptionsWhere<Alert> = {
+      createdAt: MoreThanOrEqual(timestamp),
+      userId: options.userId,
+    };
+
+    if (options.platform) whereOptions.platform = options.platform;
+    if (options.resolutionStatus)
+      whereOptions.resolutionStatus = options.resolutionStatus;
+    if (options.severity) whereOptions.severity = options.severity;
+    if (options.type) whereOptions.type = options.type;
+    if (options.severity) whereOptions.severity = options.severity;
+
+    const queryOptions: FindManyOptions = {
+      where: whereOptions,
+    };
 
     const alerts = await this.repository.find(queryOptions);
     return alerts;
