@@ -304,7 +304,7 @@ describe('DepletionEngine — Edge Cases', () => {
       inverterRatedPowerKw: 5,
     });
     // inverter output capped at 5kW; with 1kW solar, battery draw is 4kW  
-+   expect(result.netDischargeKw).toBe(4);  
+    expect(result.netDischargeKw).toBe(4);  
     expect(result.minutesUntilDepletion).toBeGreaterThan(0);
   });
 
