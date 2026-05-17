@@ -8,6 +8,7 @@
       branches:
         - dev
         - staging
+        - main
     workflow_dispatch:
 
   concurrency:
@@ -102,7 +103,7 @@
 
         - name: Print Trivy table summary
           if: always()
-          uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8  # v0.29.0
+          uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
           with:
             scan-type: fs
             scan-ref: .

@@ -33,4 +33,5 @@ export const SYS_MSG = {
   INVALID_TOKEN: 'The token is invalid',
   INVERTER_DEACTIVATED: 'Inverter deactivated successfully',
   INVERTER_ALREADY_INACTIVE: 'This inverter is already deactivated',
+  EMPTY_WHATSAPP_MESSAGE: 'Either contentSid or a non-empty body is required',
 } as const;
