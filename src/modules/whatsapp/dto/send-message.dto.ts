@@ -14,5 +14,6 @@ export class SendWhatsAppDto {
 
   @IsObject()
   @IsString({ each: true })
+  @IsOptional()
   contentVariables?: Record<string, string>;
 }
