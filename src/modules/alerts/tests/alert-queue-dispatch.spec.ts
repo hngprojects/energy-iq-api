@@ -7,8 +7,6 @@
 
 jest.mock('../../../config/env', () => ({}));
 
-import { Test, TestingModule } from '@nestjs/testing';
-import { getQueueToken } from '@nestjs/bullmq';
 import { Queue, Job } from 'bullmq';
 
 // ------------------------------------------------------------------
@@ -120,7 +118,7 @@ describe('AlertQueue — Test Cases', () => {
     await expect(processJob(mockJob)).rejects.toThrow('Delivery failed — retrying');
     expect(mockJob.attemptsMade).toBe(3);
 
-    // Attempt 4: succeeds (would not be reached if maxAttempts=3)
+    // Attempt 4: succeeds (would not be reached if maxAttempts>3)
     const result = await processJob(mockJob);
     expect(result).toEqual({ success: true });
     expect(mockJob.attemptsMade).toBe(4);
@@ -172,7 +170,7 @@ describe('AlertQueue — Test Cases', () => {
   // ------------------------------------------------------------------
   it('5.6 should complete in-flight jobs before terminating on graceful shutdown', async () => {
     const closeSpy = jest.spyOn(queue, 'close');
-    const inflightJobs = 3;
+    // const inflightJobs = 3; // unused for now, but kept for later
 
     const onModuleDestroy = async () => {
       // Wait for inflight jobs to finish
@@ -190,7 +188,7 @@ describe('AlertQueue — Test Cases', () => {
   // ------------------------------------------------------------------
   it('5.7 should process alerts for the same user sequentially (not parallel)', async () => {
     const processingOrder: string[] = [];
-    const userId = 'user-uuid-1';
+    // const userId = 'user-uuid-1'; // unused for now, but commented for later
 
     // Simulate sequential processing using a per-user lock
     const processWithLock = async (alertId: string) => {

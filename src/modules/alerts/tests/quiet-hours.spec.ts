@@ -23,7 +23,8 @@ function isWithinQuietHours(
   const startMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
 
-  if (startMinutes === endMinutes) return true; // 00:00–00:00 = always quiet
+  if (quietStart === '00:00' && quietEnd === '00:00') return true; // explicit sentinel  
+  if (startMinutes === endMinutes) return false; // zero-length non-sentinel window  
 
   // Midnight-spanning: start > end (e.g., 22:00 – 06:00)
   if (startMinutes > endMinutes) {
@@ -212,8 +213,14 @@ describe('QuietHours — Test Cases', () => {
      * night anyway. Users should be able to set per-channel quiet
      * hours for finer control.
      */
+    type ChannelWindow = { start: string; end: string } | null;  
+    type ChannelQuietHours = {  
+      whatsapp: { start: string; end: string };  
+      email: ChannelWindow;  
+      sms: ChannelWindow;  
+    };
     const currentTime = new Date('2026-05-16T23:00:00Z');
-    const channelQuietHours = {
+    const channelQuietHours: ChannelQuietHours = {
       whatsapp: { start: '22:00', end: '07:00' },
       email: null,    // No quiet hours for email
       sms: null,      // No quiet hours for SMS
@@ -225,10 +232,10 @@ describe('QuietHours — Test Cases', () => {
       channelQuietHours.whatsapp.end,
     );
     const isEmailQuiet = channelQuietHours.email
-      ? isWithinQuietHours(currentTime, (channelQuietHours.email as any).start, (channelQuietHours.email as any).end)
+      ? isWithinQuietHours(currentTime, channelQuietHours.email.start, channelQuietHours.email.end)
       : false;
     const isSmsQuiet = channelQuietHours.sms
-      ? isWithinQuietHours(currentTime, (channelQuietHours.sms as any).start, (channelQuietHours.sms as any).end)
+      ? isWithinQuietHours(currentTime, channelQuietHours.sms.start, channelQuietHours.sms.end)
       : false;
 
     expect(isWhatsappQuiet).toBe(true);   // WhatsApp blocked
@@ -359,11 +366,15 @@ describe('QuietHours — Edge Cases', () => {
     // Convert user's quiet hours to UTC for evaluation
     const convertToUTC = (localTime: string, offset: string): string => {
       const [hours, mins] = localTime.split(':').map(Number);
-      const offsetHours = parseInt(offset, 10);
-      let utcHours = hours - offsetHours;
-      if (utcHours < 0) utcHours += 24;
-      if (utcHours >= 24) utcHours -= 24;
-      return `${String(utcHours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+      const sign = offset.startsWith('-') ? -1 : 1;  
+      const [offH, offM] = offset.slice(1).split(':').map(Number);  
+      const totalLocal = hours * 60 + mins;  
+      const totalOffset = sign * (offH * 60 + offM);  
+      let totalUtc = totalLocal - totalOffset;  
+      totalUtc = ((totalUtc % 1440) + 1440) % 1440;  
+      const utcHours = Math.floor(totalUtc / 60);  
+      const utcMins = totalUtc % 60;  
+      return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`; 
     };
 
     const utcQuietStart = convertToUTC(userQuietStartLocal, userTimezoneOffset);

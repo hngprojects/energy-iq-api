@@ -8,16 +8,6 @@
 jest.mock('../../../config/env', () => ({}));
 
 // ------------------------------------------------------------------
-// Mocks
-// ------------------------------------------------------------------
-const mockAlertRepo = {
-  findOne: jest.fn(),
-  find: jest.fn(),
-  save: jest.fn(),
-  create: jest.fn(),
-};
-
-// ------------------------------------------------------------------
 // TESTS   —   Duplicate Suppression Logic
 // ------------------------------------------------------------------
 describe('DuplicateSuppression — Test Cases', () => {
@@ -178,7 +168,7 @@ describe('DuplicateSuppression — Test Cases', () => {
     );
 
     expect(minutesSinceLastAlert).toBeLessThan(cooldownMinutes);
-    expect(suppressionService.isWithinCooldown()).toBe(true);
+    expect(suppressionService.isWithinCooldown(minutesSinceLastAlert, cooldownMinutes)).toBe(true)
   });
 
   // ------------------------------------------------------------------
@@ -205,7 +195,9 @@ describe('DuplicateSuppression — Test Cases', () => {
     );
 
     expect(minutesSinceLastAlert).toBeGreaterThan(cooldownMinutes);
-    expect(suppressionService.isWithinCooldown()).toBe(false);
+    expect(  
+      suppressionService.isWithinCooldown(minutesSinceLastAlert, cooldownMinutes),  
+    ).toBe(false); 
   });
 
   // ------------------------------------------------------------------
@@ -243,7 +235,7 @@ describe('DuplicateSuppression — Edge Cases', () => {
   // ------------------------------------------------------------------
   // E19  Race condition: two alerts at exact same millisecond
   // ------------------------------------------------------------------
-  it('E19 should prevent duplicate alerts created by race condition (same millisecond)', () => {
+  it('E19 should prevent duplicate alerts created by race condition (same millisecond)', async () => {
     /**
      * SCENARIO: The cron job runs, and two parallel evaluations
      * both detect the same depletion condition at the exact same
@@ -272,12 +264,10 @@ describe('DuplicateSuppression — Edge Cases', () => {
     const insert2 = jest.fn().mockRejectedValue(new Error('DUPLICATE_KEY')); // DB constraint violation
 
     // First insert succeeds
-    const result1 = insert1();
-    expect(result1).resolves.toEqual({ id: 'alert-1' });
+    await expect(insert1()).resolves.toEqual({ id: 'alert-1' });
 
     // Second insert should fail due to unique constraint
-    const result2 = insert2();
-    expect(result2).rejects.toThrow('DUPLICATE_KEY');
+    await expect(insert2()).rejects.toThrow('DUPLICATE_KEY');
 
     // Final state: only one alert exists
     expect(insert1).toHaveBeenCalledTimes(1);

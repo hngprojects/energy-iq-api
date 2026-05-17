@@ -33,7 +33,9 @@ function calculateDepletion(
 ): DepletionResult {
   const safeSOC = Math.max(0, Math.min(100, input.batterySocPercent));
   const safeCapacity = Math.max(0, input.batteryCapacityKwh);
-  const netLoad = Math.max(0, input.loadKw - input.solarGenKw);
+  const inverterCap = Math.max(0, input.inverterRatedPowerKw);  
+  const demandedFromInverter = Math.min(Math.max(0, input.loadKw), inverterCap);  
+  const netLoad = Math.max(0, demandedFromInverter - Math.max(0, input.solarGenKw));
 
   if (netLoad <= 0) {
     // System is net-charging; no depletion risk
@@ -301,8 +303,8 @@ describe('DepletionEngine — Edge Cases', () => {
       solarGenKw: 1,
       inverterRatedPowerKw: 5,
     });
-    // net = 6kW even though inverter is 5kW — load is 7, solar 1
-    expect(result.netDischargeKw).toBe(6);
+    // inverter output capped at 5kW; with 1kW solar, battery draw is 4kW  
++   expect(result.netDischargeKw).toBe(4);  
     expect(result.minutesUntilDepletion).toBeGreaterThan(0);
   });
 

@@ -309,7 +309,7 @@ describe('DeliveryFallback — Edge Cases', () => {
   // E47  Race condition: fallback triggered while original job processing
   // ------------------------------------------------------------------
   it('E47 should not double-process due to BullMQ atomicity', async () => {
-    const mockJob = {
+    const _mockJob = {
       id: 'job-race',
       data: { alertId: 'alert-race' },
       moveToCompleted: jest.fn().mockResolvedValue(true),

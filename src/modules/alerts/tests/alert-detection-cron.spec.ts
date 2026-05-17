@@ -38,7 +38,7 @@ const mockUserSettingsRepo = {
 describe('AlertDetectionCron — Test Cases', () => {
   let cronService: any; // AlertDetectionCronService (to be built)
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
     // Module setup placeholder — replace with real imports once service exists
     // const module: TestingModule = await Test.createTestingModule({...}).compile();
@@ -104,14 +104,11 @@ describe('AlertDetectionCron — Test Cases', () => {
       resolved: false,
     });
 
-    const existingAlert = await mockAlertRepo.findOne({
-      where: { userId: 'user-uuid-1', type: 'battery_depletion', resolved: false },
-    });
-
-    expect(existingAlert).not.toBeNull();
-    expect(existingAlert.resolved).toBe(false);
-    // Cron should detect this and skip creating a duplicate
-    // This would be: expect(createAlert).not.toHaveBeenCalled();
+    // Invoke the cron service to evaluate alerts  
+  +  await cronService.evaluateInverters();  
+  +  
+  +  // Verify that createAlert was not called due to existing unresolved alert  
+  +  expect(cronService.createAlert).not.toHaveBeenCalled();
   });
 
   it('2.5 should log a warning and skip when no battery metric exists for the inverter', async () => {
@@ -122,6 +119,7 @@ describe('AlertDetectionCron — Test Cases', () => {
     expect(metric).toBeNull();
     // Service should log "No metrics found for inverter inv-uuid-1" and return
     // This would be: expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('No metrics'));
+    // Ignore this test for now....updates will be made later
     loggerSpy.mockRestore();
   });
 
@@ -148,6 +146,7 @@ describe('AlertDetectionCron — Test Cases', () => {
     expect(isQuietHours).toBe(true);
     // Alert should be created with `deliverable: false`
     // Then later delivered when quiet hours end
+    // Ignore this test too....it's basically a mock...real update for the actual tests coming soon
   });
 });
 
@@ -183,6 +182,7 @@ describe('AlertDetectionCron — Edge Cases', () => {
     expect(latestMetrics).toHaveLength(0);
     // Each inverter with no metrics should log a warning
     // expect(loggerSpy).toHaveBeenCalledTimes(2);
+    // Ignore this test too
     loggerSpy.mockRestore();
   });
 

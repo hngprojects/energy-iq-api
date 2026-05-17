@@ -172,25 +172,30 @@ describe('WhatsAppDelivery — Edge Cases', () => {
   // E37  WhatsApp API returns 429 rate-limit error
   // ------------------------------------------------------------------
   it('E37 should back off and retry when API returns 429 Too Many Requests', async () => {
+    jest.useFakeTimers();
     mockWhatsAppClient.sendMessage
       .mockRejectedValueOnce(new Error('429 Too Many Requests'))
       .mockResolvedValueOnce({ status: 'sent', messageId: 'wamid-retry' });
 
     const sendWithRetry = async (attempts: number = 2) => {
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < attempts; i++) {
         try {
           return await mockWhatsAppClient.sendMessage({ to: '+2348012345678', body: 'test', type: 'text' });
         } catch (err) {
           if (i === attempts - 1) throw err;
           // Exponential backoff simulated
-          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+          await sleep(1000 * Math.pow(2, i));
         }
       }
     };
 
-    const result = await sendWithRetry();
+    const pending = sendWithRetry();
+    await jest.runAllTimersAsync();
+    const result = await pending;
     expect(result.status).toBe('sent');
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledTimes(2);
+    jest.useRealTimers();
   });
 
   // ------------------------------------------------------------------
@@ -279,8 +284,11 @@ describe('WhatsAppDelivery — Edge Cases', () => {
     };
 
     const result = await sendWithTemplateFallback();
-    expect(result.type).toBeUndefined(); // fallback is text, not template
     expect(result.status).toBe('sent');
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mockWhatsAppClient.sendMessage).toHaveBeenNthCalledWith(  
+      2,  
+      expect.objectContaining({ type: 'text' }),  
+    ); 
   });
 });
