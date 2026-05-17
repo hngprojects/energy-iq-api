@@ -29,6 +29,8 @@ import { MetricsStreamModule } from './modules/metrics-stream/metrics-stream.mod
 import { ContactModule } from './modules/contact/contact.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { whatsAppConfig } from './config/whatsapp.config';
 
 @Module({
   imports: [
@@ -41,6 +43,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
         jwtConfig,
         redisConfig,
         googleConfig,
+        whatsAppConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
@@ -65,6 +68,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
     ContactModule,
     ChatbotModule,
     AlertsModule,
+    WhatsappModule,
   ],
   providers: [
     {
