@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -31,6 +32,8 @@ import { AlertDeliveryService } from './alert-delivery.service';
 
 @Injectable()
 export class AlertsService {
+  //logger added
+  private readonly logger = new Logger(AlertsService.name);
   constructor(
     private readonly alertAction: AlertModelAction,
     private readonly alertDeliveryService: AlertDeliveryService,
@@ -38,7 +41,7 @@ export class AlertsService {
     private readonly appCfg: ConfigType<typeof appConfig>,
     private readonly inverterMetricsAction: InverterMetricsModelAction,
     private readonly userModelAction: UserModelAction,
-  ) {}
+  ) { }
 
   async getAlerts(dto: GetAlertsDto) {
     const findOptions: FindOptionsWhere<Alert> = {
@@ -82,27 +85,46 @@ export class AlertsService {
   }
 
   async getAlertDetails(dto: GetAlertDetailsDto) {
+    //logger added
+    this.logger.log(`Fetching alert details`);
     const alert = await this.alertAction.findById(dto.alertId);
-    if (!alert) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-
-    if (alert?.userId !== dto.userId)
+    if (!alert) {
+      //Logger added
+      this.logger.warn(`Alert not found`);
+      throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    }
+    if (alert?.userId !== dto.userId) {
+      //logger added
+      this.logger.warn(`Unauthorized alert access attempt`);
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+    }
 
     return alert;
   }
 
   async resolveAlert(dto: ResolveAlertDetailsDto) {
+    //logger added
+    this.logger.log(`Resolving alert`);
     const alert = await this.alertAction.findById(dto.alertId);
-    if (!alert) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (!alert) {
+      //logger added 
+      this.logger.warn(`Alert not found for resolution`);
+      throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    }
 
-    if (alert?.userId !== dto.userId)
+    if (alert?.userId !== dto.userId){
+      //logger added
+      this.logger.warn(`Unauthorized alert resolution attempt`);
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
-
+    }
+      
     return await this.alertAction.markAsResolved(dto.alertId);
   }
 
   @Cron('*/2 * * * * *', { name: CRON_JOB_LABELS.SCAN_ALERTS }) // every two minutes
   async scanAlerts() {
+    //logger added
+    this.logger.log(`Alert scan cron job triggered`);
     let twoMinutesAgo = new Date().getTime();
     twoMinutesAgo = twoMinutesAgo - 120_000; // 120_000 is two minutes in milliseconds
 
@@ -110,6 +132,8 @@ export class AlertsService {
       new Date(twoMinutesAgo),
     );
     const alerts = await this.generateAlertsFromMetrics(metrics);
+    //logger added
+    this.logger.log(`Generated ${alerts.length} alert(s) from ${metrics.length} metric(s)`);
     for (const alert of alerts) {
       this.alertDeliveryService.deliverAlertViaWhatsapp(alert);
     }
@@ -134,6 +158,8 @@ export class AlertsService {
 
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
+        //logger added
+        this.logger.warn(`Critical battery alert created — platform: ${metric.inverter.brand}`);
       } else if (metric.batterySocPercent < this.appCfg.lowBatteryThreshold) {
         const alert = {
           userId: metric.inverter.userId,
@@ -149,6 +175,8 @@ export class AlertsService {
 
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
+        //logger added
+        this.logger.warn(`Low battery alert created — platform: ${metric.inverter.brand}`);
       }
       if (
         metric.batteryTemperatureC &&
@@ -168,6 +196,8 @@ export class AlertsService {
 
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
+        //logger added
+        this.logger.warn(`High battery temperature alert created — platform: ${metric.inverter.brand}`);
       }
     }
 
