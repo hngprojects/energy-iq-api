@@ -33,9 +33,11 @@ type DeliveryStatus = 'delivered' | 'failed' | 'partial_success';
 // ------------------------------------------------------------------
 // Core fallback logic (pure function, will be in service)
 // ------------------------------------------------------------------
-async function deliverWithFallback(
-  delivery: AlertDelivery,
-): Promise<{ status: DeliveryStatus; channelUsed: string | null; audit: string[] }> {
+async function deliverWithFallback(delivery: AlertDelivery): Promise<{
+  status: DeliveryStatus;
+  channelUsed: string | null;
+  audit: string[];
+}> {
   const audit: string[] = [];
   let lastError: string | null = null;
 
@@ -82,14 +84,20 @@ describe('DeliveryFallback — Test Cases', () => {
   // 7.1  WhatsApp fails → fallback to email
   // ------------------------------------------------------------------
   it('7.1 should fallback to email when WhatsApp delivery fails', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('WhatsApp API error'));
+    channelServices.whatsapp.send.mockRejectedValue(
+      new Error('WhatsApp API error'),
+    );
 
     const delivery: AlertDelivery = {
       alertId: 'alert-1',
       userId: 'user-1',
       message: 'Battery critical',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -109,15 +117,23 @@ describe('DeliveryFallback — Test Cases', () => {
   // 7.2  Email fails → fallback to SMS
   // ------------------------------------------------------------------
   it('7.2 should fallback to SMS when both WhatsApp and email fail', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('WhatsApp timeout'));
-    channelServices.email.send.mockRejectedValue(new Error('Email send failed'));
+    channelServices.whatsapp.send.mockRejectedValue(
+      new Error('WhatsApp timeout'),
+    );
+    channelServices.email.send.mockRejectedValue(
+      new Error('Email send failed'),
+    );
 
     const delivery: AlertDelivery = {
       alertId: 'alert-2',
       userId: 'user-2',
       message: 'Inverter overheating',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -141,7 +157,11 @@ describe('DeliveryFallback — Test Cases', () => {
       userId: 'user-3',
       message: 'Test',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -163,7 +183,11 @@ describe('DeliveryFallback — Test Cases', () => {
       userId: 'user-4',
       message: 'Test',
       channels: ['whatsapp'],
-      userSettings: { whatsappAlerts: true, emailAlerts: false, smsNotification: false },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: false,
+        smsNotification: false,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -183,7 +207,11 @@ describe('DeliveryFallback — Test Cases', () => {
       userId: 'user-5',
       message: 'Test',
       channels: ['whatsapp', 'sms'], // sms is in chain but user has it disabled
-      userSettings: { whatsappAlerts: true, emailAlerts: false, smsNotification: false },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: false,
+        smsNotification: false,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -197,7 +225,9 @@ describe('DeliveryFallback — Test Cases', () => {
   // 7.6  Partial success recorded in audit trail
   // ------------------------------------------------------------------
   it('7.6 should return "partial_success" and keep audit log when some channels failed but one succeeded', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('WhatsApp error'));
+    channelServices.whatsapp.send.mockRejectedValue(
+      new Error('WhatsApp error'),
+    );
     channelServices.email.send.mockResolvedValue({ messageId: 'emailid' });
 
     const delivery: AlertDelivery = {
@@ -205,7 +235,11 @@ describe('DeliveryFallback — Test Cases', () => {
       userId: 'user-6',
       message: 'Partial test',
       channels: ['whatsapp', 'email'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -242,7 +276,11 @@ describe('DeliveryFallback — Edge Cases', () => {
       userId: 'user-e43',
       message: 'Test',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -273,7 +311,11 @@ describe('DeliveryFallback — Edge Cases', () => {
       userId: 'user-e45',
       message: 'Test',
       channels: ['whatsapp', 'email'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: false },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: false,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -295,7 +337,11 @@ describe('DeliveryFallback — Edge Cases', () => {
       userId: 'user-e46',
       message: 'Test',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
@@ -336,12 +382,18 @@ describe('DeliveryFallback — Edge Cases', () => {
       userId: 'user-e48',
       message: 'Offline test',
       channels: ['whatsapp', 'email', 'sms'],
-      userSettings: { whatsappAlerts: true, emailAlerts: true, smsNotification: true },
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: true,
+        smsNotification: true,
+      },
     };
 
     const result = await deliverWithFallback(delivery);
 
     expect(result.status).toBe('failed');
-    expect(result.audit.every((entry) => entry.includes('network unreachable'))).toBe(true);
+    expect(
+      result.audit.every((entry) => entry.includes('network unreachable')),
+    ).toBe(true);
   });
 });

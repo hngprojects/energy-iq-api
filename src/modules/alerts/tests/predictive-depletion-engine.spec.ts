@@ -33,9 +33,12 @@ function calculateDepletion(
 ): DepletionResult {
   const safeSOC = Math.max(0, Math.min(100, input.batterySocPercent));
   const safeCapacity = Math.max(0, input.batteryCapacityKwh);
-  const inverterCap = Math.max(0, input.inverterRatedPowerKw);  
-  const demandedFromInverter = Math.min(Math.max(0, input.loadKw), inverterCap);  
-  const netLoad = Math.max(0, demandedFromInverter - Math.max(0, input.solarGenKw));
+  const inverterCap = Math.max(0, input.inverterRatedPowerKw);
+  const demandedFromInverter = Math.min(Math.max(0, input.loadKw), inverterCap);
+  const netLoad = Math.max(
+    0,
+    demandedFromInverter - Math.max(0, input.solarGenKw),
+  );
 
   if (netLoad <= 0) {
     // System is net-charging; no depletion risk
@@ -150,19 +153,20 @@ describe('DepletionEngine — Test Cases', () => {
       batterySocPercent: 50,
       loadKw: 4,
       batteryCapacityKwh: 10,
-      solarGenKw: 0,          // net = 4kW
+      solarGenKw: 0, // net = 4kW
       inverterRatedPowerKw: 6,
     });
     const withSolar = calculateDepletion({
       batterySocPercent: 50,
       loadKw: 4,
       batteryCapacityKwh: 10,
-      solarGenKw: 2,          // net = 2kW (half)
+      solarGenKw: 2, // net = 2kW (half)
       inverterRatedPowerKw: 6,
     });
     // Depletion with solar should be roughly double
     expect(withSolar.minutesUntilDepletion).toBeCloseTo(
-      withoutSolar.minutesUntilDepletion! * 2, 0,
+      withoutSolar.minutesUntilDepletion! * 2,
+      0,
     );
   });
 
@@ -242,7 +246,14 @@ describe('DepletionEngine — Edge Cases', () => {
     });
     // Should behave same as E1 for 100%
     expect(result.minutesUntilDepletion).toBeCloseTo(
-      calculateDepletion({ batterySocPercent: 100, loadKw: 5, batteryCapacityKwh: 10, solarGenKw: 0, inverterRatedPowerKw: 8 }).minutesUntilDepletion!, 0,
+      calculateDepletion({
+        batterySocPercent: 100,
+        loadKw: 5,
+        batteryCapacityKwh: 10,
+        solarGenKw: 0,
+        inverterRatedPowerKw: 8,
+      }).minutesUntilDepletion!,
+      0,
     );
   });
 
@@ -303,8 +314,8 @@ describe('DepletionEngine — Edge Cases', () => {
       solarGenKw: 1,
       inverterRatedPowerKw: 5,
     });
-    // inverter output capped at 5kW; with 1kW solar, battery draw is 4kW  
-    expect(result.netDischargeKw).toBe(4);  
+    // inverter output capped at 5kW; with 1kW solar, battery draw is 4kW
+    expect(result.netDischargeKw).toBe(4);
     expect(result.minutesUntilDepletion).toBeGreaterThan(0);
   });
 
@@ -323,7 +334,13 @@ describe('DepletionEngine — Edge Cases', () => {
 
   it('E11 should handle user-defined threshold of 0% (deplete to empty)', () => {
     const result = calculateDepletion(
-      { batterySocPercent: 10, loadKw: 5, batteryCapacityKwh: 10, solarGenKw: 0, inverterRatedPowerKw: 8 },
+      {
+        batterySocPercent: 10,
+        loadKw: 5,
+        batteryCapacityKwh: 10,
+        solarGenKw: 0,
+        inverterRatedPowerKw: 8,
+      },
       0,
     );
     // usable = 10% of 10 = 1kWh, net = 5kW, hours = 1/5 = 0.2h = 12min
@@ -333,7 +350,13 @@ describe('DepletionEngine — Edge Cases', () => {
 
   it('E12 should handle custom threshold of 20% (user-configured)', () => {
     const result = calculateDepletion(
-      { batterySocPercent: 50, loadKw: 2, batteryCapacityKwh: 10, solarGenKw: 0, inverterRatedPowerKw: 5 },
+      {
+        batterySocPercent: 50,
+        loadKw: 2,
+        batteryCapacityKwh: 10,
+        solarGenKw: 0,
+        inverterRatedPowerKw: 5,
+      },
       20,
     );
     // usable = 30% of 10 = 3kWh, net = 2kW, hours = 3/2 = 1.5h = 90min

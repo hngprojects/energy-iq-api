@@ -13,18 +13,19 @@ jest.mock('../../../config/env', () => ({}));
 // ------------------------------------------------------------------
 function isWithinQuietHours(
   currentTime: Date,
-  quietStart: string,  // "HH:mm" format
-  quietEnd: string,    // "HH:mm" format
+  quietStart: string, // "HH:mm" format
+  quietEnd: string, // "HH:mm" format
 ): boolean {
-  const currentMinutes = currentTime.getUTCHours() * 60 + currentTime.getUTCMinutes();
+  const currentMinutes =
+    currentTime.getUTCHours() * 60 + currentTime.getUTCMinutes();
 
   const [startH, startM] = quietStart.split(':').map(Number);
   const [endH, endM] = quietEnd.split(':').map(Number);
   const startMinutes = startH * 60 + startM;
   const endMinutes = endH * 60 + endM;
 
-  if (quietStart === '00:00' && quietEnd === '00:00') return true; // explicit sentinel  
-  if (startMinutes === endMinutes) return false; // zero-length non-sentinel window  
+  if (quietStart === '00:00' && quietEnd === '00:00') return true; // explicit sentinel
+  if (startMinutes === endMinutes) return false; // zero-length non-sentinel window
 
   // Midnight-spanning: start > end (e.g., 22:00 – 06:00)
   if (startMinutes > endMinutes) {
@@ -125,8 +126,9 @@ describe('QuietHours — Test Cases', () => {
       quietHoursEnd: undefined,
     };
 
-    const hasQuietHours = userSettings.quietHoursStart !== undefined
-      && userSettings.quietHoursEnd !== undefined;
+    const hasQuietHours =
+      userSettings.quietHoursStart !== undefined &&
+      userSettings.quietHoursEnd !== undefined;
 
     expect(hasQuietHours).toBe(false);
     // Since no quiet hours: deliverable = true always
@@ -157,7 +159,7 @@ describe('QuietHours — Test Cases', () => {
     const isQuiet = isWithinQuietHours(currentTime, quietStart, quietEnd);
     const shouldBypass = alertSeverity === 'critical';
 
-    expect(isQuiet).toBe(true);     // Yes, it's quiet hours
+    expect(isQuiet).toBe(true); // Yes, it's quiet hours
     expect(shouldBypass).toBe(true); // But critical overrides
   });
 
@@ -188,9 +190,9 @@ describe('QuietHours — Test Cases', () => {
     const afterMidnight = new Date('2026-05-17T02:00:00Z');
     const afterQuietEnd = new Date('2026-05-17T06:30:00Z');
 
-    expect(isWithinQuietHours(beforeMidnight, quietStart, quietEnd)).toBe(true);  // 11:30PM → quiet
-    expect(isWithinQuietHours(afterMidnight, quietStart, quietEnd)).toBe(true);   // 2:00AM  → quiet
-    expect(isWithinQuietHours(afterQuietEnd, quietStart, quietEnd)).toBe(false);  // 6:30AM  → not quiet
+    expect(isWithinQuietHours(beforeMidnight, quietStart, quietEnd)).toBe(true); // 11:30PM → quiet
+    expect(isWithinQuietHours(afterMidnight, quietStart, quietEnd)).toBe(true); // 2:00AM  → quiet
+    expect(isWithinQuietHours(afterQuietEnd, quietStart, quietEnd)).toBe(false); // 6:30AM  → not quiet
   });
 
   // ------------------------------------------------------------------
@@ -213,17 +215,17 @@ describe('QuietHours — Test Cases', () => {
      * night anyway. Users should be able to set per-channel quiet
      * hours for finer control.
      */
-    type ChannelWindow = { start: string; end: string } | null;  
-    type ChannelQuietHours = {  
-      whatsapp: { start: string; end: string };  
-      email: ChannelWindow;  
-      sms: ChannelWindow;  
+    type ChannelWindow = { start: string; end: string } | null;
+    type ChannelQuietHours = {
+      whatsapp: { start: string; end: string };
+      email: ChannelWindow;
+      sms: ChannelWindow;
     };
     const currentTime = new Date('2026-05-16T23:00:00Z');
     const channelQuietHours: ChannelQuietHours = {
       whatsapp: { start: '22:00', end: '07:00' },
-      email: null,    // No quiet hours for email
-      sms: null,      // No quiet hours for SMS
+      email: null, // No quiet hours for email
+      sms: null, // No quiet hours for SMS
     };
 
     const isWhatsappQuiet = isWithinQuietHours(
@@ -232,15 +234,23 @@ describe('QuietHours — Test Cases', () => {
       channelQuietHours.whatsapp.end,
     );
     const isEmailQuiet = channelQuietHours.email
-      ? isWithinQuietHours(currentTime, channelQuietHours.email.start, channelQuietHours.email.end)
+      ? isWithinQuietHours(
+          currentTime,
+          channelQuietHours.email.start,
+          channelQuietHours.email.end,
+        )
       : false;
     const isSmsQuiet = channelQuietHours.sms
-      ? isWithinQuietHours(currentTime, channelQuietHours.sms.start, channelQuietHours.sms.end)
+      ? isWithinQuietHours(
+          currentTime,
+          channelQuietHours.sms.start,
+          channelQuietHours.sms.end,
+        )
       : false;
 
-    expect(isWhatsappQuiet).toBe(true);   // WhatsApp blocked
-    expect(isEmailQuiet).toBe(false);     // Email allowed
-    expect(isSmsQuiet).toBe(false);       // SMS allowed
+    expect(isWhatsappQuiet).toBe(true); // WhatsApp blocked
+    expect(isEmailQuiet).toBe(false); // Email allowed
+    expect(isSmsQuiet).toBe(false); // SMS allowed
   });
 });
 
@@ -329,17 +339,25 @@ describe('QuietHours — Edge Cases', () => {
     const newQuietEnd = '05:00';
 
     // At 11PM, with old settings → quiet
-    const oldResult = isWithinQuietHours(settingsUpdateTime, oldQuietStart, oldQuietEnd);
+    const oldResult = isWithinQuietHours(
+      settingsUpdateTime,
+      oldQuietStart,
+      oldQuietEnd,
+    );
     expect(oldResult).toBe(true);
 
     // At 11PM, with new settings → NOT quiet
-    const newResult = isWithinQuietHours(settingsUpdateTime, newQuietStart, newQuietEnd);
+    const newResult = isWithinQuietHours(
+      settingsUpdateTime,
+      newQuietStart,
+      newQuietEnd,
+    );
     expect(newResult).toBe(false);
 
     // Alert should be re-evaluated and now deliverable
   });
 
-    // ------------------------------------------------------------------
+  // ------------------------------------------------------------------
   // E28  User timezone differs from server timezone
   // ------------------------------------------------------------------
   it('E28 should evaluate quiet hours in the USER local timezone, not server timezone', () => {
@@ -366,15 +384,15 @@ describe('QuietHours — Edge Cases', () => {
     // Convert user's quiet hours to UTC for evaluation
     const convertToUTC = (localTime: string, offset: string): string => {
       const [hours, mins] = localTime.split(':').map(Number);
-      const sign = offset.startsWith('-') ? -1 : 1;  
-      const [offH, offM] = offset.slice(1).split(':').map(Number);  
-      const totalLocal = hours * 60 + mins;  
-      const totalOffset = sign * (offH * 60 + offM);  
-      let totalUtc = totalLocal - totalOffset;  
-      totalUtc = ((totalUtc % 1440) + 1440) % 1440;  
-      const utcHours = Math.floor(totalUtc / 60);  
-      const utcMins = totalUtc % 60;  
-      return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`; 
+      const sign = offset.startsWith('-') ? -1 : 1;
+      const [offH, offM] = offset.slice(1).split(':').map(Number);
+      const totalLocal = hours * 60 + mins;
+      const totalOffset = sign * (offH * 60 + offM);
+      let totalUtc = totalLocal - totalOffset;
+      totalUtc = ((totalUtc % 1440) + 1440) % 1440;
+      const utcHours = Math.floor(totalUtc / 60);
+      const utcMins = totalUtc % 60;
+      return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`;
     };
 
     const utcQuietStart = convertToUTC(userQuietStartLocal, userTimezoneOffset);
@@ -384,14 +402,18 @@ describe('QuietHours — Edge Cases', () => {
     const serverTimeUtc = new Date('2026-05-16T21:00:00Z');
 
     // Evaluate using CONVERTED (UTC) quiet hours
-    const inQuiet = isWithinQuietHours(serverTimeUtc, utcQuietStart, utcQuietEnd);
+    const inQuiet = isWithinQuietHours(
+      serverTimeUtc,
+      utcQuietStart,
+      utcQuietEnd,
+    );
 
     expect(utcQuietStart).toBe('21:00'); // User's 22:00 Lagos = 21:00 UTC 21:00
-    expect(utcQuietEnd).toBe('05:00');   // User's 06:00 Lagos =  UTC 05:00
-    expect(inQuiet).toBe(true);          // 21:00 UTC is within 21:00=05:00 range
+    expect(utcQuietEnd).toBe('05:00'); // User's 06:00 Lagos =  UTC 05:00
+    expect(inQuiet).toBe(true); // 21:00 UTC is within 21:00=05:00 range
   });
 
-    // ------------------------------------------------------------------
+  // ------------------------------------------------------------------
   // E29  Quiet hours end exactly at current minute → boundary
   // ------------------------------------------------------------------
   it('E29 should treat the boundary minute as no longer quiet when quiet hours end exactly now', () => {
@@ -446,18 +468,26 @@ describe('QuietHours — Edge Cases', () => {
       userId: 'user-A',
       quietHoursStart: '22:00',
       quietHoursEnd: '06:00',
-    } as unknown as MockUserSettings;
+    };
 
     const userB: MockUserSettings = {
       userId: 'user-B',
       quietHoursStart: '02:00',
       quietHoursEnd: '10:00',
-    } as unknown as MockUserSettings;
+    };
 
-    const userAQuiet = isWithinQuietHours(currentTime, userA.quietHoursStart!, userA.quietHoursEnd!);
-    const userBQuiet = isWithinQuietHours(currentTime, userB.quietHoursStart!, userB.quietHoursEnd!);
+    const userAQuiet = isWithinQuietHours(
+      currentTime,
+      userA.quietHoursStart!,
+      userA.quietHoursEnd!,
+    );
+    const userBQuiet = isWithinQuietHours(
+      currentTime,
+      userB.quietHoursStart!,
+      userB.quietHoursEnd!,
+    );
 
-    expect(userAQuiet).toBe(true);  // User A is sleeping
+    expect(userAQuiet).toBe(true); // User A is sleeping
     expect(userBQuiet).toBe(false); // User B is awake
   });
 });

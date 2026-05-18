@@ -78,10 +78,19 @@ describe('AlertQueue — Test Cases', () => {
   // 5.2  Job contains all required fields
   // ------------------------------------------------------------------
   it('5.2 should ensure the job payload includes all mandatory fields', () => {
-    const requiredFields = ['alertId', 'userId', 'type', 'severity', 'message', 'channel'];
+    const requiredFields = [
+      'alertId',
+      'userId',
+      'type',
+      'severity',
+      'message',
+      'channel',
+    ];
     const invalidPayload = { alertId: 'abc', userId: '123' }; // missing fields
 
-    const hasAllFields = requiredFields.every((field) => field in invalidPayload);
+    const hasAllFields = requiredFields.every(
+      (field) => field in invalidPayload,
+    );
 
     expect(hasAllFields).toBe(false); // validation should reject
   });
@@ -107,15 +116,21 @@ describe('AlertQueue — Test Cases', () => {
     };
 
     // Attempt 1: fails
-    await expect(processJob(mockJob)).rejects.toThrow('Delivery failed — retrying');
+    await expect(processJob(mockJob)).rejects.toThrow(
+      'Delivery failed — retrying',
+    );
     expect(mockJob.attemptsMade).toBe(1);
 
     // Attempt 2: fails
-    await expect(processJob(mockJob)).rejects.toThrow('Delivery failed — retrying');
+    await expect(processJob(mockJob)).rejects.toThrow(
+      'Delivery failed — retrying',
+    );
     expect(mockJob.attemptsMade).toBe(2);
 
     // Attempt 3: fails
-    await expect(processJob(mockJob)).rejects.toThrow('Delivery failed — retrying');
+    await expect(processJob(mockJob)).rejects.toThrow(
+      'Delivery failed — retrying',
+    );
     expect(mockJob.attemptsMade).toBe(3);
 
     // Attempt 4: succeeds (would not be reached if maxAttempts>3)
@@ -150,7 +165,7 @@ describe('AlertQueue — Test Cases', () => {
   // ------------------------------------------------------------------
   // 5.5  Malformed job data throws error
   // ------------------------------------------------------------------
-  it('5.5 should throw an error and move job to failed when payload is malformed', async () => {
+  it('5.5 should throw an error and move job to failed when payload is malformed', () => {
     const invalidJob = {
       id: 'job-3',
       data: { alertId: 'alert-3' }, // missing userId
@@ -159,7 +174,8 @@ describe('AlertQueue — Test Cases', () => {
 
     const validatePayload = (data: any) => {
       if (!data.userId) throw new Error('ValidationError: userId is required');
-      if (!data.channel) throw new Error('ValidationError: channel is required');
+      if (!data.channel)
+        throw new Error('ValidationError: channel is required');
     };
 
     expect(() => validatePayload(invalidJob.data)).toThrow('ValidationError');
@@ -251,7 +267,7 @@ describe('AlertQueue — Edge Cases', () => {
   it('E33 should reject jobs with payloads exceeding Redis size limits', () => {
     const MAX_PAYLOAD_BYTES = 512 * 1024 * 1024; // 512MB
     const count_large = 600 * 1024 * 1024; // 600MB
-    
+
     // Create a Buffer instead of a string to avoid the V8 RangeError
     const largeMessageBuffer = Buffer.alloc(count_large, 'x');
 
@@ -262,11 +278,10 @@ describe('AlertQueue — Edge Cases', () => {
     // Validation should truncate or reject before enqueue
   });
 
-
   // ------------------------------------------------------------------
   // E34  Worker crashes mid-processing
   // ------------------------------------------------------------------
-  it('E34 should retry jobs that were in-flight when worker crashed', async () => {
+  it('E34 should retry jobs that were in-flight when worker crashed', () => {
     const mockJob = {
       id: 'job-crash-1',
       data: { alertId: 'alert-crash' },

@@ -39,7 +39,11 @@ describe('AlertDetectionCron — Test Cases', () => {
   type CronServiceMock = {
     evaluateInverters: jest.Mock<Promise<void>, []>;
     shouldFireAlert: jest.Mock<
-      { minutesUntilDepletion: number; isCharging: boolean; severity: string } | null,
+      {
+        minutesUntilDepletion: number;
+        isCharging: boolean;
+        severity: string;
+      } | null,
       [Record<string, unknown>]
     >;
     createAlert: jest.Mock;
@@ -58,8 +62,12 @@ describe('AlertDetectionCron — Test Cases', () => {
     };
   });
 
-  it('2.1 should fire a "critical" alert when depletion is under 30 minutes', async () => {
-    const mockDepletionResult = { minutesUntilDepletion: 20, isCharging: false, severity: 'critical' };
+  it('2.1 should fire a "critical" alert when depletion is under 30 minutes', () => {
+    const mockDepletionResult = {
+      minutesUntilDepletion: 20,
+      isCharging: false,
+      severity: 'critical',
+    };
     cronService.shouldFireAlert.mockReturnValue(mockDepletionResult);
 
     const result = cronService.shouldFireAlert({
@@ -74,8 +82,12 @@ describe('AlertDetectionCron — Test Cases', () => {
     expect(result?.minutesUntilDepletion).toBeLessThan(30);
   });
 
-  it('2.2 should fire a "warning" alert when depletion is between 30–60 minutes', async () => {
-    const mockDepletionResult = { minutesUntilDepletion: 45, isCharging: false, severity: 'warning' };
+  it('2.2 should fire a "warning" alert when depletion is between 30–60 minutes', () => {
+    const mockDepletionResult = {
+      minutesUntilDepletion: 45,
+      isCharging: false,
+      severity: 'warning',
+    };
     cronService.shouldFireAlert.mockReturnValue(mockDepletionResult);
 
     const result = cronService.shouldFireAlert({
@@ -91,7 +103,7 @@ describe('AlertDetectionCron — Test Cases', () => {
     expect(result?.minutesUntilDepletion).toBeLessThanOrEqual(60);
   });
 
-  it('2.3 should NOT fire an alert when depletion exceeds 60 minutes (safe zone)', async () => {
+  it('2.3 should NOT fire an alert when depletion exceeds 60 minutes (safe zone)', () => {
     cronService.shouldFireAlert.mockReturnValue(null);
 
     const result = cronService.shouldFireAlert({
@@ -112,10 +124,10 @@ describe('AlertDetectionCron — Test Cases', () => {
       resolved: false,
     });
 
-    // Invoke the cron service to evaluate alerts  
-    await cronService.evaluateInverters();  
-    
-    // Verify that createAlert was not called due to existing unresolved alert  
+    // Invoke the cron service to evaluate alerts
+    await cronService.evaluateInverters();
+
+    // Verify that createAlert was not called due to existing unresolved alert
     expect(cronService.createAlert).not.toHaveBeenCalled();
   });
 
@@ -123,7 +135,9 @@ describe('AlertDetectionCron — Test Cases', () => {
     mockMetricsRepo.findOne.mockResolvedValue(null);
     const loggerSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const metric = await mockMetricsRepo.findOne({ where: { inverterId: 'inv-uuid-1' } });
+    const metric = await mockMetricsRepo.findOne({
+      where: { inverterId: 'inv-uuid-1' },
+    });
     expect(metric).toBeNull();
     // Service should log "No metrics found for inverter inv-uuid-1" and return
     // This would be: expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('No metrics'));
@@ -131,7 +145,7 @@ describe('AlertDetectionCron — Test Cases', () => {
     loggerSpy.mockRestore();
   });
 
-  it('2.6 should create alert but defer delivery when user has active quiet hours', async () => {
+  it('2.6 should create alert but defer delivery when user has active quiet hours', () => {
     // Mock quiet hours active (current time 10PM, quiet hours 9PM–7AM)
     const mockSettings = {
       userId: 'user-uuid-1',
@@ -147,9 +161,12 @@ describe('AlertDetectionCron — Test Cases', () => {
     const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes(); // 1320
     const quietStartMinutes = 21 * 60; // 1260
     const quietEndMinutes = 7 * 60; // 420
-    const isQuietHours = quietStartMinutes > quietEndMinutes
-      ? currentMinutes >= quietStartMinutes || currentMinutes < quietEndMinutes
-      : currentMinutes >= quietStartMinutes && currentMinutes < quietEndMinutes;
+    const isQuietHours =
+      quietStartMinutes > quietEndMinutes
+        ? currentMinutes >= quietStartMinutes ||
+          currentMinutes < quietEndMinutes
+        : currentMinutes >= quietStartMinutes &&
+          currentMinutes < quietEndMinutes;
 
     expect(isQuietHours).toBe(true);
     // Alert should be created with `deliverable: false`
@@ -162,6 +179,9 @@ describe('AlertDetectionCron — Test Cases', () => {
 // EDGE CASES   —   Boundaries, Extremes, Anomalies
 // ------------------------------------------------------------------
 describe('AlertDetectionCron — Edge Cases', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
   it('E13 should skip inverters that are marked inactive', async () => {
     mockInverterRepo.find.mockResolvedValue([
       { id: 'inv-1', userId: 'u1', isActive: false, brand: 'VICTRON' },
@@ -183,7 +203,9 @@ describe('AlertDetectionCron — Edge Cases', () => {
     mockMetricsRepo.find.mockResolvedValue([]);
     const loggerSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const activeInverters = await mockInverterRepo.find({ where: { isActive: true } });
+    const activeInverters = await mockInverterRepo.find({
+      where: { isActive: true },
+    });
     const latestMetrics = await mockMetricsRepo.find();
 
     expect(activeInverters).toHaveLength(2);
@@ -202,7 +224,9 @@ describe('AlertDetectionCron — Edge Cases', () => {
       createdAt: staleDate,
     });
 
-    const metric = await mockMetricsRepo.findOne({ where: { inverterId: 'inv-1' } });
+    const metric = await mockMetricsRepo.findOne({
+      where: { inverterId: 'inv-1' },
+    });
     const ageMinutes = (Date.now() - metric.createdAt.getTime()) / 60000;
     const isStale = ageMinutes > 30;
 
@@ -230,7 +254,9 @@ describe('AlertDetectionCron — Edge Cases', () => {
     }
     expect(batches).toHaveLength(8); // 7 full batches of 20 + 1 of 10
     // Simulate: all batches resolve without throwing
-    await expect(Promise.allSettled(batches.map((b) => Promise.resolve(b)))).resolves.toHaveLength(8);
+    await expect(
+      Promise.allSettled(batches.map((b) => Promise.resolve(b))),
+    ).resolves.toHaveLength(8);
   });
 
   it('E17 should respect user-configured custom threshold (e.g. 20% instead of 10%)', async () => {
@@ -239,13 +265,15 @@ describe('AlertDetectionCron — Edge Cases', () => {
       depletionThreshold: 20, // user wants alert at 20% not 10%
     });
 
-    const settings = await mockUserSettingsRepo.findOne({ where: { userId: 'user-uuid-1' } });
+    const settings = await mockUserSettingsRepo.findOne({
+      where: { userId: 'user-uuid-1' },
+    });
     // This should feed into the depletion calculator as the threshold
     // calculateDepletion(metrics, threshold = settings.depletionThreshold)
     expect(settings.depletionThreshold).toBe(20);
   });
 
-  it('E18 should fall back to SOC+load calculation when brand does not expose batteryTimeToGoMin', async () => {
+  it('E18 should fall back to SOC+load calculation when brand does not expose batteryTimeToGoMin', () => {
     // Growatt does not expose batteryTimeToGoMin
     const metric = {
       inverterId: 'inv-1',

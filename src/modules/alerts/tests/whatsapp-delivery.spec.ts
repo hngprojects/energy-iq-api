@@ -31,9 +31,10 @@ function formatAlertMessage(alert: {
   minutesUntilDepletion?: number;
 }): string {
   const severityIcon = alert.severity === 'critical' ? '🚨' : '⚠️';
-  const depletionLine = alert.minutesUntilDepletion !== undefined
-    ? `\n⏱ Estimated depletion in: ${Math.round(alert.minutesUntilDepletion)} min`
-    : '';
+  const depletionLine =
+    alert.minutesUntilDepletion !== undefined
+      ? `\n⏱ Estimated depletion in: ${Math.round(alert.minutesUntilDepletion)} min`
+      : '';
   return `${severityIcon} Energy IQ Alert\nType: ${alert.type}\n${alert.message}${depletionLine}`;
 }
 
@@ -51,7 +52,10 @@ function validatePhoneNumber(phone: string): boolean {
 describe('WhatsAppDelivery — Test Cases', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockWhatsAppClient.sendMessage.mockResolvedValue({ status: 'sent', messageId: 'wamid-123' });
+    mockWhatsAppClient.sendMessage.mockResolvedValue({
+      status: 'sent',
+      messageId: 'wamid-123',
+    });
   });
 
   // ------------------------------------------------------------------
@@ -98,11 +102,17 @@ describe('WhatsAppDelivery — Test Cases', () => {
   // 6.3  Handles API timeout gracefully
   // ------------------------------------------------------------------
   it('6.3 should catch API timeout error and log it without crashing', async () => {
-    mockWhatsAppClient.sendMessage.mockRejectedValue(new Error('ETIMEDOUT: request timed out after 30s'));
+    mockWhatsAppClient.sendMessage.mockRejectedValue(
+      new Error('ETIMEDOUT: request timed out after 30s'),
+    );
 
     const sendWithTimeout = async () => {
       try {
-        await mockWhatsAppClient.sendMessage({ to: '+2345678901234', body: 'test', type: 'text' });
+        await mockWhatsAppClient.sendMessage({
+          to: '+2345678901234',
+          body: 'test',
+          type: 'text',
+        });
       } catch (err) {
         expect((err as Error).message).toContain('ETIMEDOUT');
         throw err;
@@ -136,11 +146,12 @@ describe('WhatsAppDelivery — Test Cases', () => {
     const userSettings = { whatsappAlerts: false, smsNotification: true };
     const channel = 'whatsapp';
 
-    const channelAllowed = channel === 'whatsapp'
-      ? userSettings.whatsappAlerts
-      : channel === 'sms'
-        ? userSettings.smsNotification
-        : true;
+    const channelAllowed =
+      channel === 'whatsapp'
+        ? userSettings.whatsappAlerts
+        : channel === 'sms'
+          ? userSettings.smsNotification
+          : true;
 
     expect(channelAllowed).toBe(false);
     // Should fallback to next channel without calling WhatsApp API
@@ -181,7 +192,11 @@ describe('WhatsAppDelivery — Edge Cases', () => {
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < attempts; i++) {
         try {
-          return await mockWhatsAppClient.sendMessage({ to: '+2348012345678', body: 'test', type: 'text' });
+          return await mockWhatsAppClient.sendMessage({
+            to: '+2348012345678',
+            body: 'test',
+            type: 'text',
+          });
         } catch (err) {
           if (i === attempts - 1) throw err;
           // Exponential backoff simulated
@@ -217,7 +232,9 @@ describe('WhatsAppDelivery — Edge Cases', () => {
     const invalidLandlines = ['+2341123456789', '0112345678']; // 1/0 prefix = landline
 
     landlines.forEach((num) => expect(validatePhoneNumber(num)).toBe(true));
-    invalidLandlines.forEach((num) => expect(validatePhoneNumber(num)).toBe(false));
+    invalidLandlines.forEach((num) =>
+      expect(validatePhoneNumber(num)).toBe(false),
+    );
   });
 
   // ------------------------------------------------------------------
@@ -234,17 +251,25 @@ describe('WhatsAppDelivery — Edge Cases', () => {
 
     expect(formatted).toContain('⚠️');
     expect(formatted).toContain('65°C');
-    expect(new TextEncoder().encode(formatted).length).toBeGreaterThan(formatted.length); // multi-byte chars present
+    expect(new TextEncoder().encode(formatted).length).toBeGreaterThan(
+      formatted.length,
+    ); // multi-byte chars present
   });
 
   // ------------------------------------------------------------------
   // E41  User blocked the WhatsApp sender
   // ------------------------------------------------------------------
   it('E41 should mark delivery as permanently failed when API returns 410 Gone (blocked)', async () => {
-    mockWhatsAppClient.sendMessage.mockRejectedValue(new Error('410 Gone . User blocked sender'));
+    mockWhatsAppClient.sendMessage.mockRejectedValue(
+      new Error('410 Gone . User blocked sender'),
+    );
 
     try {
-      await mockWhatsAppClient.sendMessage({ to: '+2348012345678', body: 'test', type: 'text' });
+      await mockWhatsAppClient.sendMessage({
+        to: '+2348012345678',
+        body: 'test',
+        type: 'text',
+      });
     } catch (err) {
       const message = (err as Error).message;
       expect(message).toContain('410');
@@ -264,7 +289,10 @@ describe('WhatsAppDelivery — Edge Cases', () => {
     );
 
     // Fallback to plain text
-    mockWhatsAppClient.sendMessage.mockResolvedValueOnce({ status: 'sent', messageId: 'wamid-text-fallback' });
+    mockWhatsAppClient.sendMessage.mockResolvedValueOnce({
+      status: 'sent',
+      messageId: 'wamid-text-fallback',
+    });
 
     const sendWithTemplateFallback = async () => {
       try {
@@ -286,9 +314,9 @@ describe('WhatsAppDelivery — Edge Cases', () => {
     const result = await sendWithTemplateFallback();
     expect(result.status).toBe('sent');
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mockWhatsAppClient.sendMessage).toHaveBeenNthCalledWith(  
-      2,  
-      expect.objectContaining({ type: 'text' }),  
-    ); 
+    expect(mockWhatsAppClient.sendMessage).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ type: 'text' }),
+    );
   });
 });

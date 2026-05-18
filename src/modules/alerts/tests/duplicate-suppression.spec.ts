@@ -161,14 +161,20 @@ describe('DuplicateSuppression — Test Cases', () => {
      */
     const cooldownMinutes = 15;
     const lastAlertSentAt = new Date(Date.now() - 5 * 60 * 1000); // 5 min ago
-    const minutesSinceLastAlert = (Date.now() - lastAlertSentAt.getTime()) / 60000;
+    const minutesSinceLastAlert =
+      (Date.now() - lastAlertSentAt.getTime()) / 60000;
 
     suppressionService.isWithinCooldown.mockReturnValue(
       minutesSinceLastAlert < cooldownMinutes,
     );
 
     expect(minutesSinceLastAlert).toBeLessThan(cooldownMinutes);
-    expect(suppressionService.isWithinCooldown(minutesSinceLastAlert, cooldownMinutes)).toBe(true)
+    expect(
+      suppressionService.isWithinCooldown(
+        minutesSinceLastAlert,
+        cooldownMinutes,
+      ),
+    ).toBe(true);
   });
 
   // ------------------------------------------------------------------
@@ -188,16 +194,20 @@ describe('DuplicateSuppression — Test Cases', () => {
      */
     const cooldownMinutes = 15;
     const lastAlertSentAt = new Date(Date.now() - 20 * 60 * 1000); // 20 min ago
-    const minutesSinceLastAlert = (Date.now() - lastAlertSentAt.getTime()) / 60000;
+    const minutesSinceLastAlert =
+      (Date.now() - lastAlertSentAt.getTime()) / 60000;
 
     suppressionService.isWithinCooldown.mockReturnValue(
       minutesSinceLastAlert < cooldownMinutes,
     );
 
     expect(minutesSinceLastAlert).toBeGreaterThan(cooldownMinutes);
-    expect(  
-      suppressionService.isWithinCooldown(minutesSinceLastAlert, cooldownMinutes),  
-    ).toBe(false); 
+    expect(
+      suppressionService.isWithinCooldown(
+        minutesSinceLastAlert,
+        cooldownMinutes,
+      ),
+    ).toBe(false);
   });
 
   // ------------------------------------------------------------------
@@ -219,10 +229,17 @@ describe('DuplicateSuppression — Test Cases', () => {
      */
     suppressionService.isSeverityUpgrade.mockReturnValue(true);
 
-    const existingAlert = { type: 'battery_depletion', severity: 'warning', resolved: false };
+    const existingAlert = {
+      type: 'battery_depletion',
+      severity: 'warning',
+      resolved: false,
+    };
     const newSeverity = 'critical';
 
-    const isUpgrade = suppressionService.isSeverityUpgrade(existingAlert.severity, newSeverity);
+    const isUpgrade = suppressionService.isSeverityUpgrade(
+      existingAlert.severity,
+      newSeverity,
+    );
     expect(isUpgrade).toBe(true);
     // This means: allow the new alert despite the existing one
   });
@@ -299,11 +316,14 @@ describe('DuplicateSuppression — Edge Cases', () => {
     const newDetectionTime = new Date('2026-05-16T10:10:00Z');
     const cooldownMs = 15 * 60 * 1000; // 15 min
 
-    const timeSinceOriginal = newDetectionTime.getTime() - originalAlertSentAt.getTime();
+    const timeSinceOriginal =
+      newDetectionTime.getTime() - originalAlertSentAt.getTime();
     const isWithinCooldown = timeSinceOriginal < cooldownMs;
 
     expect(isWithinCooldown).toBe(true); // 10 min < 15 min → suppressed
-    expect(resolutionTime.getTime()).toBeGreaterThan(originalAlertSentAt.getTime()); // resolved after alert
+    expect(resolutionTime.getTime()).toBeGreaterThan(
+      originalAlertSentAt.getTime(),
+    ); // resolved after alert
     expect(timeSinceOriginal).toBe(10 * 60 * 1000); // exactly 10 minutes
   });
 
@@ -327,7 +347,8 @@ describe('DuplicateSuppression — Edge Cases', () => {
     const lastAlertSentAt = new Date(Date.now() - 1000); // 1 second ago
     const timeSinceLast = (Date.now() - lastAlertSentAt.getTime()) / 60000;
 
-    const isWithinCooldown = cooldownMinutes > 0 && timeSinceLast < cooldownMinutes;
+    const isWithinCooldown =
+      cooldownMinutes > 0 && timeSinceLast < cooldownMinutes;
 
     expect(isWithinCooldown).toBe(false); // Cooldown disabled → never suppressed
     expect(cooldownMinutes).toBe(0);
@@ -379,7 +400,7 @@ describe('DuplicateSuppression — Edge Cases', () => {
      */
     const suppressionResults = {
       battery_depletion: false, // Not a duplicate → allow
-      high_temperature: false,  // Not a duplicate → allow
+      high_temperature: false, // Not a duplicate → allow
     };
 
     // Simulate evaluation of both types
