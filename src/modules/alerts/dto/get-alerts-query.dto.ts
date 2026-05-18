@@ -1,10 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { AlertType } from '../../../common/enums';
 
 export class GetAlertsQueryDto {
   @ApiProperty({ example: 'low_battery' })
   @IsString()
-  alert_type?: string;
+  alert_type?: AlertType;
 
   @ApiProperty({ example: 2, nullable: true })
   @IsOptional()

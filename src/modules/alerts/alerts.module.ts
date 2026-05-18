@@ -4,11 +4,20 @@ import { Alert } from './entities/alert.entity';
 import { AlertModelAction } from './actions/alert.action';
 import { AlertsController } from './alerts.controller';
 import { AlertsService } from './alerts.service';
+import { ScheduleModule } from '@nestjs/schedule';
+import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
+import { UsersModule } from '../users/users.module';
+import { AlertDeliveryService } from './alert-delivery.service';
 
 @Module({
   exports: [AlertModelAction],
-  imports: [TypeOrmModule.forFeature([Alert])],
-  providers: [AlertModelAction, AlertsService],
+  imports: [
+    InvertersMetricsModule,
+    ScheduleModule.forRoot(),
+    TypeOrmModule.forFeature([Alert]),
+    UsersModule,
+  ],
+  providers: [AlertDeliveryService, AlertModelAction, AlertsService],
   controllers: [AlertsController],
 })
 export class AlertsModule {}

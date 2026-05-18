@@ -81,9 +81,21 @@ export const env = createEnv({
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
 
-    TWILIO_ACCOUNT_SID: z.string().min(1),
-    TWILIO_AUTH_TOKEN: z.string().min(1),
-    TWILIO_WHATSAPP_FROM: z.string().min(1),
+    METRIC_LOW_BATTERY_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
+    METRIC_CRITICAL_BATTERY_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
+    METRIC_HIGH_BATTERY_TEMP_THRESHOLD: z.coerce
+      .number()
+      .int()
+      .positive()
+      .transform((v) => Number(v)),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
