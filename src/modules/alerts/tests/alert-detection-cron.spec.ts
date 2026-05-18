@@ -36,7 +36,15 @@ const mockUserSettingsRepo = {
 // TESTS  —  Alert Detection Logic
 // ------------------------------------------------------------------
 describe('AlertDetectionCron — Test Cases', () => {
-  let cronService: any; // AlertDetectionCronService (to be built)
+  type CronServiceMock = {
+    evaluateInverters: jest.Mock<Promise<void>, []>;
+    shouldFireAlert: jest.Mock<
+      { minutesUntilDepletion: number; isCharging: boolean; severity: string } | null,
+      [Record<string, unknown>]
+    >;
+    createAlert: jest.Mock;
+  };
+  let cronService: CronServiceMock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -47,7 +55,7 @@ describe('AlertDetectionCron — Test Cases', () => {
       evaluateInverters: jest.fn(),
       shouldFireAlert: jest.fn(),
       createAlert: jest.fn(),
-    } as any;
+    };
   });
 
   it('2.1 should fire a "critical" alert when depletion is under 30 minutes', async () => {
@@ -62,8 +70,8 @@ describe('AlertDetectionCron — Test Cases', () => {
     });
 
     expect(result).toBeDefined();
-    expect(result.severity).toBe('critical');
-    expect(result.minutesUntilDepletion).toBeLessThan(30);
+    expect(result?.severity).toBe('critical');
+    expect(result?.minutesUntilDepletion).toBeLessThan(30);
   });
 
   it('2.2 should fire a "warning" alert when depletion is between 30–60 minutes', async () => {
@@ -78,9 +86,9 @@ describe('AlertDetectionCron — Test Cases', () => {
     });
 
     expect(result).toBeDefined();
-    expect(result.severity).toBe('warning');
-    expect(result.minutesUntilDepletion).toBeGreaterThanOrEqual(30);
-    expect(result.minutesUntilDepletion).toBeLessThanOrEqual(60);
+    expect(result?.severity).toBe('warning');
+    expect(result?.minutesUntilDepletion).toBeGreaterThanOrEqual(30);
+    expect(result?.minutesUntilDepletion).toBeLessThanOrEqual(60);
   });
 
   it('2.3 should NOT fire an alert when depletion exceeds 60 minutes (safe zone)', async () => {
@@ -105,10 +113,10 @@ describe('AlertDetectionCron — Test Cases', () => {
     });
 
     // Invoke the cron service to evaluate alerts  
-  +  await cronService.evaluateInverters();  
-  +  
-  +  // Verify that createAlert was not called due to existing unresolved alert  
-  +  expect(cronService.createAlert).not.toHaveBeenCalled();
+    await cronService.evaluateInverters();  
+    
+    // Verify that createAlert was not called due to existing unresolved alert  
+    expect(cronService.createAlert).not.toHaveBeenCalled();
   });
 
   it('2.5 should log a warning and skip when no battery metric exists for the inverter', async () => {
