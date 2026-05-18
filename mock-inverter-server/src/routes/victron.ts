@@ -8,77 +8,118 @@
  *
  * Auth: expects header  X-Authorization: Token <any-value>
  * Any non-empty token is accepted.
+ *
+ * Each token maps to a distinct Victron user ID and installation:
+ *   mock-token-a  →  user 9001  →  installation 100001
+ *   mock-token-b  →  user 9002  →  installation 100002
+ *   mock-token-c  →  user 9003  →  installation 100003
  */
 
 import { Router, Request, Response } from 'express';
 import {
-  getAllDevices,
   getDeviceByInstallationId,
-  MOCK_USER_ID,
+  getDeviceByVictronUserId,
 } from '../state';
 
 export const victronRouter = Router();
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
+// Token → victronUserId mapping
 
-function requireToken(req: Request, res: Response): boolean {
+const TOKEN_TO_USER: Record<string, number> = {
+  'mock-token-a': 9001,
+  'mock-token-b': 9002,
+  'mock-token-c': 9003,
+};
+
+function extractToken(req: Request): string | null {
   const auth = req.headers['x-authorization'];
-  if (!auth || !String(auth).startsWith('Token ')) {
-    res.status(401).json({ success: false, errors: ['Unauthorized'] });
-    return false;
-  }
-  return true;
+  if (!auth || !String(auth).startsWith('Token ')) return null;
+  return String(auth).slice('Token '.length).trim();
 }
 
-// ─── GET /users/me ────────────────────────────────────────────────────────────
+function requireToken(req: Request, res: Response): string | null {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ success: false, errors: ['Unauthorized'] });
+    return null;
+  }
+  return token;
+}
+
+// GET /users/me
+//
+// Returns the Victron VRM user ID for the provided token.
+// The adapter uses this ID to fetch installations in the next call.
 
 victronRouter.get('/users/me', (req: Request, res: Response) => {
-  if (!requireToken(req, res)) return;
+  const token = requireToken(req, res);
+  if (!token) return;
+
+  // Look up the victronUserId for this token; fall back to a generic ID
+  // so that any token (not just the three named ones) still gets a response.
+  const idUser = TOKEN_TO_USER[token] ?? 9001;
 
   res.json({
     success: true,
     record: {
-      idUser: MOCK_USER_ID,
+      idUser,
       name: 'Mock EnergyIQ User',
-      email: 'mock@energyiq.dev',
+      email: `mock-user-${idUser}@energyiq.dev`,
     },
   });
 });
 
-// ─── GET /users/:idUser/installations ────────────────────────────────────────
+// GET /users/:idUser/installations
+//
+// Returns the single installation owned by this Victron user.
+// One user → one inverter, matching the app's one-to-one model.
 
 victronRouter.get(
   '/users/:idUser/installations',
   (req: Request, res: Response) => {
-    if (!requireToken(req, res)) return;
+    const token = requireToken(req, res);
+    if (!token) return;
 
-    const devices = getAllDevices();
+    const idUser = parseInt(req.params['idUser'] as string, 10);
+    const device = getDeviceByVictronUserId(idUser);
+
+    if (!device) {
+      // Unknown user — return empty installations list (not a 404,
+      // matching real Victron API behaviour for users with no sites)
+      res.json({ success: true, records: [] });
+      return;
+    }
 
     res.json({
       success: true,
-      records: devices.map((d) => ({
-        idSite: parseInt(d.installationId, 10),
-        name: d.name,
-        identifier: d.identifier,
-        pvMax: d.panelCapacityKw * 1000, // watts
-        timezone: 'Africa/Lagos',
-        is_on_grid: true,
-        hasGenerator: false,
-        mqtt_host: null,
-      })),
+      records: [
+        {
+          idSite: parseInt(device.installationId, 10),
+          name: device.name,
+          identifier: device.identifier,
+          pvMax: device.panelCapacityKw * 1000, // watts
+          timezone: 'Africa/Lagos',
+          is_on_grid: true,
+          hasGenerator: false,
+          mqtt_host: null,
+        },
+      ],
     });
   },
 );
 
-// ─── GET /installations/:installationId/diagnostics ──────────────────────────
+// GET /installations/:installationId/diagnostics 
+//
+// Returns live metrics for a device. Called on every poll cycle.
 
 victronRouter.get(
   '/installations/:installationId/diagnostics',
   (req: Request, res: Response) => {
-    if (!requireToken(req, res)) return;
+    const token = requireToken(req, res);
+    if (!token) return;
 
-    const { installationId } = req.params;
-    const device = getDeviceByInstallationId(installationId as string);
+    const { installationId } = req.params as { installationId: string };
+    const device = getDeviceByInstallationId(installationId);
 
     if (!device) {
       res.status(404).json({

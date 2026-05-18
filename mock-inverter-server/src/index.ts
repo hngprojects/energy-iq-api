@@ -22,14 +22,14 @@ const PORT = parseInt(process.env['PORT'] ?? '3002', 10);
 
 app.use(express.json());
 
-// ─── Request logging ──────────────────────────────────────────────────────────
+// Request logging
 
 app.use((req, _res, next) => {
   console.log(`[mock] ${new Date().toISOString()}  ${req.method} ${req.path}`);
   next();
 });
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
+// Routes
 
 // Victron VRM API — all routes are mounted at root to match the real API shape
 app.use('/', victronRouter);
@@ -39,7 +39,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', server: 'mock-inverter-server' });
 });
 
-// ─── State progression ────────────────────────────────────────────────────────
+// State progression
 
 // Advance device state every 2 minutes (matches Victron poll interval)
 const TICK_INTERVAL_MS = 2 * 60 * 1000;
@@ -48,7 +48,7 @@ setInterval(tick, TICK_INTERVAL_MS);
 // Run one tick immediately so state is non-stale on first request
 tick();
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+// Start
 
 app.listen(PORT, () => {
   console.log(`\n[mock-inverter-server] Running on http://localhost:${PORT}`);

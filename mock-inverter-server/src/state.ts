@@ -12,6 +12,7 @@ export interface DeviceState {
   installationId: string;
   name: string;
   identifier: string; // serial number equivalent
+  victronUserId: number; // Victron VRM internal user ID (not your app's UUID)
   batterySoc: number; // 0–100 %
   batteryVoltageV: number; // 44–58 V for a 48V system
   batteryCurrentA: number; // positive = charging, negative = discharging
@@ -27,13 +28,24 @@ export interface DeviceState {
   batteryCapacityKwh: number; // rated battery capacity
 }
 
-// ─── Seeded devices ──────────────────────────────────────────────────────────
+// Seeded devices 
+//
+// Each device belongs to a distinct Victron VRM user (victronUserId).
+// This mirrors the one-to-one user→inverter model in the main application.
+// When registering test inverters in your DB, create one app user per device
+// and use the corresponding access token below.
+//
+// Test credentials (access token → victronUserId → installationId):
+//   mock-token-a  →  9001  →  100001  (Site A — healthy)
+//   mock-token-b  →  9002  →  100002  (Site B — moderate)
+//   mock-token-c  →  9003  →  100003  (Site C — low battery / RED health)
 
 const DEVICES: DeviceState[] = [
   {
     installationId: '100001',
     name: 'EnergyIQ Test Site A',
     identifier: 'MOCK-VIC-001',
+    victronUserId: 9001,
     batterySoc: 75,
     batteryVoltageV: 52.4,
     batteryCurrentA: 8.0,
@@ -52,6 +64,7 @@ const DEVICES: DeviceState[] = [
     installationId: '100002',
     name: 'EnergyIQ Test Site B',
     identifier: 'MOCK-VIC-002',
+    victronUserId: 9002,
     batterySoc: 45,
     batteryVoltageV: 49.8,
     batteryCurrentA: -3.5,
@@ -71,6 +84,7 @@ const DEVICES: DeviceState[] = [
     installationId: '100003',
     name: 'EnergyIQ Test Site C (Low Battery)',
     identifier: 'MOCK-VIC-003',
+    victronUserId: 9003,
     batterySoc: 15,
     batteryVoltageV: 45.2,
     batteryCurrentA: -5.0,
@@ -87,7 +101,7 @@ const DEVICES: DeviceState[] = [
   },
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers 
 
 /** Small random noise in range [-range, +range] */
 function noise(range: number): number {
@@ -123,7 +137,7 @@ function timeToGo(soc: number, capacityKwh: number, netDrawKw: number): number {
   return Math.round((remainingKwh / netDrawKw) * 60);
 }
 
-// ─── Tick ─────────────────────────────────────────────────────────────────────
+// Tick 
 
 /**
  * Advance all device states by one tick (called every 2 minutes).
@@ -179,7 +193,7 @@ export function tick(): void {
   }
 }
 
-// ─── Accessors ───────────────────────────────────────────────────────────────
+// Accessors
 
 export function getAllDevices(): DeviceState[] {
   return DEVICES;
@@ -189,5 +203,6 @@ export function getDeviceByInstallationId(id: string): DeviceState | undefined {
   return DEVICES.find((d) => d.installationId === id);
 }
 
-/** Returns the user ID that owns all mock devices */
-export const MOCK_USER_ID = 9001;
+export function getDeviceByVictronUserId(userId: number): DeviceState | undefined {
+  return DEVICES.find((d) => d.victronUserId === userId);
+}
