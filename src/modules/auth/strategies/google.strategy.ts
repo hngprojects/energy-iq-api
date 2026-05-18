@@ -5,6 +5,7 @@ import { type ConfigType } from '@nestjs/config';
 import { googleConfig } from '../../../config/google.config';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { SYS_MSG } from '../../../common/constants/sys-msg';
+import { type Request } from 'express';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -18,10 +19,12 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientSecret: googleCfg.googleClientSecret,
       callbackURL: googleCfg.googleCallbackUrl,
       scope: ['email', 'profile'],
+      passReqToCallback: true,
     });
   }
 
   async validate(
+    req: Request,
     _accessToken: string,
     _refreshToken: string,
     profile: Profile,

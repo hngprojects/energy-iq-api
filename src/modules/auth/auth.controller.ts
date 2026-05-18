@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Inject,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -86,8 +87,17 @@ export class AuthController {
   })
   googleCallback(
     @CurrentUser() authResponse: AuthResponse,
+    @Query('state') state: string,
     @Res() res: Response,
   ) {
+    if (state === 'mobile') {
+      return res.json({
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        user: authResponse.user,
+      });
+    }
+
     const redirectUrl = `${this.appCfg.clientUrl}/onboarding`;
     ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
     return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
