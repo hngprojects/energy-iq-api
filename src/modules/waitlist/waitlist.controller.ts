@@ -1,10 +1,11 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { WaitlistService } from './waitlist.service';
 import { JoinWaitlistDto } from './dto/join-waitlist.dto';
 import type { Response } from 'express';
+import { PaginationDto } from '../../common/dto/pagination.do';
 
 @ApiTags('Waitlist')
 @Controller({ path: 'waitlist', version: '1' })
@@ -23,4 +24,12 @@ export class WaitlistController {
   ) {
     return this.waitlistService.join(dto, response);
   }
+
+  @Public()
+  @Get()
+  @ApiOperation({ summary: 'Get all waitlist subscribers' })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.waitlistService.findAll(paginationDto);
+  }
 }
+

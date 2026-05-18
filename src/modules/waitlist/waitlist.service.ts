@@ -6,6 +6,8 @@ import { Waitlist } from './entities/waitlist.entity';
 import { JoinWaitlistDto } from './dto/join-waitlist.dto';
 import type { Response } from 'express';
 import { SYS_MSG } from '../../common/constants/sys-msg';
+import { WaitlistModelAction } from './actions/waitlist.action';
+import { PaginationDto } from '../../common/dto/pagination.do';
 
 @Injectable()
 export class WaitlistService {
@@ -14,6 +16,7 @@ export class WaitlistService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
+    private readonly waitlistModelAction: WaitlistModelAction,
   ) { }
 
   async join(dto: JoinWaitlistDto, response: Response) {
@@ -38,5 +41,16 @@ export class WaitlistService {
 
     response.status(HttpStatus.CREATED);
     return { message: SYS_MSG.WAITLIST_SUCCESS };
+  }
+
+  findAll(pagination: PaginationDto) {
+    return this.waitlistModelAction.list({
+      paginationPayload: {
+        page: pagination.page || 1,
+        limit: pagination.limit || 20,
+      },
+      filterRecordOptions: { isSubscribed: true },
+      order: { createdAt: 'DESC' },
+    });
   }
 }
