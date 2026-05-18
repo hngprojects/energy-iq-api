@@ -80,6 +80,10 @@ export const env = createEnv({
     SUNSYNK_API_BASE_URL: z.url().default('https://globalapi.solarmanpv.com'),
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
+
+    TWILIO_ACCOUNT_SID: z.string().min(1),
+    TWILIO_AUTH_TOKEN: z.string().min(1),
+    TWILIO_WHATSAPP_FROM: z.string().min(1),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
