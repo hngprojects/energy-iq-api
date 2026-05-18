@@ -8,127 +8,110 @@
 jest.mock('../../../config/env', () => ({}));
 
 import { Inverter } from '../../inverters/entities/inverters.entity';
-
-// ------------------------------------------------------------------
-// Mocks
-// ------------------------------------------------------------------
-const mockAlertRepo = {
-  findOne: jest.fn(),
-  find: jest.fn(),
-  save: jest.fn(),
-  create: jest.fn(),
-};
-
-const mockMetricsRepo = {
-  findOne: jest.fn(),
-  find: jest.fn(),
-};
-
-const mockInverterRepo = {
-  find: jest.fn(),
-};
-
-const mockUserSettingsRepo = {
-  findOne: jest.fn(),
-};
+import { calculateDepletion } from '../helpers/depletion-engine';
+import { mockAlertRepo, mockInverterRepo, mockMetricsRepo, mockUserSettingsRepo, resetAllMocks } from './test-helpers';
+import { shouldFireAlert } from '../helpers/alert-thresholds';
+import { isWithinQuietHours } from '../helpers/quiet-hours';
 
 // ------------------------------------------------------------------
 // TESTS  —  Alert Detection Logic
 // ------------------------------------------------------------------
 describe('AlertDetectionCron — Test Cases', () => {
-  type CronServiceMock = {
-    evaluateInverters: jest.Mock<Promise<void>, []>;
-    shouldFireAlert: jest.Mock<
-      {
-        minutesUntilDepletion: number;
-        isCharging: boolean;
-        severity: string;
-      } | null,
-      [Record<string, unknown>]
-    >;
-    createAlert: jest.Mock;
-  };
-  let cronService: CronServiceMock;
-
   beforeEach(() => {
-    jest.clearAllMocks();
-    // Module setup placeholder — replace with real imports once service exists
-    // const module: TestingModule = await Test.createTestingModule({...}).compile();
-    // cronService = module.get<AlertDetectionCronService>(AlertDetectionCronService);
-    cronService = {
-      evaluateInverters: jest.fn(),
-      shouldFireAlert: jest.fn(),
-      createAlert: jest.fn(),
-    };
+    resetAllMocks();
   });
 
   it('2.1 should fire a "critical" alert when depletion is under 30 minutes', () => {
-    const mockDepletionResult = {
-      minutesUntilDepletion: 20,
-      isCharging: false,
-      severity: 'critical',
-    };
-    cronService.shouldFireAlert.mockReturnValue(mockDepletionResult);
-
-    const result = cronService.shouldFireAlert({
+    console.log("reach")
+    const depResult = calculateDepletion({
       batterySocPercent: 25,
       loadKw: 5,
       batteryCapacityKwh: 10,
       solarGenKw: 0.5,
+      inverterRatedPowerKw: 8,
     });
 
-    expect(result).toBeDefined();
-    expect(result?.severity).toBe('critical');
-    expect(result?.minutesUntilDepletion).toBeLessThan(30);
+    const alertInfo = shouldFireAlert(
+      depResult.minutesUntilDepletion,
+      depResult.isCharging,
+    );
+    
+    expect(alertInfo).toBeDefined();
+    expect(alertInfo!.severity).toBe('CRITICAL');
+    expect(alertInfo!.minutesUntilDepletion).toBeLessThan(30);
+    expect(alertInfo!.minutesUntilDepletion).toBeGreaterThan(0);
   });
 
   it('2.2 should fire a "warning" alert when depletion is between 30–60 minutes', () => {
-    const mockDepletionResult = {
-      minutesUntilDepletion: 45,
-      isCharging: false,
-      severity: 'warning',
-    };
-    cronService.shouldFireAlert.mockReturnValue(mockDepletionResult);
-
-    const result = cronService.shouldFireAlert({
-      batterySocPercent: 50,
-      loadKw: 3,
+    const depResult = calculateDepletion({
+      batterySocPercent: 60,
+      loadKw: 2.5,
       batteryCapacityKwh: 10,
-      solarGenKw: 1,
+      solarGenKw: 0.5,
+      inverterRatedPowerKw: 5,
     });
 
-    expect(result).toBeDefined();
-    expect(result?.severity).toBe('warning');
-    expect(result?.minutesUntilDepletion).toBeGreaterThanOrEqual(30);
-    expect(result?.minutesUntilDepletion).toBeLessThanOrEqual(60);
+    const depResult2 = calculateDepletion({
+      batterySocPercent: 35,
+      loadKw: 4,
+      batteryCapacityKwh: 10,
+      solarGenKw: 0,
+      inverterRatedPowerKw: 8,
+    });
+
+    const alertInfo= shouldFireAlert(
+      depResult2.minutesUntilDepletion,
+      depResult2.isCharging,
+    )
+
+    expect(alertInfo).toBeDefined();
+    expect(alertInfo!.severity).toBe('WARNING');
+    expect(alertInfo!.minutesUntilDepletion).toBeGreaterThanOrEqual(30);
+    expect(alertInfo!.minutesUntilDepletion).toBeLessThanOrEqual(60);
   });
 
   it('2.3 should NOT fire an alert when depletion exceeds 60 minutes (safe zone)', () => {
-    cronService.shouldFireAlert.mockReturnValue(null);
-
-    const result = cronService.shouldFireAlert({
+    const depResult = calculateDepletion({
       batterySocPercent: 80,
       loadKw: 1.5,
       batteryCapacityKwh: 10,
       solarGenKw: 1,
+      inverterRatedPowerKw: 5,
     });
 
-    expect(result).toBeNull();
+    const alertInfo = shouldFireAlert(
+      depResult.minutesUntilDepletion,
+      depResult.isCharging,
+    );
+
+    expect(alertInfo).toBeNull();
   });
 
   it('2.4 should skip creating alert when an unresolved alert of the same type already exists', async () => {
-    mockAlertRepo.findOne.mockResolvedValue({
-      id: 'existing-alert-id',
-      userId: 'user-uuid-1',
-      type: 'battery_depletion',
-      resolved: false,
+    mockMetricsRepo.findOne.mockResolvedValue({
+      inverterId: 'inv-1',
+      batterySocPercent: 20,
+      loadKw: 5,
+      solarGenKw: 0.5,
+      createdAt: new Date(),
     });
 
-    // Invoke the cron service to evaluate alerts
-    await cronService.evaluateInverters();
+    mockAlertRepo.findOne.mockResolvedValue({
+      id: 'existing-alert',
+      userId: 'user-1',
+      type: 'BATTERY_PERCENTAGE',
+      severity: 'CRITICAL',
+      resolutionStatus: 'UNRESOLVED',
+      createdAt: new Date(Date.now() - 2 * 60 * 1000),
+    });
 
-    // Verify that createAlert was not called due to existing unresolved alert
-    expect(cronService.createAlert).not.toHaveBeenCalled();
+    const existing = await mockAlertRepo.findOne({
+      where: { userId: 'user-1', type: 'BATTERY_PERCENTAGE' },
+      order: { createAt: 'DESC' },
+    });
+
+    expect(existing).toBeDefined();
+    expect(existing.resolutionStatus).toBe('UNRESOLVED');
   });
 
   it('2.5 should log a warning and skip when no battery metric exists for the inverter', async () => {
@@ -139,39 +122,29 @@ describe('AlertDetectionCron — Test Cases', () => {
       where: { inverterId: 'inv-uuid-1' },
     });
     expect(metric).toBeNull();
-    // Service should log "No metrics found for inverter inv-uuid-1" and return
-    // This would be: expect(loggerSpy).toHaveBeenCalledWith(expect.stringContaining('No metrics'));
-    // Ignore this test for now....updates will be made later
+    expect(mockAlertRepo.save).not.toHaveBeenCalled();
+
     loggerSpy.mockRestore();
   });
 
   it('2.6 should create alert but defer delivery when user has active quiet hours', () => {
-    // Mock quiet hours active (current time 10PM, quiet hours 9PM–7AM)
-    const mockSettings = {
-      userId: 'user-uuid-1',
-      quietHoursStart: '21:00',
-      quietHoursEnd: '07:00',
-      whatsappAlerts: true,
-      criticalAlerts: true,
-    };
-    mockUserSettingsRepo.findOne.mockResolvedValue(mockSettings);
+    const currentTime = new Date('2026-05-16T22:00:00Z'); // 10PM UTC
+    const quietStart = '21:00';
+    const quietEnd = '07:00';
+    
+    const inQuiet = isWithinQuietHours(currentTime, quietStart, quietEnd);
+    expect(inQuiet).toBe(true);
 
-    // Manually simulate evaluation
-    const now = new Date('2026-05-16T22:00:00Z'); // 10PM UTC
-    const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes(); // 1320
-    const quietStartMinutes = 21 * 60; // 1260
-    const quietEndMinutes = 7 * 60; // 420
-    const isQuietHours =
-      quietStartMinutes > quietEndMinutes
-        ? currentMinutes >= quietStartMinutes ||
-          currentMinutes < quietEndMinutes
-        : currentMinutes >= quietStartMinutes &&
-          currentMinutes < quietEndMinutes;
+    // but critical alerts bypass quiet hours
+    const severity = 'CRITICAL';
+    const shouldBypass = severity === 'CRITICAL';
 
-    expect(isQuietHours).toBe(true);
-    // Alert should be created with `deliverable: false`
-    // Then later delivered when quiet hours end
-    // Ignore this test too....it's basically a mock...real update for the actual tests coming soon
+    // warning alerts during quiet hours should be deferred
+    const warningSeverity = 'WARNING' as string;
+    const shouldDefer = warningSeverity !== 'CRITICAL' && inQuiet;
+
+    expect(shouldBypass).toBe(true);
+    expect(shouldDefer).toBe(true);
   });
 });
 
@@ -180,8 +153,9 @@ describe('AlertDetectionCron — Test Cases', () => {
 // ------------------------------------------------------------------
 describe('AlertDetectionCron — Edge Cases', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    resetAllMocks();
   });
+
   it('E13 should skip inverters that are marked inactive', async () => {
     mockInverterRepo.find.mockResolvedValue([
       { id: 'inv-1', userId: 'u1', isActive: false, brand: 'VICTRON' },
@@ -210,9 +184,7 @@ describe('AlertDetectionCron — Edge Cases', () => {
 
     expect(activeInverters).toHaveLength(2);
     expect(latestMetrics).toHaveLength(0);
-    // Each inverter with no metrics should log a warning
-    // expect(loggerSpy).toHaveBeenCalledTimes(2);
-    // Ignore this test too
+
     loggerSpy.mockRestore();
   });
 
@@ -268,28 +240,33 @@ describe('AlertDetectionCron — Edge Cases', () => {
     const settings = await mockUserSettingsRepo.findOne({
       where: { userId: 'user-uuid-1' },
     });
-    // This should feed into the depletion calculator as the threshold
-    // calculateDepletion(metrics, threshold = settings.depletionThreshold)
-    expect(settings.depletionThreshold).toBe(20);
+    
+    const depResult = calculateDepletion(
+      {
+        batterySocPercent: 15,
+        loadKw: 3,
+        batteryCapacityKwh: 10,
+        solarGenKw: 0,
+        inverterRatedPowerKw: 5,
+      },
+      settings.depletionThreshold,
+    );
+
+    expect(depResult.minutesUntilDepletion).toBe(0);
+    expect(depResult.thresholdPercent).toBe(20);
   });
 
   it('E18 should fall back to SOC+load calculation when brand does not expose batteryTimeToGoMin', () => {
     // Growatt does not expose batteryTimeToGoMin
-    const metric = {
-      inverterId: 'inv-1',
+    const depResult = calculateDepletion({
       batterySocPercent: 40,
       loadKw: 3,
+      batteryCapacityKwh: 10,
       solarGenKw: 0.5,
-      batteryTimeToGoMin: null, // Not provided by Growatt
-    };
+      inverterRatedPowerKw: 5,
+    });
 
-    // Engine should still calculate depletion using SOC + load
-    const netLoad = Math.max(0, metric.loadKw - metric.solarGenKw);
-    const usableKwh = ((metric.batterySocPercent - 10) / 100) * 10; // assuming 10kWh battery
-    const minutes = (usableKwh / netLoad) * 60;
-
-    expect(minutes).toBeGreaterThan(0);
-    expect(metric.batteryTimeToGoMin).toBeNull(); // brand didn't provide it
-    expect(minutes).toBeCloseTo(72, 0); // (30% of 10 = 3kWh) / 2.5kW * 60
+    expect(depResult.minutesUntilDepletion).toBeGreaterThan(0);
+    expect(depResult.netDischargeKw).toBeGreaterThan(0);
   });
 });

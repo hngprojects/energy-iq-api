@@ -1,50 +1,11 @@
 // ==================================================================
 // QUIET HOURS PER USER
-// ==================================================================
-// Tests:     6  (time window logic, bypass rules, channel-specific)
-// Edge Cases: 6  (midnight boundaries, timezones, inverted ranges)
-// ==================================================================
 
+// ==================================================================
 jest.mock('../../../config/env', () => ({}));
 
-// ------------------------------------------------------------------
-// Pure helper: determines if current time falls within quiet hours
-// Supports midnight-spanning windows (e.g., 22:00 – 06:00)
-// ------------------------------------------------------------------
-function isWithinQuietHours(
-  currentTime: Date,
-  quietStart: string, // "HH:mm" format
-  quietEnd: string, // "HH:mm" format
-): boolean {
-  const currentMinutes =
-    currentTime.getUTCHours() * 60 + currentTime.getUTCMinutes();
-
-  const [startH, startM] = quietStart.split(':').map(Number);
-  const [endH, endM] = quietEnd.split(':').map(Number);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
-
-  if (quietStart === '00:00' && quietEnd === '00:00') return true; // explicit sentinel
-  if (startMinutes === endMinutes) return false; // zero-length non-sentinel window
-
-  // Midnight-spanning: start > end (e.g., 22:00 – 06:00)
-  if (startMinutes > endMinutes) {
-    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-  }
-
-  // Same-day: start < end (e.g., 09:00 – 17:00)
-  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-}
-
-// ------------------------------------------------------------------
-// Mock user settings data structure (no entity dependency)
-// ------------------------------------------------------------------
-interface MockUserSettings {
-  userId: string;
-  quietHoursStart?: string;
-  quietHoursEnd?: string;
-  bypassCritical?: boolean;
-}
+import { convertToUTC, isWithinQuietHours } from '../helpers/quiet-hours';
+import { MockUserSettings } from './test-helpers';
 
 // ------------------------------------------------------------------
 // TESTS  (4.1 – 4.6)   —   Quiet Hours Logic
@@ -380,20 +341,6 @@ describe('QuietHours — Edge Cases', () => {
     const userTimezoneOffset = '+01:00'; // Lagos, Nigeria
     const userQuietStartLocal = '22:00';
     const userQuietEndLocal = '06:00';
-
-    // Convert user's quiet hours to UTC for evaluation
-    const convertToUTC = (localTime: string, offset: string): string => {
-      const [hours, mins] = localTime.split(':').map(Number);
-      const sign = offset.startsWith('-') ? -1 : 1;
-      const [offH, offM] = offset.slice(1).split(':').map(Number);
-      const totalLocal = hours * 60 + mins;
-      const totalOffset = sign * (offH * 60 + offM);
-      let totalUtc = totalLocal - totalOffset;
-      totalUtc = ((totalUtc % 1440) + 1440) % 1440;
-      const utcHours = Math.floor(totalUtc / 60);
-      const utcMins = totalUtc % 60;
-      return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`;
-    };
 
     const utcQuietStart = convertToUTC(userQuietStartLocal, userTimezoneOffset);
     const utcQuietEnd = convertToUTC(userQuietEndLocal, userTimezoneOffset);

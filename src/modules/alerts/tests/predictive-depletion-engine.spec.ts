@@ -1,87 +1,15 @@
 // ==================================================================
 // PREDICTIVE DEPLETION ENGINE
 // ==================================================================
-// Tests:      8  (normal behavior + business logic)
-// Edge Cases: 12 (boundaries, extremes, anomalies)
-// ==================================================================
-
 jest.mock('../../../config/env', () => ({}));
 
-interface DepletionInput {
-  batterySocPercent: number;
-  loadKw: number;
-  batteryCapacityKwh: number;
-  solarGenKw: number;
-  inverterRatedPowerKw: number;
-}
 
-interface DepletionResult {
-  minutesUntilDepletion: number | null;
-  isCharging: boolean;
-  netDischargeKw: number;
-  thresholdPercent: number;
-  usedThresholdPercent: number;
-}
-
-/**
- * Pure function: linear depletion calculator.
- * This is the unit under test — extract to a dedicated service later.
- */
-function calculateDepletion(
-  input: DepletionInput,
-  threshold: number = 10,
-): DepletionResult {
-  const safeSOC = Math.max(0, Math.min(100, input.batterySocPercent));
-  const safeCapacity = Math.max(0, input.batteryCapacityKwh);
-  const inverterCap = Math.max(0, input.inverterRatedPowerKw);
-  const demandedFromInverter = Math.min(Math.max(0, input.loadKw), inverterCap);
-  const netLoad = Math.max(
-    0,
-    demandedFromInverter - Math.max(0, input.solarGenKw),
-  );
-
-  if (netLoad <= 0) {
-    // System is net-charging; no depletion risk
-    return {
-      minutesUntilDepletion: null,
-      isCharging: true,
-      netDischargeKw: 0,
-      thresholdPercent: threshold,
-      usedThresholdPercent: threshold,
-    };
-  }
-
-  // SOC available above threshold
-  const usablePercent = safeSOC - threshold;
-  if (usablePercent <= 0) {
-    // Already below threshold
-    return {
-      minutesUntilDepletion: 0,
-      isCharging: false,
-      netDischargeKw: Math.round(netLoad * 100) / 100,
-      thresholdPercent: threshold,
-      usedThresholdPercent: threshold,
-    };
-  }
-
-  const usableKwh = (usablePercent / 100) * safeCapacity;
-  const hours = safeCapacity > 0 && netLoad > 0 ? usableKwh / netLoad : 0;
-  const minutes = hours * 60;
-
-  return {
-    minutesUntilDepletion: Math.round(minutes * 100) / 100,
-    isCharging: false,
-    netDischargeKw: Math.round(netLoad * 100) / 100,
-    thresholdPercent: threshold,
-    usedThresholdPercent: threshold,
-  };
-}
+import { calculateDepletion } from '../helpers/depletion-engine';
 
 // ------------------------------------------------------------------
 // TESTS  (1.1 – 1.8)   —   Normal & Business Logic
 // ------------------------------------------------------------------
 describe('DepletionEngine — Test Cases', () => {
-  // Normal depletion scenario
   it('1.1 should calculate minutes until battery hits critical threshold under normal load', () => {
     const result = calculateDepletion({
       batterySocPercent: 80,
@@ -96,7 +24,6 @@ describe('DepletionEngine — Test Cases', () => {
     expect(result.netDischargeKw).toBeCloseTo(4, 1);
   });
 
-  // System is net-charging (no depletion risk)
   it('1.2 should return null depletion when solar exceeds load (net-charging)', () => {
     const result = calculateDepletion({
       batterySocPercent: 70,
@@ -109,7 +36,6 @@ describe('DepletionEngine — Test Cases', () => {
     expect(result.isCharging).toBe(true);
   });
 
-  // Already below threshold
   it('1.3 should return 0 minutes when battery is already below critical threshold', () => {
     const result = calculateDepletion({
       batterySocPercent: 8,
@@ -122,7 +48,6 @@ describe('DepletionEngine — Test Cases', () => {
     expect(result.isCharging).toBe(false);
   });
 
-  // Exactly at threshold boundary
   it('1.4 should return 0 when SOC exactly equals threshold', () => {
     const result = calculateDepletion({
       batterySocPercent: 10,
@@ -134,7 +59,6 @@ describe('DepletionEngine — Test Cases', () => {
     expect(result.minutesUntilDepletion).toBe(0);
   });
 
-  // Large load, fast depletion
   it('1.5 should show fast depletion under high load with little solar', () => {
     const result = calculateDepletion({
       batterySocPercent: 30,

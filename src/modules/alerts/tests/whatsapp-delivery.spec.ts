@@ -1,53 +1,17 @@
 // ==================================================================
 // WHATSAPP DELIVERY PIPELINE
 // ==================================================================
-// Tests:      6  (formatting, sending, opt-out, truncation)
-// Edge Cases: 6  (rate limits, invalid numbers, unicode, blocking)
-// ==================================================================
 
 jest.mock('../../../config/env', () => ({}));
 
-// ------------------------------------------------------------------
-// Mock WhatsApp API client
-// ------------------------------------------------------------------
-const mockWhatsAppClient = {
-  sendMessage: jest.fn(),
-};
+import {
+  formatAlertMessage,
+  truncateMessage,
+  validatePhoneNumber,
+  WhatsAppMessage,
+} from '../helpers/whatsapp-helpers';
+import { mockWhatsAppClient } from './test-helpers';
 
-interface WhatsAppMessage {
-  to: string;
-  body: string;
-  type: 'text' | 'template';
-  templateName?: string;
-}
-
-// ------------------------------------------------------------------
-// Pure helpers
-// ------------------------------------------------------------------
-function formatAlertMessage(alert: {
-  type: string;
-  severity: string;
-  message: string;
-  minutesUntilDepletion?: number;
-}): string {
-  const severityIcon = alert.severity === 'critical' ? '🚨' : '⚠️';
-  const depletionLine =
-    alert.minutesUntilDepletion !== undefined
-      ? `\n⏱ Estimated depletion in: ${Math.round(alert.minutesUntilDepletion)} min`
-      : '';
-  return `${severityIcon} Energy IQ Alert\nType: ${alert.type}\n${alert.message}${depletionLine}`;
-}
-
-function truncateMessage(body: string, maxLength: number = 4096): string {
-  if (body.length <= maxLength) return body;
-  return body.substring(0, maxLength - 3) + '...';
-}
-
-function validatePhoneNumber(phone: string): boolean {
-  // Accept +2348012345678 or 08012345678 (Nigerian format)
-  const nigeriaRegex = /^(\+234|0)[789]\d{9}$/;
-  return nigeriaRegex.test(phone);
-}
 
 describe('WhatsAppDelivery — Test Cases', () => {
   beforeEach(() => {
@@ -206,8 +170,10 @@ describe('WhatsAppDelivery — Edge Cases', () => {
     };
 
     const pending = sendWithRetry();
+    
     await jest.runAllTimersAsync();
     const result = await pending;
+
     expect(result.status).toBe('sent');
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledTimes(2);
     jest.useRealTimers();

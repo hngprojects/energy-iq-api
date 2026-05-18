@@ -1,75 +1,11 @@
 // ==================================================================
 // DELIVERY FAILURE FALLBACK
 // ==================================================================
-// Tests:     6  (channel fallback chain, partial success, audit)
-// Edge Cases: 6  (all channels fail, no contact info, infinite loops)
-// ==================================================================
 
 jest.mock('../../../config/env', () => ({}));
 
-// ------------------------------------------------------------------
-// Mock delivery channels
-// ------------------------------------------------------------------
-const channelServices = {
-  whatsapp: { send: jest.fn() },
-  email: { send: jest.fn() },
-  sms: { send: jest.fn() },
-};
-
-interface AlertDelivery {
-  alertId: string;
-  userId: string;
-  message: string;
-  channels: string[]; // ordered fallback chain
-  userSettings: {
-    whatsappAlerts: boolean;
-    emailAlerts: boolean;
-    smsNotification: boolean;
-  };
-}
-
-type DeliveryStatus = 'delivered' | 'failed' | 'partial_success';
-
-// ------------------------------------------------------------------
-// Core fallback logic (pure function, will be in service)
-// ------------------------------------------------------------------
-async function deliverWithFallback(delivery: AlertDelivery): Promise<{
-  status: DeliveryStatus;
-  channelUsed: string | null;
-  audit: string[];
-}> {
-  const audit: string[] = [];
-  let lastError: string | null = null;
-
-  for (const channel of delivery.channels) {
-    // Check user preference
-    if (
-      (channel === 'whatsapp' && !delivery.userSettings.whatsappAlerts) ||
-      (channel === 'email' && !delivery.userSettings.emailAlerts) ||
-      (channel === 'sms' && !delivery.userSettings.smsNotification)
-    ) {
-      audit.push(`${channel}: skipped (user disabled)`);
-      continue;
-    }
-
-    try {
-      const service = channelServices[channel as keyof typeof channelServices];
-      await service.send({ to: delivery.userId, message: delivery.message });
-      audit.push(`${channel}: delivered`);
-      return { status: 'delivered', channelUsed: channel, audit };
-    } catch (err) {
-      lastError = (err as Error).message;
-      audit.push(`${channel}: failed - ${lastError}`);
-      // continue to next channel
-    }
-  }
-
-  return {
-    status: lastError ? 'failed' : 'partial_success',
-    channelUsed: null,
-    audit,
-  };
-}
+import { AlertDelivery, deliverWithFallback } from '../fallback.service';
+import { channelServices } from './test-helpers';
 
 describe('DeliveryFallback — Test Cases', () => {
   beforeEach(() => {
@@ -100,7 +36,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('delivered');
     expect(result.channelUsed).toBe('email');
@@ -136,7 +72,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('delivered');
     expect(result.channelUsed).toBe('sms');
@@ -164,7 +100,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(result.channelUsed).toBeNull();
@@ -190,7 +126,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1); // exactly once
@@ -214,7 +150,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(channelServices.sms.send).not.toHaveBeenCalled();
@@ -242,7 +178,7 @@ describe('DeliveryFallback — Test Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     // Note: Since email succeeded, status is 'delivered', not 'partial_success'
     // 'partial_success' would occur if no channel fully delivered but some attempt was made
@@ -283,7 +219,7 @@ describe('DeliveryFallback — Edge Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1);
@@ -318,7 +254,7 @@ describe('DeliveryFallback — Edge Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1);
@@ -344,7 +280,7 @@ describe('DeliveryFallback — Edge Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('delivered');
     expect(result.channelUsed).toBe('email');
@@ -389,7 +325,7 @@ describe('DeliveryFallback — Edge Cases', () => {
       },
     };
 
-    const result = await deliverWithFallback(delivery);
+    const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
     expect(

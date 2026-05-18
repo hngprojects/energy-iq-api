@@ -8,43 +8,19 @@
 jest.mock('../../../config/env', () => ({}));
 
 import { Queue, Job } from 'bullmq';
+import { mockAlertQueue, resetAllMocks } from './test-helpers';
+import { ALERT_DISPATCH_JOB } from '../jobs/alert-dispatch.jobs';
+import { Alert } from '../entities/alert.entity';
+import { ProcessingStatus } from '../../../common/constants/processing-status';
 
-// ------------------------------------------------------------------
-// Mock Queue
-// ------------------------------------------------------------------
-const mockAlertQueue = {
-  add: jest.fn(),
-  getJob: jest.fn(),
-  getJobs: jest.fn(),
-  close: jest.fn(),
-  isPaused: jest.fn(),
-  pause: jest.fn(),
-  resume: jest.fn(),
-  on: jest.fn(),
-};
 
 describe('AlertQueue — Test Cases', () => {
   let queue: jest.Mocked<Queue>;
-  let dispatchService: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    resetAllMocks();
     queue = mockAlertQueue as unknown as jest.Mocked<Queue>;
-
-    // Force the mocked queue.add to return a mock Job object
-    queue.add.mockResolvedValue({ id: 'mock-job-id' } as Job);
-
-    dispatchService = {
-      dispatchAlert: jest.fn(async (alertData) => {
-        return queue.add('alert.dispatch', alertData, {
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: { count: 100 },
-          removeOnFail: false,
-        });
-      }),
-      addBulk: jest.fn(),
-    };
+    queue.add.mockResolvedValue({ id: 'mock-job-id' } as Job)
   });
 
   // ------------------------------------------------------------------
@@ -54,17 +30,22 @@ describe('AlertQueue — Test Cases', () => {
     const alertData = {
       alertId: 'alert-uuid-1',
       userId: 'user-uuid-1',
-      type: 'battery_depletion',
-      severity: 'critical',
+      type: 'BATTERY_PERCENTAGE',
+      severity: 'CRITICAL',
       message: 'Battery at 8% — immediate action required',
       channel: 'whatsapp',
     };
 
-    const job = await dispatchService.dispatchAlert(alertData);
+    const job = await queue.add(ALERT_DISPATCH_JOB, alertData, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: { count: 100 },
+      removeOnFail: false,
+    });
 
     expect(queue.add).toHaveBeenCalledTimes(1);
     expect(queue.add).toHaveBeenCalledWith(
-      'alert.dispatch',
+      ALERT_DISPATCH_JOB,
       alertData,
       expect.objectContaining({
         attempts: 3,
@@ -86,13 +67,26 @@ describe('AlertQueue — Test Cases', () => {
       'message',
       'channel',
     ];
+
+    const validPayload = {
+      alertId: 'alert-abc',
+      userId: 'user-123',
+      type: 'BATTERY_PERCENTAGE',
+      severity: 'CRITICAL',
+      message: 'Test message',
+      channel: 'whatsapp',
+    };
     const invalidPayload = { alertId: 'abc', userId: '123' }; // missing fields
 
-    const hasAllFields = requiredFields.every(
+    const validHasAll = requiredFields.every(
+      (field) => field in validPayload,
+    );
+    const invalidHasAll = requiredFields.every(
       (field) => field in invalidPayload,
     );
 
-    expect(hasAllFields).toBe(false); // validation should reject
+    expect(validHasAll).toBe(true);
+    expect(invalidHasAll).toBe(false);
   });
 
   // ------------------------------------------------------------------
@@ -106,7 +100,6 @@ describe('AlertQueue — Test Cases', () => {
       retry: jest.fn(),
     } as unknown as Job;
 
-    // Simulate worker processing that fails
     const processJob = async (job: Job) => {
       job.attemptsMade++;
       if (job.attemptsMade <= 3) {
@@ -140,25 +133,21 @@ describe('AlertQueue — Test Cases', () => {
   });
 
   // ------------------------------------------------------------------
-  // 5.4  Successful processing marks job complete
+  // 5.4  Successful processing marks alert record as delivered
   // ------------------------------------------------------------------
-  it('5.4 should mark the job as completed when delivery succeeds', async () => {
-    const mockJob = {
-      id: 'job-2',
-      data: { alertId: 'alert-2' },
-      updateProgress: jest.fn(),
-      moveToCompleted: jest.fn().mockResolvedValue(true),
-    } as unknown as Job;
-
-    const processJob = async (job: Job) => {
-      await job.updateProgress(100);
-      return await job.moveToCompleted('delivered', mockJob.id!, true);
+  it('5.4 should mark the alert deliveryProcessingStatus as SUCCESSFUL when delivery succeeds', async () => {
+    const mockAlert = {
+      id:  'alert-2',
+      deliveryProcesingStatus: ProcessingStatus.pending,
+      save: jest.fn().mockResolvedValue(true),
     };
 
-    const result = await processJob(mockJob);
+    mockAlert.deliveryProcesingStatus = ProcessingStatus.successful;
+    const result = await mockAlert.save();
 
-    expect(mockJob.updateProgress).toHaveBeenCalledWith(100);
-    expect(mockJob.moveToCompleted).toHaveBeenCalled();
+    expect(mockAlert.deliveryProcesingStatus).toBe(
+      ProcessingStatus.successful,
+    );
     expect(result).toBe(true);
   });
 
@@ -166,11 +155,10 @@ describe('AlertQueue — Test Cases', () => {
   // 5.5  Malformed job data throws error
   // ------------------------------------------------------------------
   it('5.5 should throw an error and move job to failed when payload is malformed', () => {
-    const invalidJob = {
-      id: 'job-3',
-      data: { alertId: 'alert-3' }, // missing userId
-      moveToFailed: jest.fn().mockResolvedValue(true),
-    } as unknown as Job;
+    const invalidJobData = {
+      alertId: 'alert-3',
+      // missing userId, channel
+    };
 
     const validatePayload = (data: any) => {
       if (!data.userId) throw new Error('ValidationError: userId is required');
@@ -178,7 +166,7 @@ describe('AlertQueue — Test Cases', () => {
         throw new Error('ValidationError: channel is required');
     };
 
-    expect(() => validatePayload(invalidJob.data)).toThrow('ValidationError');
+    expect(() => validatePayload(invalidJobData)).toThrow('ValidationError');
   });
 
   // ------------------------------------------------------------------
@@ -186,10 +174,8 @@ describe('AlertQueue — Test Cases', () => {
   // ------------------------------------------------------------------
   it('5.6 should complete in-flight jobs before terminating on graceful shutdown', async () => {
     const closeSpy = jest.spyOn(queue, 'close');
-    // const inflightJobs = 3; // unused for now, but kept for later
 
     const onModuleDestroy = async () => {
-      // Wait for inflight jobs to finish
       await new Promise((resolve) => setTimeout(resolve, 100));
       await queue.close();
     };
@@ -202,9 +188,8 @@ describe('AlertQueue — Test Cases', () => {
   // ------------------------------------------------------------------
   // 5.7  Concurrency limit per user (sequential processing)
   // ------------------------------------------------------------------
-  it('5.7 should process alerts for the same user sequentially (not parallel)', async () => {
+  it('5.7 should process alerts for the same user sequentially', async () => {
     const processingOrder: string[] = [];
-    // const userId = 'user-uuid-1'; // unused for now, but commented for later
 
     // Simulate sequential processing using a per-user lock
     const processWithLock = async (alertId: string) => {
@@ -214,7 +199,6 @@ describe('AlertQueue — Test Cases', () => {
 
     const alerts = ['alert-A', 'alert-B', 'alert-C'];
 
-    // Sequential (correct behavior)
     for (const alertId of alerts) {
       await processWithLock(alertId);
     }
@@ -231,7 +215,7 @@ describe('AlertQueue — Edge Cases', () => {
   let queue: jest.Mocked<Queue>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    resetAllMocks()
     queue = mockAlertQueue as unknown as jest.Mocked<Queue>;
   });
 
@@ -242,7 +226,7 @@ describe('AlertQueue — Edge Cases', () => {
     queue.add.mockRejectedValue(new Error('Redis connection refused'));
 
     await expect(
-      queue.add('alert.dispatch', { alertId: 'alert-1' }),
+      queue.add(ALERT_DISPATCH_JOB, { alertId: 'alert-1' }),
     ).rejects.toThrow('Redis connection refused');
   });
 
@@ -268,14 +252,10 @@ describe('AlertQueue — Edge Cases', () => {
     const MAX_PAYLOAD_BYTES = 512 * 1024 * 1024; // 512MB
     const count_large = 600 * 1024 * 1024; // 600MB
 
-    // Create a Buffer instead of a string to avoid the V8 RangeError
     const largeMessageBuffer = Buffer.alloc(count_large, 'x');
-
-    // Use .length (for Buffers, .length gives the exact byte size)
     const exceedsLimit = largeMessageBuffer.length > MAX_PAYLOAD_BYTES;
 
     expect(exceedsLimit).toBe(true);
-    // Validation should truncate or reject before enqueue
   });
 
   // ------------------------------------------------------------------
@@ -302,11 +282,12 @@ describe('AlertQueue — Edge Cases', () => {
 
     // First add succeeds
     queue.add.mockResolvedValueOnce({ id: jobId } as Job);
+
     // Second add with same jobId returns existing job (no duplicate)
     queue.add.mockResolvedValueOnce({ id: jobId } as Job);
 
-    const first = await queue.add('alert.dispatch', {}, { jobId });
-    const second = await queue.add('alert.dispatch', {}, { jobId });
+    const first = await queue.add(ALERT_DISPATCH_JOB, {}, { jobId });
+    const second = await queue.add(ALERT_DISPATCH_JOB, {}, { jobId });
 
     expect(first.id).toBe(jobId);
     expect(second.id).toBe(jobId); // same job, not a new one
@@ -322,7 +303,7 @@ describe('AlertQueue — Edge Cases', () => {
 
     // Jobs added while paused should queue up
     queue.add.mockResolvedValue({ id: 'queued-while-paused' } as Job);
-    const job = await queue.add('alert.dispatch', { alertId: 'delayed' });
+    const job = await queue.add(ALERT_DISPATCH_JOB, { alertId: 'delayed' });
     expect(job).toBeDefined();
 
     // On resume, jobs process
