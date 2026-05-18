@@ -41,7 +41,7 @@ export class AlertsService {
     private readonly appCfg: ConfigType<typeof appConfig>,
     private readonly inverterMetricsAction: InverterMetricsModelAction,
     private readonly userModelAction: UserModelAction,
-  ) { }
+  ) {}
 
   async getAlerts(dto: GetAlertsDto) {
     const findOptions: FindOptionsWhere<Alert> = {
@@ -107,17 +107,17 @@ export class AlertsService {
     this.logger.log(`Resolving alert`);
     const alert = await this.alertAction.findById(dto.alertId);
     if (!alert) {
-      //logger added 
+      //logger added
       this.logger.warn(`Alert not found for resolution`);
       throw new NotFoundException(SYS_MSG.NOT_FOUND);
     }
 
-    if (alert?.userId !== dto.userId){
+    if (alert?.userId !== dto.userId) {
       //logger added
       this.logger.warn(`Unauthorized alert resolution attempt`);
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
     }
-      
+
     return await this.alertAction.markAsResolved(dto.alertId);
   }
 
@@ -133,7 +133,9 @@ export class AlertsService {
     );
     const alerts = await this.generateAlertsFromMetrics(metrics);
     //logger added
-    this.logger.log(`Generated ${alerts.length} alert(s) from ${metrics.length} metric(s)`);
+    this.logger.log(
+      `Generated ${alerts.length} alert(s) from ${metrics.length} metric(s)`,
+    );
     for (const alert of alerts) {
       this.alertDeliveryService.deliverAlertViaWhatsapp(alert);
     }
@@ -159,7 +161,9 @@ export class AlertsService {
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
         //logger added
-        this.logger.warn(`Critical battery alert created — platform: ${metric.inverter.brand}`);
+        this.logger.warn(
+          `Critical battery alert created — platform: ${metric.inverter.brand}`,
+        );
       } else if (metric.batterySocPercent < this.appCfg.lowBatteryThreshold) {
         const alert = {
           userId: metric.inverter.userId,
@@ -176,7 +180,9 @@ export class AlertsService {
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
         //logger added
-        this.logger.warn(`Low battery alert created — platform: ${metric.inverter.brand}`);
+        this.logger.warn(
+          `Low battery alert created — platform: ${metric.inverter.brand}`,
+        );
       }
       if (
         metric.batteryTemperatureC &&
@@ -197,7 +203,9 @@ export class AlertsService {
         await this.appendAlertIfExisting(alert as Alert, alerts);
         await this.alertAction.createalert(alert);
         //logger added
-        this.logger.warn(`High battery temperature alert created — platform: ${metric.inverter.brand}`);
+        this.logger.warn(
+          `High battery temperature alert created — platform: ${metric.inverter.brand}`,
+        );
       }
     }
 
