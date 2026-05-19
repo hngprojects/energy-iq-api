@@ -30,6 +30,8 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
   private growattInverters: Inverter[] = [];
   private sunsynkInverters: Inverter[] = [];
 
+  private failureCounts = new Map<string, number>();
+
   constructor(
     private readonly victronAdapter: VictronAdapter,
     private readonly growattAdapter: GrowattAdapter,
@@ -105,11 +107,19 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
         inverter.installationId!,
         inverter.id,
       );
+      this.failureCounts.set(inverter.id, 0);
+      await this.inverterModelAction.markOnline(inverter.id);
     } catch (err) {
       this.logger.error(
         `Victron fetch failed for ${inverter.id}`,
         (err as Error).message,
       );
+      const fetchInverterFailures = this.failureCounts.get(inverter.id) ?? 0;
+      this.failureCounts.set(inverter.id, fetchInverterFailures + 1);
+
+      if (fetchInverterFailures >= 2) {
+        await this.inverterModelAction.markOffline(inverter.id);
+      }
       return;
     }
 
@@ -135,11 +145,19 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     try {
       metric = await this.growattAdapter.fetchMetrics(deviceSn, apiToken);
       metric = { ...metric, inverterId: inverter.id };
+      this.failureCounts.set(inverter.id, 0);
+      await this.inverterModelAction.markOnline(inverter.id);
     } catch (err) {
       this.logger.error(
         `Growatt fetch failed for ${inverter.id}`,
         (err as Error).message,
       );
+      const fetchInverterFailures = this.failureCounts.get(inverter.id) ?? 0;
+      this.failureCounts.set(inverter.id, fetchInverterFailures + 1);
+
+      if (fetchInverterFailures >= 2) {
+        await this.inverterModelAction.markOffline(inverter.id);
+      }
       return;
     }
 
@@ -173,11 +191,19 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
         password,
       );
       metric = { ...metric, inverterId: inverter.id };
+      this.failureCounts.set(inverter.id, 0);
+      await this.inverterModelAction.markOnline(inverter.id);
     } catch (err) {
       this.logger.error(
         `Sunsynk fetch failed for ${inverter.id}`,
         (err as Error).message,
       );
+      const fetchInverterFailures = this.failureCounts.get(inverter.id) ?? 0;
+      this.failureCounts.set(inverter.id, fetchInverterFailures + 1);
+
+      if (fetchInverterFailures >= 2) {
+        await this.inverterModelAction.markOffline(inverter.id);
+      }
       return;
     }
 
