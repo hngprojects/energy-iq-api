@@ -12,4 +12,4 @@ import { WaitlistModelAction } from './actions/waitlist.action';
   providers: [WaitlistModelAction, WaitlistService],
   exports: [WaitlistModelAction, WaitlistService],
 })
-export class WaitlistModule { }
+export class WaitlistModule {}

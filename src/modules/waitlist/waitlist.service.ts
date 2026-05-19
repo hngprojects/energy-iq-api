@@ -17,7 +17,7 @@ export class WaitlistService {
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
     private readonly waitlistModelAction: WaitlistModelAction,
-  ) { }
+  ) {}
 
   async join(dto: JoinWaitlistDto, response: Response) {
     const email = dto.email.trim();

@@ -89,4 +89,4 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
   ],
 })
-export class AppModule { }
+export class AppModule {}
