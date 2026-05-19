@@ -36,8 +36,8 @@
     "schema:drop": "pnpm typeorm schema:drop",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
     "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
-    "mock:install": "pnpm --prefix mock-inverter-server install",
-    "mock:start": "pnpm --prefix mock-inverter-server run start",
+    "mock:install": "cd mock-inverter-server && pnpm install",
+    "mock:start": "cd mock-inverter-server && pnpm start",
     "mock:dev": "pnpm --prefix mock-inverter-server run dev"
   },
   "dependencies": {
