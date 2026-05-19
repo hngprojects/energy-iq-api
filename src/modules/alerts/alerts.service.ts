@@ -146,7 +146,7 @@ export class AlertsService {
 
     for (const metric of metrics) {
       if (metric.batterySocPercent < this.appCfg.criticalBatteryThreshold) {
-        const alert = {
+        const alert: Alert = {
           userId: metric.inverter.userId,
           type: AlertType.BATTERY_PERCENTAGE,
           platform: metric.inverter.brand.toLowerCase(),
@@ -155,7 +155,7 @@ export class AlertsService {
           resolutionStatus: AlertResolutionStatus.UNRESOLVED,
           triggeredAt: metric.metricTimestamp,
           isActive: true,
-          deliveryProcesingStatus: ProcessingStatus.pending,
+          deliveryProcessingStatus: ProcessingStatus.pending,
         };
 
         await this.appendAlertIfExisting(alert as Alert, alerts);
@@ -165,7 +165,7 @@ export class AlertsService {
           `Critical battery alert created — platform: ${metric.inverter.brand}`,
         );
       } else if (metric.batterySocPercent < this.appCfg.lowBatteryThreshold) {
-        const alert = {
+        const alert: Alert = {
           userId: metric.inverter.userId,
           type: AlertType.BATTERY_PERCENTAGE,
           platform: metric.inverter.brand.toLowerCase(),
@@ -174,10 +174,10 @@ export class AlertsService {
           resolutionStatus: AlertResolutionStatus.UNRESOLVED,
           triggeredAt: metric.metricTimestamp,
           isActive: true,
-          deliveryProcesingStatus: ProcessingStatus.pending,
+          deliveryProcessingStatus: ProcessingStatus.pending
         };
 
-        await this.appendAlertIfExisting(alert as Alert, alerts);
+        await this.appendAlertIfExisting(alert, alerts);
         await this.alertAction.createalert(alert);
         //logger added
         this.logger.warn(
@@ -188,7 +188,7 @@ export class AlertsService {
         metric.batteryTemperatureC &&
         metric.batteryTemperatureC > this.appCfg.highBatteryTemperatureThreshold
       ) {
-        const alert = {
+        const alert: Alert = {
           userId: metric.inverter.userId,
           type: AlertType.BATTERY_TEMPERATURE,
           platform: metric.inverter.brand.toLowerCase(),
@@ -197,7 +197,7 @@ export class AlertsService {
           resolutionStatus: AlertResolutionStatus.UNRESOLVED,
           triggeredAt: metric.metricTimestamp,
           isActive: true,
-          deliveryProcesingStatus: ProcessingStatus.pending,
+          deliveryProcessingStatus: ProcessingStatus.pending,
         };
 
         await this.appendAlertIfExisting(alert as Alert, alerts);

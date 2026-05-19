@@ -4,10 +4,14 @@ import { InvertersMetricsController } from './inverters-metrics.controller';
 import { InvertersMetricsService } from './inverters-metrics.service';
 import { InvertersMetrics } from './entities/inverters-metrics.entity';
 import { DailyMetrics } from './entities/daily-metrics.entity';
+import { InvertersModule } from '../inverters/inverters.module';
 import { InverterMetricsModelAction } from './actions/inverter-metrics.action';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([InvertersMetrics, DailyMetrics])],
+  imports: [
+    TypeOrmModule.forFeature([InvertersMetrics, DailyMetrics]),
+    InvertersModule,
+  ],
   controllers: [InvertersMetricsController],
   providers: [InverterMetricsModelAction, InvertersMetricsService],
   exports: [InverterMetricsModelAction, InvertersMetricsService, TypeOrmModule],

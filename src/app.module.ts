@@ -31,6 +31,7 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { whatsAppConfig } from './config/whatsapp.config';
+import { WaitlistModule } from './modules/waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { whatsAppConfig } from './config/whatsapp.config';
     ChatbotModule,
     AlertsModule,
     WhatsappModule,
+    WaitlistModule,
   ],
   providers: [
     {
