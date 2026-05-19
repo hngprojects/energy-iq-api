@@ -41,4 +41,12 @@ export class InverterModelAction extends AbstractModelAction<Inverter> {
   async activateById(id: string): Promise<void> {
     await this.repository.update({ id }, { isActive: true });
   }
+
+  async markOffline(id: string): Promise<void> {
+    await this.repository.update({ id }, { isOffline: true });
+  }
+
+  async markOnline(id: string): Promise<void> {
+    await this.repository.update({ id }, { isOffline: false });
+  }
 }
