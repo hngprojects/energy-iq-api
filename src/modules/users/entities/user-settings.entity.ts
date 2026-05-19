@@ -4,17 +4,20 @@ import { User } from './user.entity';
 
 @Entity('user_settings')
 export class UserSettings extends AbstractBaseEntity {
-  @Column({ type: 'boolean' })
+  @Column({ type: 'boolean', default: false })
   smsNotification: boolean;
 
-  @Column({ type: 'boolean' })
+  @Column({ type: 'boolean', default: false })
   whatsappAlerts: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  emailAlerts: boolean;
 
   @Column({ type: 'boolean' })
   criticalAlerts: boolean;
 
-  @Column({ type: 'boolean' })
-  AiLanguage: boolean;
+  @Column({ type: 'varchar' })
+  AiLanguage: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
   quietHoursStart: string | null;
