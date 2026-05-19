@@ -6,7 +6,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { SYS_MSG } from '../../common/constants/sys-msg';
-import { ChartReadingDto } from './dto/chart-reading.dto';
 import { InvertersMetrics } from './entities/inverters-metrics.entity';
 import { InverterModelAction } from '../inverters/action/inverters.action';
 
@@ -110,7 +109,6 @@ export class InvertersMetricsService {
   // ENDPOINT 2 — Power Consumption (placeholder)
   getPowerConsumption(_inverterId: string): void {}
 
-  // ENDPOINT 3 — Energy Usage Chart
   async getEnergyUsage(
     inverterId: string,
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
@@ -119,58 +117,63 @@ export class InvertersMetricsService {
       throw new BadRequestException(SYS_MSG.BAD_REQUEST);
     }
 
-    const now = new Date();
-    const startDate = this.getStartDate(period, now);
+    const tz = 'Africa/Lagos';
+    const { interval, groupExpr, orderExpr } = this.getPeriodConfig(period, tz);
 
-    const metrics = await this.metricsRepository.find({
-      where: { inverterId, createdAt: Between(startDate, now) },
-      order: { createdAt: 'ASC' },
-    });
+    const rows = await this.metricsRepository
+      .createQueryBuilder('m')
+      .select(groupExpr, 'bucket')
+      .addSelect('SUM(m.solar_gen_kw) * (5.0 / 60)', 'solarKwh')
+      .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
+      .addSelect('AVG(m.load_kw)', 'avgLoadKw')
+      .where('m.inverter_id = :inverterId', { inverterId })
+      .andWhere(`m.metric_timestamp >= NOW() - INTERVAL '${interval}'`)
+      .groupBy(groupExpr)
+      .orderBy(orderExpr, 'ASC')
+      .getRawMany<{
+        bucket: string;
+        solarKwh: string;
+        avgBatterySoc: string;
+        avgLoadKw: string;
+      }>();
 
-    const grouped = new Map<string, ChartReadingDto>();
-
-    for (const metric of metrics) {
-      const day = metric.metricTimestamp.toLocaleDateString('en-US', {
-        weekday: 'long',
-      });
-
-      const current = grouped.get(day) ?? {
-        energy_generated: 0,
-        energy_usage: 0,
-      };
-
-      grouped.set(day, {
-        energy_generated: current.energy_generated + Number(metric.solarGenKw),
-        energy_usage: current.energy_usage + Number(metric.loadKw),
-      });
-    }
-
-    return Array.from(grouped.entries()).map(([day, values]) => ({
-      timestamp: day,
-      energy_generated: values.energy_generated,
-      energy_usage: values.energy_usage,
+    return rows.map((r) => ({
+      date: r.bucket,
+      solarKwh: parseFloat(r.solarKwh),
+      avgBatterySoc: parseFloat(r.avgBatterySoc),
+      avgLoadKw: parseFloat(r.avgLoadKw),
     }));
   }
 
-  private getStartDate(
+  private getPeriodConfig(
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
-    now: Date,
-  ): Date {
-    const start = new Date(now);
+    tz: string,
+  ): { interval: string; groupExpr: string; orderExpr: string } {
     switch (period) {
       case 'hourly':
-        start.setHours(start.getHours() - 1);
-        break;
+        return {
+          interval: '24 hours',
+          groupExpr: `DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}')`,
+          orderExpr: `DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}')`,
+        };
       case 'daily':
-        start.setDate(start.getDate() - 1);
-        break;
+        return {
+          interval: '7 days',
+          groupExpr: `DATE(m.metric_timestamp AT TIME ZONE '${tz}')`,
+          orderExpr: `DATE(m.metric_timestamp AT TIME ZONE '${tz}')`,
+        };
       case 'weekly':
-        start.setDate(start.getDate() - 7);
-        break;
+        return {
+          interval: '12 weeks',
+          groupExpr: `DATE_TRUNC('week', m.metric_timestamp AT TIME ZONE '${tz}')`,
+          orderExpr: `DATE_TRUNC('week', m.metric_timestamp AT TIME ZONE '${tz}')`,
+        };
       case 'monthly':
-        start.setMonth(start.getMonth() - 1);
-        break;
+        return {
+          interval: '12 months',
+          groupExpr: `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
+          orderExpr: `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
+        };
     }
-    return start;
   }
 }
