@@ -136,6 +136,12 @@ const mockSunsynkFetch = jest.fn<
   [string, string, string]
 >();
 const mockFindSpecificBrand = jest.fn<Promise<Inverter[]>, [InverterBrand]>();
+const mockMarkOnline = jest
+  .fn<Promise<void>, [string]>()
+  .mockResolvedValue(undefined);
+const mockMarkOffline = jest
+  .fn<Promise<void>, [string]>()
+  .mockResolvedValue(undefined);
 const mockRepoCreate = jest.fn();
 const mockRepoSave = jest.fn<Promise<InvertersMetrics>, [InvertersMetrics]>();
 const mockPublish = jest.fn<Promise<void>, [string, string]>();
@@ -149,6 +155,8 @@ describe('MetricsPollerService', () => {
     jest.clearAllMocks();
     jest.spyOn(SecretManager, 'decrypt').mockReturnValue('decrypted-token');
 
+    mockMarkOnline.mockResolvedValue(undefined);
+    mockMarkOffline.mockResolvedValue(undefined);
     mockRepoCreate.mockImplementation((dto: Partial<InvertersMetrics>) => dto);
     mockRepoSave.mockResolvedValue({} as InvertersMetrics);
     mockPublish.mockResolvedValue(undefined);
@@ -173,7 +181,11 @@ describe('MetricsPollerService', () => {
         },
         {
           provide: InverterModelAction,
-          useValue: { findSpecificBrand: mockFindSpecificBrand },
+          useValue: {
+            findSpecificBrand: mockFindSpecificBrand,
+            markOnline: mockMarkOnline,
+            markOffline: mockMarkOffline,
+          },
         },
         {
           provide: getRepositoryToken(InvertersMetrics),

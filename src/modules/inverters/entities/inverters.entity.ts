@@ -37,7 +37,10 @@ export class Inverter extends AbstractBaseEntity {
   encryptedCredentials?: string;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  isActive: boolean; // whether or not the user has deactivated the inverter
+
+  @Column({ type: 'boolean', default: false })
+  isOffline: boolean;
 
   @Column({ type: 'timestamptz', nullable: true })
   lastSyncedAt?: Date;
