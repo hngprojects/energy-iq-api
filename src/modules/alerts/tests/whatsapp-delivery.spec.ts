@@ -12,6 +12,7 @@ import {
 } from '../helpers/whatsapp-helpers';
 import { mockWhatsAppClient } from './test-helpers';
 
+type WaMockResult = { status: string; messageId: string };
 
 describe('WhatsAppDelivery — Test Cases', () => {
   beforeEach(() => {
@@ -52,11 +53,13 @@ describe('WhatsAppDelivery — Test Cases', () => {
       type: 'text',
     };
 
-    const result = await mockWhatsAppClient.sendMessage(message);
+    const result = (await mockWhatsAppClient.sendMessage(
+      message,
+    )) as WaMockResult;
 
     expect(mockWhatsAppClient.sendMessage).toHaveBeenCalledWith({
       to: '+2348012345678',
-      body: expect.stringContaining('Energy IQ Alert'),
+      body: expect.stringContaining('Energy IQ Alert') as string,
       type: 'text',
     });
     expect(result.status).toBe('sent');
@@ -152,25 +155,27 @@ describe('WhatsAppDelivery — Edge Cases', () => {
       .mockRejectedValueOnce(new Error('429 Too Many Requests'))
       .mockResolvedValueOnce({ status: 'sent', messageId: 'wamid-retry' });
 
-    const sendWithRetry = async (attempts: number = 2) => {
+    const sendWithRetry = async (
+      attempts: number = 2,
+    ): Promise<WaMockResult> => {
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < attempts; i++) {
         try {
-          return await mockWhatsAppClient.sendMessage({
+          return (await mockWhatsAppClient.sendMessage({
             to: '+2348012345678',
             body: 'test',
             type: 'text',
-          });
+          })) as WaMockResult;
         } catch (err) {
           if (i === attempts - 1) throw err;
-          // Exponential backoff simulated
           await sleep(1000 * Math.pow(2, i));
         }
       }
+      throw new Error('sendWithRetry exhausted');
     };
 
     const pending = sendWithRetry();
-    
+
     await jest.runAllTimersAsync();
     const result = await pending;
 
@@ -260,20 +265,20 @@ describe('WhatsAppDelivery — Edge Cases', () => {
       messageId: 'wamid-text-fallback',
     });
 
-    const sendWithTemplateFallback = async () => {
+    const sendWithTemplateFallback = async (): Promise<WaMockResult> => {
       try {
-        return await mockWhatsAppClient.sendMessage({
+        return (await mockWhatsAppClient.sendMessage({
           to: '+2348012345678',
           body: 'Template content',
           type: 'template',
           templateName: 'alert_template',
-        });
+        })) as WaMockResult;
       } catch {
-        return await mockWhatsAppClient.sendMessage({
+        return (await mockWhatsAppClient.sendMessage({
           to: '+2348012345678',
           body: '🚨 Battery at 8%',
           type: 'text',
-        });
+        })) as WaMockResult;
       }
     };
 

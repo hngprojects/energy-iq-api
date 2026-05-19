@@ -1,42 +1,80 @@
 // ==================================================================
-// DELIVERY FAILURE FALLBACK
+// DELIVERY FALLBACK SERVICE
+// Tests for fallback.service.ts — deliverWithFallback
+//
+// The function iterates a prioritized channel chain, awaits each
+// send(), skips disabled channels, and returns a DeliveryResult
+// with status, channelUsed, and a full audit trail.
 // ==================================================================
 
 jest.mock('../../../config/env', () => ({}));
 
 import { AlertDelivery, deliverWithFallback } from '../fallback.service';
-import { channelServices } from './test-helpers';
 
+// ------------------------------------------------------------------
+// Local channel service mocks — fresh per test via beforeEach
+// ------------------------------------------------------------------
+const whatsappSend = jest.fn<
+  Promise<void>,
+  [{ to: string; message: string }]
+>();
+const emailSend = jest.fn<Promise<void>, [{ to: string; message: string }]>();
+const smsSend = jest.fn<Promise<void>, [{ to: string; message: string }]>();
+
+const channelServices = {
+  whatsapp: { send: whatsappSend },
+  email: { send: emailSend },
+  sms: { send: smsSend },
+};
+
+function makeDelivery(overrides: Partial<AlertDelivery> = {}): AlertDelivery {
+  return {
+    alertId: 'alert-1',
+    userId: 'user-1',
+    message: 'Battery critical',
+    channels: ['whatsapp', 'email', 'sms'],
+    userSettings: {
+      whatsappAlerts: true,
+      emailAlerts: true,
+      smsNotification: true,
+    },
+    ...overrides,
+  };
+}
+
+// ------------------------------------------------------------------
+// Section 8: Delivery Fallback — Test Cases
+// ------------------------------------------------------------------
 describe('DeliveryFallback — Test Cases', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Default: all channels succeed
-    channelServices.whatsapp.send.mockResolvedValue({ messageId: 'wamid' });
-    channelServices.email.send.mockResolvedValue({ messageId: 'emailid' });
-    channelServices.sms.send.mockResolvedValue({ messageId: 'smsid' });
+    whatsappSend.mockResolvedValue(undefined);
+    emailSend.mockResolvedValue(undefined);
+    smsSend.mockResolvedValue(undefined);
   });
 
   // ------------------------------------------------------------------
-  // 7.1  WhatsApp fails → fallback to email
+  // 8.1  WhatsApp succeeds → delivered via whatsapp
   // ------------------------------------------------------------------
-  it('7.1 should fallback to email when WhatsApp delivery fails', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(
-      new Error('WhatsApp API error'),
-    );
+  it('8.1 should return delivered via whatsapp when WhatsApp send succeeds', async () => {
+    const result = await deliverWithFallback(makeDelivery(), channelServices);
 
-    const delivery: AlertDelivery = {
-      alertId: 'alert-1',
-      userId: 'user-1',
-      message: 'Battery critical',
-      channels: ['whatsapp', 'email', 'sms'],
-      userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: true,
-        smsNotification: true,
-      },
-    };
+    expect(result.status).toBe('delivered');
+    expect(result.channelUsed).toBe('whatsapp');
+    expect(result.audit).toEqual(['whatsapp: delivered']);
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(emailSend).not.toHaveBeenCalled();
+    expect(smsSend).not.toHaveBeenCalled();
+  });
 
-    const result = await deliverWithFallback(delivery, channelServices);
+  // ------------------------------------------------------------------
+  // 8.2  WhatsApp fails → email succeeds
+  // ------------------------------------------------------------------
+  it('8.2 should fall back to email when WhatsApp send rejects', async () => {
+    whatsappSend.mockRejectedValue(new Error('WhatsApp API error'));
+
+    const result = await deliverWithFallback(makeDelivery(), channelServices);
 
     expect(result.status).toBe('delivered');
     expect(result.channelUsed).toBe('email');
@@ -44,63 +82,20 @@ describe('DeliveryFallback — Test Cases', () => {
       'whatsapp: failed - WhatsApp API error',
       'email: delivered',
     ]);
-    expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.email.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.sms.send).not.toHaveBeenCalled();
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(smsSend).not.toHaveBeenCalled();
   });
 
   // ------------------------------------------------------------------
-  // 7.2  Email fails → fallback to SMS
+  // 8.3  Both fail → status = 'failed', channelUsed = null
   // ------------------------------------------------------------------
-  it('7.2 should fallback to SMS when both WhatsApp and email fail', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(
-      new Error('WhatsApp timeout'),
-    );
-    channelServices.email.send.mockRejectedValue(
-      new Error('Email send failed'),
-    );
+  it('8.3 should return failed with null channelUsed when all channels reject', async () => {
+    whatsappSend.mockRejectedValue(new Error('WA down'));
+    emailSend.mockRejectedValue(new Error('Email down'));
+    smsSend.mockRejectedValue(new Error('SMS down'));
 
-    const delivery: AlertDelivery = {
-      alertId: 'alert-2',
-      userId: 'user-2',
-      message: 'Inverter overheating',
-      channels: ['whatsapp', 'email', 'sms'],
-      userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: true,
-        smsNotification: true,
-      },
-    };
-
-    const result = await deliverWithFallback(delivery, channelServices);
-
-    expect(result.status).toBe('delivered');
-    expect(result.channelUsed).toBe('sms');
-    expect(result.audit).toHaveLength(3);
-    expect(result.audit[2]).toBe('sms: delivered');
-  });
-
-  // ------------------------------------------------------------------
-  // 7.3  All channels fail → mark as undelivered
-  // ------------------------------------------------------------------
-  it('7.3 should mark alert as "failed" when every channel in the chain fails', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('error'));
-    channelServices.email.send.mockRejectedValue(new Error('error'));
-    channelServices.sms.send.mockRejectedValue(new Error('error'));
-
-    const delivery: AlertDelivery = {
-      alertId: 'alert-3',
-      userId: 'user-3',
-      message: 'Test',
-      channels: ['whatsapp', 'email', 'sms'],
-      userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: true,
-        smsNotification: true,
-      },
-    };
-
-    const result = await deliverWithFallback(delivery, channelServices);
+    const result = await deliverWithFallback(makeDelivery(), channelServices);
 
     expect(result.status).toBe('failed');
     expect(result.channelUsed).toBeNull();
@@ -109,227 +104,189 @@ describe('DeliveryFallback — Test Cases', () => {
   });
 
   // ------------------------------------------------------------------
-  // 7.4  Only one attempt per fallback channel
+  // 8.4  Disabled channel is skipped — not called, audit says skipped
   // ------------------------------------------------------------------
-  it('7.4 should attempt each channel exactly once, no infinite loops', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('error'));
+  it('8.4 should skip whatsapp and go straight to email when whatsappAlerts=false', async () => {
+    const delivery = makeDelivery({
+      channels: ['whatsapp', 'email'],
+      userSettings: {
+        whatsappAlerts: false,
+        emailAlerts: true,
+        smsNotification: false,
+      },
+    });
 
-    const delivery: AlertDelivery = {
-      alertId: 'alert-4',
-      userId: 'user-4',
-      message: 'Test',
+    const result = await deliverWithFallback(delivery, channelServices);
+
+    expect(whatsappSend).not.toHaveBeenCalled();
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('delivered');
+    expect(result.channelUsed).toBe('email');
+    expect(result.audit).toContain('whatsapp: skipped (user disabled)');
+  });
+
+  // ------------------------------------------------------------------
+  // 8.5  Each channel attempted exactly once — no retry on failure
+  // ------------------------------------------------------------------
+  it('8.5 should attempt each failing channel exactly once without retrying', async () => {
+    whatsappSend.mockRejectedValue(new Error('error'));
+
+    const delivery = makeDelivery({
       channels: ['whatsapp'],
       userSettings: {
         whatsappAlerts: true,
         emailAlerts: false,
         smsNotification: false,
       },
-    };
+    });
 
     const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
-    expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1); // exactly once
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
   });
 
   // ------------------------------------------------------------------
-  // 7.5  Fallback respects user channel preferences
+  // 8.6  Audit trail populated for both failed and succeeded attempts
   // ------------------------------------------------------------------
-  it('7.5 should skip disabled channels and not attempt them as fallback', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(new Error('error'));
+  it('8.6 should populate audit trail with entries for every attempted channel', async () => {
+    whatsappSend.mockRejectedValue(new Error('WhatsApp error'));
 
-    const delivery: AlertDelivery = {
-      alertId: 'alert-5',
-      userId: 'user-5',
-      message: 'Test',
-      channels: ['whatsapp', 'sms'], // sms is in chain but user has it disabled
-      userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: false,
-        smsNotification: false,
-      },
-    };
-
-    const result = await deliverWithFallback(delivery, channelServices);
-
-    expect(result.status).toBe('failed');
-    expect(channelServices.sms.send).not.toHaveBeenCalled();
-    expect(result.audit).toContain('sms: skipped (user disabled)');
-  });
-
-  // ------------------------------------------------------------------
-  // 7.6  Partial success recorded in audit trail
-  // ------------------------------------------------------------------
-  it('7.6 should return "partial_success" and keep audit log when some channels failed but one succeeded', async () => {
-    channelServices.whatsapp.send.mockRejectedValue(
-      new Error('WhatsApp error'),
-    );
-    channelServices.email.send.mockResolvedValue({ messageId: 'emailid' });
-
-    const delivery: AlertDelivery = {
-      alertId: 'alert-6',
-      userId: 'user-6',
-      message: 'Partial test',
+    const delivery = makeDelivery({
       channels: ['whatsapp', 'email'],
       userSettings: {
         whatsappAlerts: true,
         emailAlerts: true,
-        smsNotification: true,
+        smsNotification: false,
       },
-    };
+    });
 
     const result = await deliverWithFallback(delivery, channelServices);
 
-    // Note: Since email succeeded, status is 'delivered', not 'partial_success'
-    // 'partial_success' would occur if no channel fully delivered but some attempt was made
-    // Let's adjust: partial_success if some channels attempted but all failed? Actually the function returns 'delivered' on first success.
-    // To test partial_success, we need a scenario where a channel is attempted but fails and there are no more channels.
-    // Let's add a second scenario within the same test.
-    // For now, we verify the audit trail includes both attempts.
-    expect(result.audit).toContain('whatsapp: failed - WhatsApp error');
-    expect(result.audit).toContain('email: delivered');
+    expect(result.audit).toHaveLength(2);
+    expect(result.audit[0]).toBe('whatsapp: failed - WhatsApp error');
+    expect(result.audit[1]).toBe('email: delivered');
     expect(result.status).toBe('delivered');
   });
 });
 
 // ------------------------------------------------------------------
-// EDGE CASES
+// Section 8: Delivery Fallback — Edge Cases
 // ------------------------------------------------------------------
 describe('DeliveryFallback — Edge Cases', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    channelServices.whatsapp.send.mockRejectedValue(new Error('err'));
-    channelServices.email.send.mockRejectedValue(new Error('err'));
-    channelServices.sms.send.mockRejectedValue(new Error('err'));
+    whatsappSend.mockRejectedValue(new Error('err'));
+    emailSend.mockRejectedValue(new Error('err'));
+    smsSend.mockRejectedValue(new Error('err'));
   });
 
   // ------------------------------------------------------------------
-  // E43  All channels fail after multiple fallback attempts
+  // E43  All channels fail — stops after exhausting chain, no infinite loop
   // ------------------------------------------------------------------
   it('E43 should mark alert as failed and stop after exhausting all channels', async () => {
-    const delivery: AlertDelivery = {
-      alertId: 'alert-e43',
-      userId: 'user-e43',
-      message: 'Test',
-      channels: ['whatsapp', 'email', 'sms'],
-      userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: true,
-        smsNotification: true,
-      },
-    };
-
-    const result = await deliverWithFallback(delivery, channelServices);
+    const result = await deliverWithFallback(makeDelivery(), channelServices);
 
     expect(result.status).toBe('failed');
-    expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.email.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.sms.send).toHaveBeenCalledTimes(1);
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(smsSend).toHaveBeenCalledTimes(1);
   });
 
   // ------------------------------------------------------------------
-  // E44  User has no contact info configured
+  // E45  Same transient error on all channels — still stops cleanly
   // ------------------------------------------------------------------
-  it('E44 should fail fast with validation when user has no contact info', () => {
-    const userContact = { phone: null, email: null };
-    const hasContact = userContact.phone !== null || userContact.email !== null;
-
-    expect(hasContact).toBe(false);
-    // Validation should reject before any channel attempt
-  });
-
-  // ------------------------------------------------------------------
-  // E45  Fallback channel fails with same transient error
-  // ------------------------------------------------------------------
-  it('E45 should not infinitely cascade when fallback channels fail with same error', async () => {
-    const delivery: AlertDelivery = {
-      alertId: 'alert-e45',
-      userId: 'user-e45',
-      message: 'Test',
+  it('E45 should not cascade infinitely when all channels fail with the same error', async () => {
+    const delivery = makeDelivery({
       channels: ['whatsapp', 'email'],
       userSettings: {
         whatsappAlerts: true,
         emailAlerts: true,
         smsNotification: false,
       },
-    };
+    });
 
     const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('failed');
-    expect(channelServices.whatsapp.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.email.send).toHaveBeenCalledTimes(1);
-    expect(channelServices.sms.send).not.toHaveBeenCalled();
+    expect(whatsappSend).toHaveBeenCalledTimes(1);
+    expect(emailSend).toHaveBeenCalledTimes(1);
+    expect(smsSend).not.toHaveBeenCalled();
   });
 
   // ------------------------------------------------------------------
-  // E46  Partial success: WhatsApp fails, email succeeds
+  // E46  Partial success — WhatsApp fails, email succeeds
+  //      status = 'delivered', audit has 2 entries
   // ------------------------------------------------------------------
-  it('E46 should return delivered when one fallback channel succeeds', async () => {
-    channelServices.email.send.mockResolvedValue({ messageId: 'emailid' });
+  it('E46 should return delivered with 2-entry audit when WhatsApp fails and email succeeds', async () => {
+    emailSend.mockResolvedValue(undefined);
 
-    const delivery: AlertDelivery = {
-      alertId: 'alert-e46',
-      userId: 'user-e46',
-      message: 'Test',
+    const delivery = makeDelivery({
       channels: ['whatsapp', 'email', 'sms'],
       userSettings: {
         whatsappAlerts: true,
         emailAlerts: true,
         smsNotification: true,
       },
-    };
+    });
 
     const result = await deliverWithFallback(delivery, channelServices);
 
     expect(result.status).toBe('delivered');
     expect(result.channelUsed).toBe('email');
     expect(result.audit).toHaveLength(2);
+    expect(result.audit[0]).toContain('whatsapp: failed');
+    expect(result.audit[1]).toBe('email: delivered');
+    // SMS never attempted because email succeeded
+    expect(smsSend).not.toHaveBeenCalled();
   });
 
   // ------------------------------------------------------------------
-  // E47  Race condition: fallback triggered while original job processing
+  // Extra: all channels disabled → partial_success (no lastError set)
   // ------------------------------------------------------------------
-  it('E47 should not double-process due to BullMQ atomicity', async () => {
-    const _mockJob = {
-      id: 'job-race',
-      data: { alertId: 'alert-race' },
-      moveToCompleted: jest.fn().mockResolvedValue(true),
-    };
-
-    // BullMQ ensures only one worker processes a job at a time
-    // Simulate that the job is locked
-    const isLocked = true;
-    expect(isLocked).toBe(true); // BullMQ handles this internally
-    // Our service doesn't need extra protection
-  });
-
-  // ------------------------------------------------------------------
-  // E48  Network offline at time of delivery
-  // ------------------------------------------------------------------
-  it('E48 should mark all channels as failed when network is unavailable', async () => {
-    const networkError = new Error('ENOTFOUND: network unreachable');
-    channelServices.whatsapp.send.mockRejectedValue(networkError);
-    channelServices.email.send.mockRejectedValue(networkError);
-    channelServices.sms.send.mockRejectedValue(networkError);
-
-    const delivery: AlertDelivery = {
-      alertId: 'alert-e48',
-      userId: 'user-e48',
-      message: 'Offline test',
+  it('should return partial_success when all channels are skipped due to user preferences', async () => {
+    const delivery = makeDelivery({
       channels: ['whatsapp', 'email', 'sms'],
       userSettings: {
-        whatsappAlerts: true,
-        emailAlerts: true,
-        smsNotification: true,
+        whatsappAlerts: false,
+        emailAlerts: false,
+        smsNotification: false,
       },
-    };
+    });
 
     const result = await deliverWithFallback(delivery, channelServices);
 
-    expect(result.status).toBe('failed');
-    expect(
-      result.audit.every((entry) => entry.includes('network unreachable')),
-    ).toBe(true);
+    expect(result.status).toBe('partial_success');
+    expect(result.channelUsed).toBeNull();
+    expect(whatsappSend).not.toHaveBeenCalled();
+    expect(emailSend).not.toHaveBeenCalled();
+    expect(smsSend).not.toHaveBeenCalled();
+    expect(result.audit).toHaveLength(3);
+    result.audit.forEach((entry) => expect(entry).toContain('skipped'));
+  });
+
+  // ------------------------------------------------------------------
+  // Extra: send receives correct to and message arguments
+  // ------------------------------------------------------------------
+  it('should pass userId as "to" and the message string to the channel send function', async () => {
+    whatsappSend.mockResolvedValue(undefined);
+
+    const delivery = makeDelivery({
+      userId: 'user-42',
+      message: 'Battery at 5%',
+      channels: ['whatsapp'],
+      userSettings: {
+        whatsappAlerts: true,
+        emailAlerts: false,
+        smsNotification: false,
+      },
+    });
+
+    await deliverWithFallback(delivery, channelServices);
+
+    expect(whatsappSend).toHaveBeenCalledWith({
+      to: 'user-42',
+      message: 'Battery at 5%',
+    });
   });
 });

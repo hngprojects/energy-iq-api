@@ -2,9 +2,6 @@
 // SHARED TEST HELPERS — All mocks consolidated here
 // ==================================================================
 
-import { Queue, Job } from 'bullmq';
-import { Inverter } from '../../inverters/entities/inverters.entity';
-
 // ------------------------------------------------------------------
 // Repository Mocks
 // ------------------------------------------------------------------
@@ -77,7 +74,11 @@ export interface MockUserSettings {
 export interface CronServiceMock {
   evaluateInverters: jest.Mock<Promise<void>, []>;
   shouldFireAlert: jest.Mock<
-    { minutesUntilDepletion: number; isCharging: boolean; severity: string } | null,
+    {
+      minutesUntilDepletion: number;
+      isCharging: boolean;
+      severity: string;
+    } | null,
     [Record<string, unknown>]
   >;
   createAlert: jest.Mock;
@@ -108,7 +109,7 @@ export function resetAllMocks(): void {
   mockAlertQueue.isPaused.mockReset();
   mockAlertQueue.pause.mockReset();
   mockAlertQueue.resume.mockReset();
-  
+
   // Channel services
   channelServices.whatsapp.send.mockReset();
   channelServices.email.send.mockReset();

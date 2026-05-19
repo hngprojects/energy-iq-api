@@ -1,314 +1,477 @@
 // ==================================================================
-// BULLMQ QUEUE FOR ALERT DISPATCH
-// ==================================================================
-// Tests:     7  (job lifecycle, retry, concurrency, graceful shutdown)
-// Edge Cases: 6  (Redis down, backlog, payload limits, race conditions)
+// ALERT DISPATCH PROCESSOR
+// Tests for AlertDispatchProcessor in jobs/alert-dispatch.processor.ts
+//
+// The processor is the BullMQ worker that receives alert jobs and
+// delivers them via WhatsApp (primary) or email (fallback).
 // ==================================================================
 
 jest.mock('../../../config/env', () => ({}));
 
-import { Queue, Job } from 'bullmq';
-import { mockAlertQueue, resetAllMocks } from './test-helpers';
-import { ALERT_DISPATCH_JOB } from '../jobs/alert-dispatch.jobs';
-import { Alert } from '../entities/alert.entity';
+import { AlertDispatchProcessor } from '../jobs/alert-dispatch.processor';
+import {
+  ALERT_DISPATCH_JOB,
+  ALERT_DEFERRED_DELIVERY_JOB,
+} from '../jobs/alert-dispatch.jobs';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { AlertSeverity, AlertType } from '../../../common/enums';
 
+// ------------------------------------------------------------------
+// Typed helpers
+// ------------------------------------------------------------------
+interface AlertSaveArg {
+  deliveryChannel?: string | null;
+  deliveryStatus?: string;
+  deliveryProcessingStatus?: string;
+}
 
-describe('AlertQueue — Test Cases', () => {
-  let queue: jest.Mocked<Queue>;
+interface MockJob {
+  id: string;
+  name: string;
+  data: Record<string, unknown>;
+}
 
-  beforeEach(() => {
-    resetAllMocks();
-    queue = mockAlertQueue as unknown as jest.Mocked<Queue>;
-    queue.add.mockResolvedValue({ id: 'mock-job-id' } as Job)
-  });
+function makeJob(name: string, data: Record<string, unknown>): MockJob {
+  return { id: 'job-1', name, data };
+}
 
-  // ------------------------------------------------------------------
-  // 5.1  Alert job is added to queue
-  // ------------------------------------------------------------------
-  it('5.1 should add an alert job to the BullMQ queue when an alert is created', async () => {
-    const alertData = {
-      alertId: 'alert-uuid-1',
+function findSaveCall(
+  calls: unknown[][],
+  predicate: (arg: AlertSaveArg) => boolean,
+): AlertSaveArg | undefined {
+  const found = calls.find((call) => predicate(call[0] as AlertSaveArg));
+  return found ? (found[0] as AlertSaveArg) : undefined;
+}
+
+// ------------------------------------------------------------------
+// Mock factory
+// ------------------------------------------------------------------
+function makeProcessor() {
+  const alertRepo = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+  const userRepo = {
+    findOne: jest.fn(),
+  };
+  const userSettingsRepo = {
+    findOne: jest.fn(),
+  };
+  const whatsappService = {
+    sendText: jest.fn(),
+  };
+  const emailService = {
+    sendAlert: jest.fn(),
+  };
+
+  const processor = new AlertDispatchProcessor(
+    alertRepo as never,
+    userRepo as never,
+    userSettingsRepo as never,
+    whatsappService as never,
+    emailService as never,
+  );
+
+  return {
+    processor,
+    alertRepo,
+    userRepo,
+    userSettingsRepo,
+    whatsappService,
+    emailService,
+  };
+}
+
+function makeAlert(
+  overrides: Partial<AlertSaveArg & Record<string, unknown>> = {},
+) {
+  return {
+    id: 'alert-uuid-1',
+    userId: 'user-uuid-1',
+    type: AlertType.BATTERY_PERCENTAGE,
+    severity: AlertSeverity.CRITICAL,
+    message: 'Battery depletion imminent',
+    deliveryProcessingStatus: ProcessingStatus.pending,
+    deliveryStatus: 'pending',
+    deliveryChannel: null,
+    ...overrides,
+  };
+}
+
+function makeUser(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'user-uuid-1',
+    email: 'user@example.com',
+    phoneNumber: '+2348031234567',
+    firstName: 'Test',
+    ...overrides,
+  };
+}
+
+function makeSettings(overrides: Record<string, unknown> = {}) {
+  return {
+    whatsappAlerts: true,
+    emailAlerts: true,
+    ...overrides,
+  };
+}
+
+// ------------------------------------------------------------------
+// TESTS  (6.1 – 6.9)   —   Processor Core Logic
+// ------------------------------------------------------------------
+describe('AlertDispatchProcessor — Test Cases', () => {
+  it('6.1 should throw when alert is not found in DB', async () => {
+    const { processor, alertRepo } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(null);
+
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'missing-alert',
       userId: 'user-uuid-1',
-      type: 'BATTERY_PERCENTAGE',
-      severity: 'CRITICAL',
-      message: 'Battery at 8% — immediate action required',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
       channel: 'whatsapp',
-    };
-
-    const job = await queue.add(ALERT_DISPATCH_JOB, alertData, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
-      removeOnComplete: { count: 100 },
-      removeOnFail: false,
     });
 
-    expect(queue.add).toHaveBeenCalledTimes(1);
-    expect(queue.add).toHaveBeenCalledWith(
-      ALERT_DISPATCH_JOB,
-      alertData,
-      expect.objectContaining({
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-      }),
+    await expect(processor.process(job as never)).rejects.toThrow(
+      'Alert not found',
     );
-    expect(job).toBeDefined();
   });
 
-  // ------------------------------------------------------------------
-  // 5.2  Job contains all required fields
-  // ------------------------------------------------------------------
-  it('5.2 should ensure the job payload includes all mandatory fields', () => {
-    const requiredFields = [
-      'alertId',
-      'userId',
-      'type',
-      'severity',
-      'message',
-      'channel',
-    ];
+  it('6.2 should throw when user is not found in DB', async () => {
+    const { processor, alertRepo, userRepo } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(null);
 
-    const validPayload = {
-      alertId: 'alert-abc',
-      userId: 'user-123',
-      type: 'BATTERY_PERCENTAGE',
-      severity: 'CRITICAL',
-      message: 'Test message',
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'missing-user',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
       channel: 'whatsapp',
-    };
-    const invalidPayload = { alertId: 'abc', userId: '123' }; // missing fields
+    });
 
-    const validHasAll = requiredFields.every(
-      (field) => field in validPayload,
+    await expect(processor.process(job as never)).rejects.toThrow(
+      'User not found',
     );
-    const invalidHasAll = requiredFields.every(
-      (field) => field in invalidPayload,
-    );
-
-    expect(validHasAll).toBe(true);
-    expect(invalidHasAll).toBe(false);
   });
 
-  // ------------------------------------------------------------------
-  // 5.3  Queue respects retry configuration
-  // ------------------------------------------------------------------
-  it('5.3 should retry failed jobs up to 3 times with exponential backoff', async () => {
-    const mockJob = {
-      id: 'job-1',
-      data: { alertId: 'alert-1', userId: 'u1' },
-      attemptsMade: 0,
-      retry: jest.fn(),
-    } as unknown as Job;
-
-    const processJob = async (job: Job) => {
-      job.attemptsMade++;
-      if (job.attemptsMade <= 3) {
-        throw new Error('Delivery failed — retrying');
-      }
-      return { success: true };
-    };
-
-    // Attempt 1: fails
-    await expect(processJob(mockJob)).rejects.toThrow(
-      'Delivery failed — retrying',
+  it('6.3 should deliver via WhatsApp when whatsappAlerts=true and phoneNumber is set', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
     );
-    expect(mockJob.attemptsMade).toBe(1);
-
-    // Attempt 2: fails
-    await expect(processJob(mockJob)).rejects.toThrow(
-      'Delivery failed — retrying',
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true }),
     );
-    expect(mockJob.attemptsMade).toBe(2);
+    whatsappService.sendText.mockResolvedValue('wamid-123');
 
-    // Attempt 3: fails
-    await expect(processJob(mockJob)).rejects.toThrow(
-      'Delivery failed — retrying',
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
+
+    await processor.process(job as never);
+
+    expect(whatsappService.sendText).toHaveBeenCalledWith(
+      '+2348031234567',
+      expect.any(String),
     );
-    expect(mockJob.attemptsMade).toBe(3);
+    expect(emailService.sendAlert).not.toHaveBeenCalled();
 
-    // Attempt 4: succeeds (would not be reached if maxAttempts>3)
-    const result = await processJob(mockJob);
-    expect(result).toEqual({ success: true });
-    expect(mockJob.attemptsMade).toBe(4);
+    const saved = findSaveCall(
+      alertRepo.save.mock.calls as unknown[][],
+      (a) => a.deliveryChannel === 'whatsapp',
+    );
+    expect(saved).toBeDefined();
+    expect(saved!.deliveryStatus).toBe('delivered');
+    expect(saved!.deliveryProcessingStatus).toBe(ProcessingStatus.successful);
   });
 
-  // ------------------------------------------------------------------
-  // 5.4  Successful processing marks alert record as delivered
-  // ------------------------------------------------------------------
-  it('5.4 should mark the alert deliveryProcessingStatus as SUCCESSFUL when delivery succeeds', async () => {
-    const mockAlert = {
-      id:  'alert-2',
-      deliveryProcesingStatus: ProcessingStatus.pending,
-      save: jest.fn().mockResolvedValue(true),
-    };
-
-    mockAlert.deliveryProcesingStatus = ProcessingStatus.successful;
-    const result = await mockAlert.save();
-
-    expect(mockAlert.deliveryProcesingStatus).toBe(
-      ProcessingStatus.successful,
+  it('6.4 should skip WhatsApp and use email when whatsappAlerts=false', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(makeUser());
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: false, emailAlerts: true }),
     );
-    expect(result).toBe(true);
+    emailService.sendAlert.mockResolvedValue(undefined);
+
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
+
+    await processor.process(job as never);
+
+    expect(whatsappService.sendText).not.toHaveBeenCalled();
+    expect(emailService.sendAlert).toHaveBeenCalledWith(
+      'user@example.com',
+      expect.any(String),
+    );
   });
 
-  // ------------------------------------------------------------------
-  // 5.5  Malformed job data throws error
-  // ------------------------------------------------------------------
-  it('5.5 should throw an error and move job to failed when payload is malformed', () => {
-    const invalidJobData = {
-      alertId: 'alert-3',
-      // missing userId, channel
-    };
+  it('6.5 should fall back to email when WhatsApp throws', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
+    );
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true, emailAlerts: true }),
+    );
+    whatsappService.sendText.mockRejectedValue(new Error('WhatsApp API error'));
+    emailService.sendAlert.mockResolvedValue(undefined);
 
-    const validatePayload = (data: any) => {
-      if (!data.userId) throw new Error('ValidationError: userId is required');
-      if (!data.channel)
-        throw new Error('ValidationError: channel is required');
-    };
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
 
-    expect(() => validatePayload(invalidJobData)).toThrow('ValidationError');
+    await processor.process(job as never);
+
+    expect(whatsappService.sendText).toHaveBeenCalledTimes(1);
+    expect(emailService.sendAlert).toHaveBeenCalledTimes(1);
+
+    const saved = findSaveCall(
+      alertRepo.save.mock.calls as unknown[][],
+      (a) => a.deliveryChannel === 'email',
+    );
+    expect(saved).toBeDefined();
+    expect(saved!.deliveryStatus).toBe('delivered');
   });
 
-  // ------------------------------------------------------------------
-  // 5.6  Queue drains on shutdown
-  // ------------------------------------------------------------------
-  it('5.6 should complete in-flight jobs before terminating on graceful shutdown', async () => {
-    const closeSpy = jest.spyOn(queue, 'close');
+  it('6.6 should mark alert as failed and throw when all channels fail', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
+    );
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true, emailAlerts: true }),
+    );
+    whatsappService.sendText.mockRejectedValue(new Error('WhatsApp down'));
+    emailService.sendAlert.mockRejectedValue(new Error('Email down'));
 
-    const onModuleDestroy = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await queue.close();
-    };
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
 
-    await onModuleDestroy();
+    await expect(processor.process(job as never)).rejects.toThrow(
+      'Delivery failed',
+    );
 
-    expect(closeSpy).toHaveBeenCalledTimes(1);
+    const saved = findSaveCall(
+      alertRepo.save.mock.calls as unknown[][],
+      (a) => a.deliveryStatus === 'failed',
+    );
+    expect(saved).toBeDefined();
+    expect(saved!.deliveryProcessingStatus).toBe(ProcessingStatus.failed);
   });
 
-  // ------------------------------------------------------------------
-  // 5.7  Concurrency limit per user (sequential processing)
-  // ------------------------------------------------------------------
-  it('5.7 should process alerts for the same user sequentially', async () => {
-    const processingOrder: string[] = [];
+  it('6.7 should transition deliveryProcessingStatus: pending → processing → successful', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+    } = makeProcessor();
+    const alert = makeAlert({
+      deliveryProcessingStatus: ProcessingStatus.pending,
+    });
+    alertRepo.findOne.mockResolvedValue(alert);
+    const statusHistory: string[] = [];
+    alertRepo.save.mockImplementation((a: AlertSaveArg) => {
+      if (a.deliveryProcessingStatus)
+        statusHistory.push(a.deliveryProcessingStatus);
+      return Promise.resolve(a);
+    });
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
+    );
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true }),
+    );
+    whatsappService.sendText.mockResolvedValue('wamid-123');
 
-    // Simulate sequential processing using a per-user lock
-    const processWithLock = async (alertId: string) => {
-      processingOrder.push(alertId);
-      await new Promise((r) => setTimeout(r, 10));
-    };
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
 
-    const alerts = ['alert-A', 'alert-B', 'alert-C'];
+    await processor.process(job as never);
 
-    for (const alertId of alerts) {
-      await processWithLock(alertId);
-    }
+    expect(statusHistory).toContain(ProcessingStatus.processing);
+    expect(statusHistory).toContain(ProcessingStatus.successful);
+    expect(statusHistory.indexOf(ProcessingStatus.processing)).toBeLessThan(
+      statusHistory.indexOf(ProcessingStatus.successful),
+    );
+  });
 
-    expect(processingOrder).toEqual(['alert-A', 'alert-B', 'alert-C']);
-    expect(processingOrder).toHaveLength(3);
+  it('6.8 should handle deferred delivery by re-dispatching the alert', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
+    );
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true }),
+    );
+    whatsappService.sendText.mockResolvedValue('wamid-123');
+
+    const job = makeJob(ALERT_DEFERRED_DELIVERY_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      scheduledFor: new Date().toISOString(),
+    });
+
+    await processor.process(job as never);
+
+    expect(whatsappService.sendText).toHaveBeenCalledTimes(1);
+  });
+
+  it('6.9 should throw for unknown job names', async () => {
+    const { processor } = makeProcessor();
+
+    const job = makeJob('unknown.job.type', { alertId: 'x', userId: 'y' });
+
+    await expect(processor.process(job as never)).rejects.toThrow(
+      'Unknown alert dispatch job type',
+    );
   });
 });
 
 // ------------------------------------------------------------------
-// EDGE CASES
+// EDGE CASES  (E43, E44)
 // ------------------------------------------------------------------
-describe('AlertQueue — Edge Cases', () => {
-  let queue: jest.Mocked<Queue>;
+describe('AlertDispatchProcessor — Edge Cases', () => {
+  it('E43 should mark alert as failed after all channels fail without infinite loop', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(
+      makeUser({ phoneNumber: '+2348031234567' }),
+    );
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true, emailAlerts: true }),
+    );
+    whatsappService.sendText.mockRejectedValue(new Error('error'));
+    emailService.sendAlert.mockRejectedValue(new Error('error'));
 
-  beforeEach(() => {
-    resetAllMocks()
-    queue = mockAlertQueue as unknown as jest.Mocked<Queue>;
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
+
+    await expect(processor.process(job as never)).rejects.toThrow();
+
+    expect(whatsappService.sendText).toHaveBeenCalledTimes(1);
+    expect(emailService.sendAlert).toHaveBeenCalledTimes(1);
   });
 
-  // ------------------------------------------------------------------
-  // E31  Redis goes down mid-dispatch
-  // ------------------------------------------------------------------
-  it('E31 should throw a meaningful error when Redis connection is lost mid-dispatch', async () => {
-    queue.add.mockRejectedValue(new Error('Redis connection refused'));
+  it('E44 should skip WhatsApp when phoneNumber is null and fall back to email', async () => {
+    const {
+      processor,
+      alertRepo,
+      userRepo,
+      userSettingsRepo,
+      whatsappService,
+      emailService,
+    } = makeProcessor();
+    alertRepo.findOne.mockResolvedValue(makeAlert());
+    alertRepo.save.mockResolvedValue(makeAlert());
+    userRepo.findOne.mockResolvedValue(makeUser({ phoneNumber: null }));
+    userSettingsRepo.findOne.mockResolvedValue(
+      makeSettings({ whatsappAlerts: true, emailAlerts: true }),
+    );
+    emailService.sendAlert.mockResolvedValue(undefined);
 
-    await expect(
-      queue.add(ALERT_DISPATCH_JOB, { alertId: 'alert-1' }),
-    ).rejects.toThrow('Redis connection refused');
-  });
+    const job = makeJob(ALERT_DISPATCH_JOB, {
+      alertId: 'alert-uuid-1',
+      userId: 'user-uuid-1',
+      type: AlertType.BATTERY_PERCENTAGE,
+      severity: AlertSeverity.CRITICAL,
+      message: '',
+      channel: 'whatsapp',
+    });
 
-  // ------------------------------------------------------------------
-  // E32  Queue backlog of 10,000+ alerts (mass alert scenario)
-  // ------------------------------------------------------------------
-  it('E32 should handle large backlog without crashing', async () => {
-    const getWaitingCount = jest.fn().mockResolvedValue(10000);
-    const getActiveCount = jest.fn().mockResolvedValue(50);
+    await processor.process(job as never);
 
-    const waiting = await getWaitingCount();
-    const active = await getActiveCount();
-
-    expect(waiting).toBe(10000);
-    expect(active).toBe(50);
-    // No crash — queue continues processing FIFO
-  });
-
-  // ------------------------------------------------------------------
-  // E33  Job payload exceeds Redis limit
-  // ------------------------------------------------------------------
-  it('E33 should reject jobs with payloads exceeding Redis size limits', () => {
-    const MAX_PAYLOAD_BYTES = 512 * 1024 * 1024; // 512MB
-    const count_large = 600 * 1024 * 1024; // 600MB
-
-    const largeMessageBuffer = Buffer.alloc(count_large, 'x');
-    const exceedsLimit = largeMessageBuffer.length > MAX_PAYLOAD_BYTES;
-
-    expect(exceedsLimit).toBe(true);
-  });
-
-  // ------------------------------------------------------------------
-  // E34  Worker crashes mid-processing
-  // ------------------------------------------------------------------
-  it('E34 should retry jobs that were in-flight when worker crashed', () => {
-    const mockJob = {
-      id: 'job-crash-1',
-      data: { alertId: 'alert-crash' },
-      attemptsMade: 1,
-    } as unknown as Job;
-
-    // BullMQ moves job back to 'waiting' on ungraceful disconnect
-    const jobWasMovedBack = mockJob.attemptsMade < 3; // still has retries
-
-    expect(jobWasMovedBack).toBe(true);
-  });
-
-  // ------------------------------------------------------------------
-  // E35  Duplicate job IDs
-  // ------------------------------------------------------------------
-  it('E35 should deduplicate jobs when same jobId is provided', async () => {
-    const jobId = 'dedup-job-id-1';
-
-    // First add succeeds
-    queue.add.mockResolvedValueOnce({ id: jobId } as Job);
-
-    // Second add with same jobId returns existing job (no duplicate)
-    queue.add.mockResolvedValueOnce({ id: jobId } as Job);
-
-    const first = await queue.add(ALERT_DISPATCH_JOB, {}, { jobId });
-    const second = await queue.add(ALERT_DISPATCH_JOB, {}, { jobId });
-
-    expect(first.id).toBe(jobId);
-    expect(second.id).toBe(jobId); // same job, not a new one
-  });
-
-  // ------------------------------------------------------------------
-  // E36  Queue paused and resumed
-  // ------------------------------------------------------------------
-  it('E36 should queue jobs during pause and process them on resume', async () => {
-    queue.isPaused.mockResolvedValueOnce(true);
-    const paused = await queue.isPaused();
-    expect(paused).toBe(true);
-
-    // Jobs added while paused should queue up
-    queue.add.mockResolvedValue({ id: 'queued-while-paused' } as Job);
-    const job = await queue.add(ALERT_DISPATCH_JOB, { alertId: 'delayed' });
-    expect(job).toBeDefined();
-
-    // On resume, jobs process
-    queue.resume.mockResolvedValue();
-    await queue.resume();
-    expect(queue.resume).toHaveBeenCalled();
+    expect(whatsappService.sendText).not.toHaveBeenCalled();
+    expect(emailService.sendAlert).toHaveBeenCalledTimes(1);
   });
 });
