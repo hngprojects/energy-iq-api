@@ -74,7 +74,9 @@ function makeMetric(inverterId = 'inv-uuid-1'): NormalisedMetric {
 // fast-check arbitrary for NormalisedMetric
 const normalisedMetricArb = fc.record<NormalisedMetric>({
   inverterId: fc.uuid(),
-  recordedAt: fc.date().map((d) => d.toISOString()),
+  recordedAt: fc
+    .integer({ min: 0, max: Date.now() })
+    .map((ms) => new Date(ms).toISOString()),
   inverterStatus: fc.constantFrom('normal', 'fault', 'standby', 'unknown'),
   batterySoc: fc.option(fc.float({ min: 0, max: 100, noNaN: true }), {
     nil: null,
@@ -134,6 +136,12 @@ const mockSunsynkFetch = jest.fn<
   [string, string, string]
 >();
 const mockFindSpecificBrand = jest.fn<Promise<Inverter[]>, [InverterBrand]>();
+const mockMarkOnline = jest
+  .fn<Promise<void>, [string]>()
+  .mockResolvedValue(undefined);
+const mockMarkOffline = jest
+  .fn<Promise<void>, [string]>()
+  .mockResolvedValue(undefined);
 const mockRepoCreate = jest.fn();
 const mockRepoSave = jest.fn<Promise<InvertersMetrics>, [InvertersMetrics]>();
 const mockPublish = jest.fn<Promise<void>, [string, string]>();
@@ -147,6 +155,8 @@ describe('MetricsPollerService', () => {
     jest.clearAllMocks();
     jest.spyOn(SecretManager, 'decrypt').mockReturnValue('decrypted-token');
 
+    mockMarkOnline.mockResolvedValue(undefined);
+    mockMarkOffline.mockResolvedValue(undefined);
     mockRepoCreate.mockImplementation((dto: Partial<InvertersMetrics>) => dto);
     mockRepoSave.mockResolvedValue({} as InvertersMetrics);
     mockPublish.mockResolvedValue(undefined);
@@ -171,7 +181,11 @@ describe('MetricsPollerService', () => {
         },
         {
           provide: InverterModelAction,
-          useValue: { findSpecificBrand: mockFindSpecificBrand },
+          useValue: {
+            findSpecificBrand: mockFindSpecificBrand,
+            markOnline: mockMarkOnline,
+            markOffline: mockMarkOffline,
+          },
         },
         {
           provide: getRepositoryToken(InvertersMetrics),

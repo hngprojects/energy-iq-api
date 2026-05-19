@@ -29,6 +29,9 @@ import { MetricsStreamModule } from './modules/metrics-stream/metrics-stream.mod
 import { ContactModule } from './modules/contact/contact.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { whatsAppConfig } from './config/whatsapp.config';
+import { WaitlistModule } from './modules/waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -41,23 +44,24 @@ import { AlertsModule } from './modules/alerts/alerts.module';
         jwtConfig,
         redisConfig,
         googleConfig,
+        whatsAppConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
       useFactory: () => databaseConfig(),
     }),
-    BullModule.forRoot(bullConfig),
-    HealthModule,
-    UsersModule,
-    AuthModule,
-    EmailModule,
-    RedisModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
         limit: 60,
       },
     ]),
+    BullModule.forRoot(bullConfig),
+    HealthModule,
+    UsersModule,
+    AuthModule,
+    EmailModule,
+    RedisModule,
     WellKnownModule,
     InvertersModule,
     InvertersMetricsModule,
@@ -65,6 +69,8 @@ import { AlertsModule } from './modules/alerts/alerts.module';
     ContactModule,
     ChatbotModule,
     AlertsModule,
+    WhatsappModule,
+    WaitlistModule,
   ],
   providers: [
     {

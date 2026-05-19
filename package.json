@@ -35,7 +35,9 @@
     "migration:show": "pnpm typeorm migration:show",
     "schema:drop": "pnpm typeorm schema:drop",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
-    "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed"
+    "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
+    "mock:install": "cd mock-inverter-server && pnpm install",
+    "mock:start": "cd mock-inverter-server && pnpm start"
   },
   "dependencies": {
     "@hng-sdk/orm": "^0.0.0",
@@ -74,6 +76,7 @@
     "resend": "^6.12.3",
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.3",
+    "twilio": "^6.0.2",
     "typeorm": "^0.3.28",
     "typeorm-naming-strategy": "^2.0.17",
     "zod": "^4.3.6"
@@ -123,7 +126,10 @@
   },
   "pnpm": {
     "overrides": {
-      "typeorm": "0.3.28"
+      "typeorm": "0.3.28",
+      "ws": "8.20.1",
+      "axios": "1.15.2",
+      "follow-redirects": "1.16.0"
     }
   },
   "jest": {
