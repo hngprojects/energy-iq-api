@@ -125,7 +125,9 @@
   "pnpm": {
     "overrides": {
       "typeorm": "0.3.28",
-      "ws": "8.20.1"
+      "ws": "8.20.1",
+      "axios": "1.15.2",
+      "follow-redirects": "1.16.0"
     }
   },
   "jest": {
