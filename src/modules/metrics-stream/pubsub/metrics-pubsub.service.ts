@@ -23,7 +23,7 @@ export class MetricsPubSubService
     Set<(message: string) => void>
   >();
   private readonly patternSubscriptions = new Map<
-    string, 
+    string,
     Set<(message: string, channel: string) => void>
   >();
 
@@ -42,12 +42,15 @@ export class MetricsPubSubService
       }
     });
 
-    this.subscriber.on('pmessage', (pattern: string, channel: string, message: string) => {
-      const callbacks = this.patternSubscriptions.get(pattern);
-      if (callbacks) {
-        callbacks.forEach((cb) => cb(message, channel));
-      }
-    })
+    this.subscriber.on(
+      'pmessage',
+      (pattern: string, channel: string, message: string) => {
+        const callbacks = this.patternSubscriptions.get(pattern);
+        if (callbacks) {
+          callbacks.forEach((cb) => cb(message, channel));
+        }
+      },
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -89,8 +92,8 @@ export class MetricsPubSubService
   // Pattern subscribe and unsubscribe
 
   async psubscribe(
-    pattern: string, 
-    callback: (message: string, channel: string) => void
+    pattern: string,
+    callback: (message: string, channel: string) => void,
   ): Promise<void> {
     if (!this.patternSubscriptions.has(pattern)) {
       this.patternSubscriptions.set(pattern, new Set());
@@ -100,8 +103,8 @@ export class MetricsPubSubService
   }
 
   async punsubscribe(
-    pattern: string, 
-    callback: (message: string, channel: string) => void
+    pattern: string,
+    callback: (message: string, channel: string) => void,
   ): Promise<void> {
     const callbacks = this.patternSubscriptions.get(pattern);
     if (callbacks) {
