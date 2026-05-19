@@ -21,13 +21,7 @@ import {
 import { ProcessingStatus } from '../../../common/constants/processing-status';
 import { ALERT_DEFERRED_DELIVERY_JOB } from '../jobs/alert-dispatch.jobs';
 import { NormalisedMetric } from '../../inverters/types/shared.types';
-import { MetricsPubSubService } from '../../metrics-stream/pubsub/metrics-pubsub.service';
-import { Repository } from 'typeorm';
-import { Inverter } from '../../inverters/entities/inverters.entity';
-import { UserSettings } from '../../users/entities/user-settings.entity';
-import { Alert } from '../entities/alert.entity';
 import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
-import { Queue } from 'bullmq';
 
 // ------------------------------------------------------------------
 // Shared fixtures
@@ -123,12 +117,12 @@ function makeJob() {
   };
 
   const job = new AlertDetectionJob(
-    inverterRepo as unknown as Repository<Inverter>,
-    userSettingsRepo as unknown as Repository<UserSettings>,
-    alertRepo as unknown as Repository<Alert>,
+    inverterRepo as any,
+    userSettingsRepo as any,
+    alertRepo as any,
     duplicateSuppression as any as DuplicateSuppressionService,
-    pubSubService as unknown as MetricsPubSubService,
-    alertQueue as unknown as Queue,
+    pubSubService as any,
+    alertQueue as any,
   );
 
   return {
@@ -163,6 +157,9 @@ async function triggerMessage(
 // TESTS  (3.1 – 3.12)   —   Core Detection Logic
 // ------------------------------------------------------------------
 describe('AlertDetectionJob — Test Cases', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
   it('3.1 should subscribe to inverter:* on module init', async () => {
     const { job, pubSubService } = makeJob();
 
@@ -313,17 +310,12 @@ describe('AlertDetectionJob — Test Cases', () => {
     alertRepo.create.mockReturnValue(savedAlert);
     alertRepo.save.mockResolvedValue(savedAlert);
 
+    // Fix time to 22:30 UTC — inside quiet hours (22:00–07:00)
     const fixedTimestamp = new Date('2026-01-01T22:30:00Z').getTime();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(fixedTimestamp);
-    const RealDate = Date;
-    const dateSpy = jest.spyOn(global, 'Date').mockImplementation(function (
-      this: unknown,
-      ...args: (string | number | Date)[]
-    ) {
-      if (args.length === 0) return new RealDate(fixedTimestamp);
-      return new RealDate(args[0]);
+    jest.useFakeTimers({
+      now: fixedTimestamp,
+      doNotFake: ['setImmediate', 'nextTick'],
     });
-    jest.spyOn(Date, 'now').mockReturnValue(fixedTimestamp);
 
     await triggerMessage(
       job,
@@ -342,8 +334,7 @@ describe('AlertDetectionJob — Test Cases', () => {
     ];
     expect(callArgs[2].delay).toBeGreaterThan(0);
 
-    dateSpy.mockRestore();
-    nowSpy.mockRestore();
+    jest.useRealTimers();
   }, 15000);
 
   it('3.10 should queue alert.dispatch immediately for CRITICAL alert even during quiet hours', async () => {
@@ -372,16 +363,12 @@ describe('AlertDetectionJob — Test Cases', () => {
     alertRepo.create.mockReturnValue(savedAlert);
     alertRepo.save.mockResolvedValue(savedAlert);
 
+    // Fix time to 22:30 UTC — inside quiet hours (22:00–07:00)
     const fixedTimestamp = new Date('2026-01-01T22:30:00Z').getTime();
-    const RealDate = Date;
-    const dateSpy = jest.spyOn(global, 'Date').mockImplementation(function (
-      this: unknown,
-      ...args: (string | number | Date)[]
-    ) {
-      if (args.length === 0) return new RealDate(fixedTimestamp);
-      return new RealDate(args[0]);
+    jest.useFakeTimers({
+      now: fixedTimestamp,
+      doNotFake: ['setImmediate', 'nextTick'],
     });
-    jest.spyOn(Date, 'now').mockReturnValue(fixedTimestamp);
 
     await triggerMessage(
       job,
@@ -399,7 +386,7 @@ describe('AlertDetectionJob — Test Cases', () => {
       expect.anything(),
     );
 
-    dateSpy.mockRestore();
+    jest.useRealTimers();
   });
 
   it('3.11 should use user-configured custom threshold when evaluating depletion', async () => {
@@ -468,6 +455,9 @@ describe('AlertDetectionJob — Test Cases', () => {
 // EDGE CASES  (E13, E17, E18)
 // ------------------------------------------------------------------
 describe('AlertDetectionJob — Edge Cases', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
   it('E13 should skip inactive inverter without creating any alert', async () => {
     const { job, inverterRepo, alertRepo } = makeJob();
     inverterRepo.findOne.mockResolvedValue(makeInverter({ isActive: false }));
