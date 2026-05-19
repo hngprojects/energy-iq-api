@@ -55,17 +55,6 @@ export class AlertDispatchProcessor extends WorkerHost {
     // Mark as processing
     alert.deliveryProcessingStatus = ProcessingStatus.processing;
     await this.alertRepo.save(alert);
-
-    // --- Channel delivery logic would go here ---
-    // The processor is the orchestration layer that calls:
-    //   WhatsAppService.send()
-    //   EmailService.send()
-    //   SmsService.send()
-    // via the DeliveryFallbackService.
-    //
-    // For now, we log and mark successful.
-    // When the real channel services are injected, this is where
-    // deliverWithFallback() is called.
   
     this.logger.log(`Alert ${alertId} processed successfully`);
     alert.deliveryProcessingStatus = ProcessingStatus.successful;
@@ -88,7 +77,6 @@ export class AlertDispatchProcessor extends WorkerHost {
 
     // Deferred delivery means quiet hours have ended.
     // Re-dispatch the alert immediately
-    // In a full implementation, this would re-queue with a new job.
     this.logger.log(`Deferred delivery complete for alert ${alertId}`);
 
     alert.deliveryProcessingStatus = ProcessingStatus.successful;

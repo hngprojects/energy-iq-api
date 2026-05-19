@@ -37,20 +37,20 @@ export class Alert extends AbstractBaseEntity {
   deliveryProcessingStatus: ProcessingStatus;
 
   @Column({ type: 'boolean', default: true })
-  deliverable: boolean;
+  deliverable?: boolean;
 
   @Column({ type: 'varchar', length: 50, default: 'pending' })
   deliveryStatus: 'pending' | 'delivered' | 'failed' | 'partial_success';
 
   @Column({ type: 'varchar', length: 50, nullable: true })
-  deliveryChannel: string | null;
+  deliveryChannel?: string;
 
   @Column({ type: 'timestamptz', nullable: true })
-  quietHoursDeferredUntil: Date | null;
+  quietHoursDeferredUntil?: Date;
 
   @Column({ type: 'timestamptz', nullable: true })
-  cooldownExpiresAt: Date | null;
+  cooldownExpiresAt?: Date;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any> | null;
+  metadata?: Record<string, any>;
 }

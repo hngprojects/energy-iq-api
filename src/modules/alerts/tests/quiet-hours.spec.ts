@@ -4,7 +4,7 @@
 // ==================================================================
 jest.mock('../../../config/env', () => ({}));
 
-import { convertToUTC, isWithinQuietHours } from '../helpers/quiet-hours';
+import { convertToUTC, isWithinQuietHours } from './quiet-hours';
 import { MockUserSettings } from './test-helpers';
 
 // ------------------------------------------------------------------

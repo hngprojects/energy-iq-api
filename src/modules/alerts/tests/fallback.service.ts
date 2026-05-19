@@ -1,4 +1,3 @@
-// src/modules/alerts/delivery/fallback.service.ts
 // ==================================================================
 // DELIVERY FALLBACK SERVICE — Channel fallback with audit trail
 // ==================================================================

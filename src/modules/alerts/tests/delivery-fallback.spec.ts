@@ -4,7 +4,7 @@
 
 jest.mock('../../../config/env', () => ({}));
 
-import { AlertDelivery, deliverWithFallback } from '../fallback.service';
+import { AlertDelivery, deliverWithFallback } from './fallback.service';
 import { channelServices } from './test-helpers';
 
 describe('DeliveryFallback — Test Cases', () => {

@@ -4,7 +4,7 @@
 jest.mock('../../../config/env', () => ({}));
 
 
-import { calculateDepletion } from '../helpers/depletion-engine';
+import { calculateDepletion } from './depletion-engine';
 
 // ------------------------------------------------------------------
 // TESTS  (1.1 – 1.8)   —   Normal & Business Logic

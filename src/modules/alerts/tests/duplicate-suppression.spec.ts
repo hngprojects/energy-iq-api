@@ -7,7 +7,7 @@
 
 import { AlertResolutionStatus, AlertSeverity } from '../../../common/enums';
 import { Alert } from '../entities/alert.entity';
-import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
+import { DuplicateSuppressionService } from './duplicate-suppression';
 import { mockAlertRepo, resetAllMocks } from './test-helpers';
 
 jest.mock('../../../config/env', () => ({}));

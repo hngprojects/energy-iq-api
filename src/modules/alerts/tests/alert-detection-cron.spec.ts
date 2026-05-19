@@ -1,17 +1,10 @@
-// ==================================================================
-// ALERT DETECTION CRON (Alert-Worthy Detection)
-// ==================================================================
-// Tests:     6  (firing logic, severity levels, skip conditions)
-// Edge Cases: 6  (inactive inverters, stale data, concurrency, etc.)
-// ==================================================================
-
 jest.mock('../../../config/env', () => ({}));
 
 import { Inverter } from '../../inverters/entities/inverters.entity';
-import { calculateDepletion } from '../helpers/depletion-engine';
+import { calculateDepletion } from './depletion-engine';
 import { mockAlertRepo, mockInverterRepo, mockMetricsRepo, mockUserSettingsRepo, resetAllMocks } from './test-helpers';
-import { shouldFireAlert } from '../helpers/alert-thresholds';
-import { isWithinQuietHours } from '../helpers/quiet-hours';
+import { shouldFireAlert } from './alert-thresholds';
+import { isWithinQuietHours } from './quiet-hours';
 
 // ------------------------------------------------------------------
 // TESTS  —  Alert Detection Logic

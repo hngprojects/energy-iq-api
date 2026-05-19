@@ -9,7 +9,7 @@ import {
   truncateMessage,
   validatePhoneNumber,
   WhatsAppMessage,
-} from '../helpers/whatsapp-helpers';
+} from './whatsapp-helpers';
 import { mockWhatsAppClient } from './test-helpers';
 
 

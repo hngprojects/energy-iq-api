@@ -9,8 +9,7 @@ jest.mock('../../../config/env', () => ({}));
 
 import { Queue, Job } from 'bullmq';
 import { mockAlertQueue, resetAllMocks } from './test-helpers';
-import { ALERT_DISPATCH_JOB } from '../jobs/alert-dispatch.jobs';
-import { Alert } from '../entities/alert.entity';
+import { ALERT_DISPATCH_JOB } from './alert-dispatch.jobs';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
 
 

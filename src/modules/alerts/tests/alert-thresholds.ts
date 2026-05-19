@@ -1,9 +1,3 @@
-// src/modules/alerts/helpers/alert-thresholds.ts
-// ==================================================================
-// ALERT THRESHOLDS — Pure function for severity determination
-// Extracted from AlertDetectionJob.shouldFireAlert will delegate to this
-// ==================================================================
-
 import { AlertSeverity } from '../../../common/enums';
 
 export interface DepletionAlertInfo {
