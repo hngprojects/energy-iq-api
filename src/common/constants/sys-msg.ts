@@ -36,4 +36,5 @@ export const SYS_MSG = {
   EMPTY_WHATSAPP_MESSAGE: 'Either contentSid or a non-empty body is required',
   WAITLIST_SUCCESS: 'Successfully joined the waitlist',
   WAITLIST_EXISTING: 'You are already registered or on the waitlist',
+  ALERT_NOT_FOUND: 'Alert not found',
 } as const;

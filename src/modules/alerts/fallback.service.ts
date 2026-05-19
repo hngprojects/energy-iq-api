@@ -30,16 +30,19 @@ export interface DeliveryResult {
  *   - Each channel attempted exactly once (no infinite loops)
  *   - Respects user channel preferences (skips disabled channels)
  *   - If all channels fail → status = 'failed'
- *   - If some succeed after fallback → status = 'delivered'
+ *   - If one succeeds after fallback → status = 'delivered'
  *   - Audit log for each attempt: "{channel}: {result}"
  *
- * @param delivery - The alert delivery payload with channel chain
- * @param channelServices - Object mapping channel names to { send: Function }
+ * @param delivery        - The alert delivery payload with channel chain
+ * @param channelServices - Object mapping channel names to { send: AsyncFunction }
  * @returns DeliveryResult with status, channel used, and audit trail
  */
 export async function deliverWithFallback(
   delivery: AlertDelivery,
-  channelServices: Record<string, { send: Function }>,
+  channelServices: Record<
+    string,
+    { send: (details: { to: string; message: string }) => Promise<void> }
+  >,
 ): Promise<DeliveryResult> {
   const audit: string[] = [];
   let lastError: string | null = null;

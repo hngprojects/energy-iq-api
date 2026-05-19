@@ -7,12 +7,12 @@ export interface AlertDispatchJobData {
   type: string;
   severity: string;
   message: string;
-  channel: string;          // primary channel (e.g., 'whatsapp')
-  channels?: string[];      // fallback chain (optional)
+  channel: string; // primary channel (e.g., 'whatsapp')
+  channels?: string[]; // fallback chain (optional)
 }
 
 export interface AlertDeferredDeliveryJobData {
   alertId: string;
   userId: string;
-  scheduledFor: string;     // ISO date string when quiet hours end
+  scheduledFor: string; // ISO date string when quiet hours end
 }

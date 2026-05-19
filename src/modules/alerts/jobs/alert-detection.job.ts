@@ -1,77 +1,114 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Inverter } from '../../inverters/entities/inverters.entity';
-import { InvertersMetrics } from '../../inverters-metrics/entities/inverters-metrics.entity';
 import { UserSettings } from '../../users/entities/user-settings.entity';
 import { Alert } from '../entities/alert.entity';
-import { calculateDepletion, DepletionInput } from '../helpers/depletion-engine';
+import { NormalisedMetric } from '../../inverters/types/shared.types';
+import { MetricsPubSubService } from '../../metrics-stream/pubsub/metrics-pubsub.service';
+import {
+  calculateDepletion,
+  DepletionInput,
+} from '../helpers/depletion-engine';
+import { shouldFireAlert } from '../helpers/alert-thresholds';
 import { isWithinQuietHours, convertToUTC } from '../helpers/quiet-hours';
 import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
 import { QUEUES } from '../../../common/constants/queue';
-import { AlertType, AlertSeverity, AlertResolutionStatus } from '../../../common/enums';
+import {
+  AlertType,
+  AlertSeverity,
+  AlertResolutionStatus,
+} from '../../../common/enums';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
 import { ALERT_DEFERRED_DELIVERY_JOB } from './alert-dispatch.jobs';
 
+const INVERTER_PATTERN = 'inverter:*';
+
 @Injectable()
-export class AlertDetectionJob {
+export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AlertDetectionJob.name);
+
+  // Keep a reference to the callback so we can unsubscribe cleanly on shutdown
+  private readonly metricHandler: (message: string, channel: string) => void = (
+    message: string,
+    channel: string,
+  ) => this.handleMetricMessage(message, channel);
 
   constructor(
     @InjectRepository(Inverter)
     private readonly inverterRepo: Repository<Inverter>,
-    @InjectRepository(InvertersMetrics)
-    private readonly metricsRepo: Repository<InvertersMetrics>,
     @InjectRepository(UserSettings)
     private readonly userSettingsRepo: Repository<UserSettings>,
     @InjectRepository(Alert)
     private readonly alertRepo: Repository<Alert>,
     private readonly duplicateSuppression: DuplicateSuppressionService,
+    private readonly pubSubService: MetricsPubSubService,
     @InjectQueue(QUEUES.ALERT_DISPATCH)
     private readonly alertQueue: Queue,
   ) {}
 
-  @Cron('*/5 * * * * *', { name: 'alert-detection' })
-  async evaluateAllInverters(): Promise<void> {
-    this.logger.log('Starting alert evaluation cycle');
-
-    const activeInverters = await this.inverterRepo.find({
-      where: { isActive: true },
-    });
-
-    this.logger.log(`Found ${activeInverters.length} active inverter(s)`);
-
-    const BATCH_SIZE = 20;
-    for (let i = 0; i < activeInverters.length; i += BATCH_SIZE) {
-      const batch = activeInverters.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(
-        batch.map((inverter) => this.evaluateInverter(inverter)),
-      );
-    }
-
-    this.logger.log('Alert evaluation cycle complete');
+  async onModuleInit(): Promise<void> {
+    await this.pubSubService.psubscribe(INVERTER_PATTERN, this.metricHandler);
+    this.logger.log(
+      `AlertDetectionJob: subscribed to pattern "${INVERTER_PATTERN}"`,
+    );
   }
 
-  private async evaluateInverter(inverter: Inverter): Promise<void> {
+  async onModuleDestroy(): Promise<void> {
+    await this.pubSubService.punsubscribe(INVERTER_PATTERN, this.metricHandler);
+    this.logger.log(
+      `AlertDetectionJob: unsubscribed from pattern "${INVERTER_PATTERN}"`,
+    );
+  }
+
+  /**
+   * Called by MetricsPubSubService for every message matching inverter:*
+   * @param message - JSON-serialised NormalisedMetric
+   * @param channel - The exact channel that fired, e.g. "inverter:abc-123"
+   */
+  private handleMetricMessage(message: string, channel: string): void {
+    let metric: NormalisedMetric;
     try {
-      // Fetch latest metric within last 30 minutes
-      const latestMetric = await this.metricsRepo.findOne({
-        where: {
-          inverterId: inverter.id,
-          createdAt: MoreThan(new Date(Date.now() - 30 * 60 * 1000)),
-        },
-        order: { createdAt: 'DESC' },
-      });
+      metric = JSON.parse(message) as NormalisedMetric;
+    } catch {
+      this.logger.error(
+        `AlertDetectionJob: failed to parse message on channel ${channel}`,
+      );
+      return;
+    }
 
-      if (!latestMetric) {
-        this.logger.warn(`No recent metrics for inverter ${inverter.id}`);
-        return;
-      }
+    void this.evaluateFromMetric(metric);
+  }
 
-      // Fetch user settings (may not have all fields yet)
+  private async evaluateFromMetric(metric: NormalisedMetric): Promise<void> {
+    const inverter = await this.inverterRepo.findOne({
+      where: { id: metric.inverterId },
+    });
+
+    if (!inverter) {
+      this.logger.warn(
+        `AlertDetectionJob: inverter ${metric.inverterId} not found`,
+      );
+      return;
+    }
+
+    if (!inverter.isActive) return;
+
+    await this.evaluateInverter(inverter, metric);
+  }
+
+  private async evaluateInverter(
+    inverter: Inverter,
+    metric: NormalisedMetric,
+  ): Promise<void> {
+    try {
       const settings = await this.userSettingsRepo.findOne({
         where: { user: { id: inverter.userId } },
       });
@@ -80,24 +117,22 @@ export class AlertDetectionJob {
       const cooldown = settings?.alertCooldownMinutes ?? 15;
       const timezone = settings?.timezone ?? '+00:00';
 
-      // Build depletion input — use panelCapacityKw as inverter rated power
       const depletionInput: DepletionInput = {
-        batterySocPercent: latestMetric.batterySocPercent,
-        loadKw: latestMetric.loadKw,
+        batterySocPercent: metric.batterySoc ?? 0,
+        loadKw: metric.acOutputPowerKw ?? 0,
         batteryCapacityKwh: Number(inverter.ratedCapacityKwh),
-        solarGenKw: latestMetric.solarGenKw,
+        solarGenKw: metric.solarPowerKw ?? 0,
         inverterRatedPowerKw: Number(inverter.panelCapacityKw),
       };
 
       const depletionResult = calculateDepletion(depletionInput, threshold);
 
-      // Determine if alert should fire
-      const alertInfo = this.shouldFireAlert(depletionResult);
-      if (!alertInfo) {
-        return;
-      }
+      const alertInfo = shouldFireAlert(
+        depletionResult.minutesUntilDepletion,
+        depletionResult.isCharging,
+      );
+      if (!alertInfo) return;
 
-      // Check duplicate suppression
       const dupCheck = await this.duplicateSuppression.isDuplicate(
         {
           userId: inverter.userId,
@@ -114,7 +149,6 @@ export class AlertDetectionJob {
         return;
       }
 
-      // Check quiet hours
       const now = new Date();
       let deferDelivery = false;
 
@@ -124,17 +158,15 @@ export class AlertDetectionJob {
         deferDelivery = isWithinQuietHours(now, utcStart, utcEnd);
       }
 
-      // Critical alerts bypass quiet hours
       if (alertInfo.severity === AlertSeverity.CRITICAL) {
         deferDelivery = false;
       }
 
-      // Create the alert
-      const newAlert = this.alertRepo.create({
+      const newAlert: Alert = this.alertRepo.create({
         userId: inverter.userId,
         type: AlertType.BATTERY_PERCENTAGE,
         platform: inverter.brand.toLowerCase(),
-        severity: alertInfo.severity as AlertSeverity,
+        severity: alertInfo.severity,
         message: alertInfo.message,
         resolutionStatus: AlertResolutionStatus.UNRESOLVED,
         triggeredAt: new Date(),
@@ -146,7 +178,6 @@ export class AlertDetectionJob {
 
       const savedAlert = await this.alertRepo.save(newAlert);
 
-      // Queue for delivery (if not deferred)
       if (!deferDelivery) {
         await this.alertQueue.add('alert.dispatch', {
           alertId: savedAlert.id,
@@ -154,44 +185,43 @@ export class AlertDetectionJob {
           type: savedAlert.type,
           severity: savedAlert.severity,
           message: savedAlert.message,
-          channel: 'whatsapp', // primary channel
+          channel: 'whatsapp',
         });
-      }
+      } else if (settings?.quietHoursEnd && settings?.timezone) {
+        const utcEnd = convertToUTC(settings.quietHoursEnd, settings.timezone);
+        const [endH, endM] = utcEnd.split(':').map(Number);
+        const quietHoursEndDate = new Date(now);
+        quietHoursEndDate.setUTCHours(endH, endM, 0, 0);
 
-      this.logger.log(
-        `Alert created for user ${inverter.userId}: ${alertInfo.severity} - ${alertInfo.message}` +
-          (deferDelivery ? ' (deferred due to quiet hours)' : ''),
-      );
+        if (quietHoursEndDate <= now) {
+          quietHoursEndDate.setUTCDate(quietHoursEndDate.getUTCDate() + 1);
+        }
 
-      // If deferred, we would schedule a job for later delivery
-      if (deferDelivery) {
-        // Schedule deferred delivery when quiet hours end
-        if (settings?.quietHoursEnd && settings?.timezone) {
-          const utcEnd = convertToUTC(settings.quietHoursEnd, settings.timezone);
-          const [endH, endM] = utcEnd.split(':').map(Number);
-          const quietHoursEndDate = new Date(now);
-          quietHoursEndDate.setUTCHours(endH, endM, 0, 0);
+        const delay = quietHoursEndDate.getTime() - now.getTime();
 
-          // If quiet hours end is in the past for today, schedule for tomorrow
-          if (quietHoursEndDate <= now) {
-            quietHoursEndDate.setUTCDate(quietHoursEndDate.getUTCDate() + 1);
-          }
-
-          const delay = quietHoursEndDate.getTime() - now.getTime();
-
-          await this.alertQueue.add(ALERT_DEFERRED_DELIVERY_JOB, {
+        await this.alertQueue.add(
+          ALERT_DEFERRED_DELIVERY_JOB,
+          {
             alertId: savedAlert.id,
             userId: savedAlert.userId,
             scheduledFor: quietHoursEndDate.toISOString(),
-          }, {
+          },
+          {
             delay,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
-          });
+          },
+        );
 
-          this.logger.log(`Scheduled deferred delivery for alert ${savedAlert.id} at ${quietHoursEndDate.toISOString()}`);
-        }
+        this.logger.log(
+          `Scheduled deferred delivery for alert ${savedAlert.id} at ${quietHoursEndDate.toISOString()}`,
+        );
       }
+
+      this.logger.log(
+        `Alert created for user ${inverter.userId}: ${alertInfo.severity} — ${alertInfo.message}` +
+          (deferDelivery ? ' (deferred: quiet hours)' : ''),
+      );
     } catch (error) {
       this.logger.error(
         `Error evaluating inverter ${inverter.id}: ${(error as Error).message}`,
@@ -199,31 +229,5 @@ export class AlertDetectionJob {
     }
   }
 
-  /**
-   * Determine if an alert should be fired based on depletion calculation.
-   * Returns null if safe (no alert needed).
-   */
-  shouldFireAlert(
-    depletionResult: ReturnType<typeof calculateDepletion>,
-  ): { severity: string; message: string } | null {
-    if (depletionResult.isCharging || depletionResult.minutesUntilDepletion === null) {
-      return null; // System is charging or idle
-    }
-
-    if (depletionResult.minutesUntilDepletion < 30) {
-      return {
-        severity: AlertSeverity.CRITICAL,
-        message: `Battery depletion imminent — approximately ${Math.round(depletionResult.minutesUntilDepletion)} minutes remaining. Consider reducing load or switching to grid.`,
-      };
-    }
-
-    if (depletionResult.minutesUntilDepletion <= 60) {
-      return {
-        severity: AlertSeverity.WARNING,
-        message: `Battery may deplete in approximately ${Math.round(depletionResult.minutesUntilDepletion)} minutes. Monitor your usage.`,
-      };
-    }
-
-    return null; // Safe — more than 60 minutes
-  }
+  private async resolveAlertType(): Promise<void> {}
 }

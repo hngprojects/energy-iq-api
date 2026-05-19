@@ -84,7 +84,6 @@ export const env = createEnv({
     TWILIO_ACCOUNT_SID: z.string().min(1),
     TWILIO_AUTH_TOKEN: z.string().min(1),
     TWILIO_WHATSAPP_FROM: z.string().min(1),
-    TWILIO_SMS_FROM: z.string().min(1),
 
     METRIC_LOW_BATTERY_THRESHOLD: z.coerce
       .number()

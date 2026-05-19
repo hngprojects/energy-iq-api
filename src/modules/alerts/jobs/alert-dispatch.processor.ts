@@ -3,10 +3,22 @@ import { QUEUES } from '../../../common/constants/queue';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Alert } from '../entities/alert.entity';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Job } from 'bullmq';
-import { ALERT_DEFERRED_DELIVERY_JOB, ALERT_DISPATCH_JOB, AlertDeferredDeliveryJobData, AlertDispatchJobData } from './alert-dispatch.jobs';
+import {
+  ALERT_DEFERRED_DELIVERY_JOB,
+  ALERT_DISPATCH_JOB,
+  AlertDeferredDeliveryJobData,
+  AlertDispatchJobData,
+} from './alert-dispatch.jobs';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { WhatsappService } from '../../whatsapp/whatsapp.service';
+import { EmailService } from '../../email/email.service';
+import { User } from '../../users/entities/user.entity';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { formatAlertMessage } from '../helpers/whatsapp-helpers';
+import { deliverWithFallback } from '../fallback.service';
+import { SYS_MSG } from '../../../common/constants/sys-msg';
 
 @Processor(QUEUES.ALERT_DISPATCH)
 export class AlertDispatchProcessor extends WorkerHost {
@@ -15,6 +27,12 @@ export class AlertDispatchProcessor extends WorkerHost {
   constructor(
     @InjectRepository(Alert)
     private readonly alertRepo: Repository<Alert>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(UserSettings)
+    private readonly userSettingsRepo: Repository<UserSettings>,
+    private readonly whatsappService: WhatsappService,
+    private readonly emailService: EmailService,
   ) {
     super();
   }
@@ -26,7 +44,9 @@ export class AlertDispatchProcessor extends WorkerHost {
       case ALERT_DISPATCH_JOB:
         return this.handleDispatch(job as Job<AlertDispatchJobData>);
       case ALERT_DEFERRED_DELIVERY_JOB:
-        return this.handleDefferedDelievery(job as Job<AlertDeferredDeliveryJobData>);
+        return this.handleDeferredDelivery(
+          job as Job<AlertDeferredDeliveryJobData>,
+        );
       default: {
         const message = `Unknown alert dispatch job type: ${job.name}`;
         this.logger.warn(message);
@@ -36,62 +56,103 @@ export class AlertDispatchProcessor extends WorkerHost {
   }
 
   private async handleDispatch(job: Job<AlertDispatchJobData>): Promise<void> {
-    const {
-      alertId,
-      channel,
-      message,
-    } = job.data;
-    this.logger.log(`Dispatching alert ${alertId} via primary channel: ${channel}`);
+    const { alertId, userId, severity, type } = job.data;
 
-    const alert = await this.alertRepo.findOne({
-      where: { id: alertId },
-    });
-
+    const alert = await this.alertRepo.findOne({ where: { id: alertId } });
     if (!alert) {
-      this.logger.error(`Alert ${alertId} not found in database`);
+      this.logger.error(`Alert ${alertId} not found`);
       throw new Error(`Alert not found: ${alertId}`);
     }
 
-    // Mark as processing
+    const [user, settings] = await Promise.all([
+      this.userRepo.findOne({ where: { id: userId } }),
+      this.userSettingsRepo.findOne({ where: { user: { id: userId } } }),
+    ]);
+
+    if (!user) {
+      this.logger.error(`User ${userId} not found for alert ${alertId}`);
+      throw new Error(`User not found: ${userId}`);
+    }
+
     alert.deliveryProcessingStatus = ProcessingStatus.processing;
     await this.alertRepo.save(alert);
 
-    // --- Channel delivery logic would go here ---
-    // The processor is the orchestration layer that calls:
-    //   WhatsAppService.send()
-    //   EmailService.send()
-    //   SmsService.send()
-    // via the DeliveryFallbackService.
-    //
-    // For now, we log and mark successful.
-    // When the real channel services are injected, this is where
-    // deliverWithFallback() is called.
-  
-    this.logger.log(`Alert ${alertId} processed successfully`);
-    alert.deliveryProcessingStatus = ProcessingStatus.successful;
-    await this.alertRepo.save(alert);
-  }
-
-  private async handleDefferedDelievery(job: Job<AlertDeferredDeliveryJobData>): Promise<void> {
-    const { alertId, userId } = job.data;
-
-    this.logger.log(`Processing deferred delivery for alert ${alertId} (user ${userId})`);
-
-    const alert = await this.alertRepo.findOne({
-      where: { id: alertId },
+    const formattedMessage = formatAlertMessage({
+      type,
+      severity,
+      message: alert.message,
     });
 
-    if (!alert) {
-      this.logger.error(`Deferred alert ${alertId} not found`);
-      throw new Error(`Alert not found: ${alertId}`);
+    const whatsappEnabled = !!(user.phoneNumber && settings?.whatsappAlerts);
+    const emailEnabled = settings?.emailAlerts ?? true; // default to email if no settings
+
+    const result = await deliverWithFallback(
+      {
+        alertId,
+        userId,
+        message: formattedMessage,
+        channels: ['whatsapp', 'email'],
+        userSettings: {
+          whatsappAlerts: whatsappEnabled,
+          emailAlerts: emailEnabled,
+          smsNotification: false,
+        },
+      },
+      {
+        whatsapp: {
+          send: ({ message }) =>
+            this.whatsappService
+              .sendText(user.phoneNumber!, message)
+              .then(() => undefined),
+        },
+        email: {
+          send: (_details) =>
+            this.emailService.sendAlert(user.email, formattedMessage),
+        },
+      },
+    );
+
+    this.logger.log(
+      `Alert ${alertId} delivery result: ${result.status} via ${result.channelUsed ?? 'none'} — audit: ${result.audit.join(' | ')}`,
+    );
+
+    if (result.status === 'delivered') {
+      alert.deliveryProcessingStatus = ProcessingStatus.successful;
+      alert.deliveryStatus = 'delivered';
+      alert.deliveryChannel = result.channelUsed ?? undefined;
+      await this.alertRepo.save(alert);
+    } else {
+      alert.deliveryProcessingStatus = ProcessingStatus.failed;
+      alert.deliveryStatus = 'failed';
+      await this.alertRepo.save(alert);
+      this.logger.error(
+        `All delivery channels failed for alert ${alertId} (user ${userId})`,
+      );
+      throw new Error(`Delivery failed for alert ${alertId}`);
     }
+  }
 
-    // Deferred delivery means quiet hours have ended.
-    // Re-dispatch the alert immediately
-    // In a full implementation, this would re-queue with a new job.
-    this.logger.log(`Deferred delivery complete for alert ${alertId}`);
+  private async handleDeferredDelivery(
+    job: Job<AlertDeferredDeliveryJobData>,
+  ): Promise<void> {
+    const { alertId, userId } = job.data;
 
-    alert.deliveryProcessingStatus = ProcessingStatus.successful;
-    await this.alertRepo.save(alert);
+    this.logger.log(
+      `Processing deferred delivery for alert ${alertId} (user ${userId})`,
+    );
+    const alert = await this.alertRepo.findOne({ where: { id: alertId } });
+    if (!alert) {
+      throw new NotFoundException(SYS_MSG.ALERT_NOT_FOUND);
+    }
+    await this.handleDispatch({
+      data: {
+        alertId,
+        userId,
+        type: alert?.type,
+        severity: alert.severity,
+        message: alert.message,
+        channel: 'whatsapp',
+      },
+    } as Job<AlertDispatchJobData>);
   }
 }

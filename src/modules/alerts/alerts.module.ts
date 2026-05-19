@@ -1,38 +1,37 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { Alert } from './entities/alert.entity';
 import { AlertModelAction } from './actions/alert.action';
 import { AlertsController } from './alerts.controller';
-import { ScheduleModule } from '@nestjs/schedule';
-import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
-import { UsersModule } from '../users/users.module';
-import { AlertDeliveryService } from './alert-delivery.service';
 import { AlertsService } from './alerts.service';
-import { DuplicateSuppressionService } from './helpers/duplicate-suppression';
-import { InvertersMetrics } from '../inverters-metrics/entities/inverters-metrics.entity';
-import { Inverter } from '../inverters/entities/inverters.entity';
-import { BullModule } from '@nestjs/bullmq';
-import { QUEUES } from '../../common/constants/queue';
 import { AlertDetectionJob } from './jobs/alert-detection.job';
 import { AlertDispatchProcessor } from './jobs/alert-dispatch.processor';
+import { DuplicateSuppressionService } from './helpers/duplicate-suppression';
+import { Inverter } from '../inverters/entities/inverters.entity';
+import { UserSettings } from '../users/entities/user-settings.entity';
+import { User } from '../users/entities/user.entity';
+import { MetricsStreamModule } from '../metrics-stream/metrics-stream.module';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { EmailModule } from '../email/email.module';
+import { QUEUES } from '../../common/constants/queue';
 
 @Module({
-  exports: [AlertModelAction, AlertsService, DuplicateSuppressionService],
   imports: [
-    InvertersMetricsModule,
-    ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([Alert, Inverter, InvertersMetrics]),
+    TypeOrmModule.forFeature([Alert, Inverter, UserSettings, User]),
     BullModule.registerQueue({ name: QUEUES.ALERT_DISPATCH }),
-    UsersModule,
+    MetricsStreamModule,
+    WhatsappModule,
+    EmailModule,
   ],
   providers: [
-    AlertDeliveryService,
-    AlertModelAction,
     AlertsService,
     AlertDetectionJob,
     AlertDispatchProcessor,
+    AlertModelAction,
     DuplicateSuppressionService,
   ],
   controllers: [AlertsController],
+  exports: [AlertModelAction, AlertsService, DuplicateSuppressionService],
 })
 export class AlertsModule {}
