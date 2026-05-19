@@ -19,7 +19,7 @@ export function convertToUTC(localTime: string, offset: string): string {
   const totalLocal = hours * 60 + mins;
   const totalOffset = sign * (offH * 60 + offM);
   let totalUtc = totalLocal - totalOffset;
-  totalUtc = ((totalUtc % 1440 % 1440) + 1440) % 1440;
+  totalUtc = (((totalUtc % 1440) % 1440) + 1440) % 1440;
   const utcHours = Math.floor(totalUtc / 60);
   const utcMins = totalUtc % 60;
   return `${String(utcHours).padStart(2, '0')}:${String(utcMins).padStart(2, '0')}`;

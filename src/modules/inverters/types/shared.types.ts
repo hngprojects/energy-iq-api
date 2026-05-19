@@ -1,3 +1,5 @@
+import { InverterBrand } from '../../../common/enums';
+
 export interface VerifiedSystem {
   model: string;
   serialNumber: string;
@@ -12,6 +14,7 @@ export interface VerifiedSystem {
 
 export interface NormalisedMetric {
   inverterId: string;
+  inverterBrand: InverterBrand;
   recordedAt: string; // ISO 8601 UTC string
 
   inverterStatus: string; // normalised: 'normal' | 'standby' | 'fault' | 'unknown'

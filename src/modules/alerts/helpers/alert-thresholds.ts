@@ -7,7 +7,7 @@
 import { AlertSeverity } from '../../../common/enums';
 
 export interface DepletionAlertInfo {
-  severity: string;
+  severity: AlertSeverity;
   message: string;
   minutesUntilDepletion: number;
 }
@@ -29,14 +29,15 @@ export function shouldFireAlert(
   isCharging: boolean,
 ): DepletionAlertInfo | null {
   if (isCharging || minutesUntilDepletion === null) {
-    return null; // System is charging or idle — no risk
+    return null;
   }
 
   if (minutesUntilDepletion <= 0) {
     // Already at or below threshold
     return {
       severity: AlertSeverity.CRITICAL,
-      message: 'Battery has reached the critical depletion threshold. Immediate action required.',
+      message:
+        'Battery has reached the critical depletion threshold. Immediate action required.',
       minutesUntilDepletion: 0,
     };
   }
@@ -44,7 +45,7 @@ export function shouldFireAlert(
   if (minutesUntilDepletion < 30) {
     return {
       severity: AlertSeverity.CRITICAL,
-      message: `Battery depletion imminent — approximately ${Math.round(minutesUntilDepletion)} minutes remaining. Consider reducing load or switching to grid.`,
+      message: `Battery depletion imminent: approximately ${Math.round(minutesUntilDepletion)} minutes remaining. Consider reducing load or switching to grid.`,
       minutesUntilDepletion,
     };
   }

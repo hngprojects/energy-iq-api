@@ -18,7 +18,7 @@ export class Alert extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 50 })
   platform: string;
 
-  @Column({ type: 'varchar', length: 50 })
+  @Column({ type: 'enum', enum: AlertSeverity })
   severity: AlertSeverity;
 
   @Column({ type: 'varchar', length: 1024 })
@@ -43,14 +43,14 @@ export class Alert extends AbstractBaseEntity {
   deliveryStatus: 'pending' | 'delivered' | 'failed' | 'partial_success';
 
   @Column({ type: 'varchar', length: 50, nullable: true })
-  deliveryChannel: string | null;
+  deliveryChannel?: string;
 
   @Column({ type: 'timestamptz', nullable: true })
-  quietHoursDeferredUntil: Date | null;
+  quietHoursDeferredUntil?: Date;
 
   @Column({ type: 'timestamptz', nullable: true })
-  cooldownExpiresAt: Date | null;
+  cooldownExpiresAt?: Date;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any> | null;
+  metadata?: Record<string, any>;
 }

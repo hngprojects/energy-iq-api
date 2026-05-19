@@ -62,4 +62,3 @@ export type EmailJobData =
   | LinkExpiredJobData
   | ContactUsJobData
   | AlertNotificationJobData;
-

@@ -1,8 +1,3 @@
-// ==================================================================
-// PREDICTIVE DEPLETION ENGINE — Pure Function
-// Calculates minutes until battery hits critical SOC threshold.
-// ==================================================================
-
 export interface DepletionInput {
   batterySocPercent: number;
   loadKw: number;

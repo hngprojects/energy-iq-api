@@ -2,11 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Alert } from '../entities/alert.entity';
-import { AlertResolutionStatus, AlertSeverity } from '../../../common/enums';
+import {
+  AlertResolutionStatus,
+  AlertSeverity,
+  AlertType,
+} from '../../../common/enums';
 
 export interface DuplicateCheckInput {
   userId: string;
-  type: string;
+  type: AlertType;
   severity: string;
 }
 
@@ -41,7 +45,7 @@ export class DuplicateSuppressionService {
     const existingAlert = await this.alertRepo.findOne({
       where: {
         userId: input.userId,
-        type: input.type as any,
+        type: input.type,
       },
       order: { createdAt: 'DESC' },
     });
@@ -50,17 +54,15 @@ export class DuplicateSuppressionService {
       return { isDuplicate: false };
     }
 
-    // Severity upgrade bypasses all suppression
-    if (this.isSeverityUpgrade(existingAlert.severity, input.severity as AlertSeverity)) {
+    if (
+      this.isSeverityUpgrade(
+        existingAlert.severity,
+        input.severity as AlertSeverity,
+      )
+    ) {
       return { isDuplicate: false, reason: 'severity_upgrade' };
     }
 
-    // if type is different
-    if (existingAlert.type !== input.type) {
-      return { isDuplicate: false, reason: 'different_alert_type' }
-    }
-
-    // Cooldown check (applies even if resolved)
     if (cooldownMinutes > 0) {
       const elapsed = Date.now() - existingAlert.createdAt.getTime();
       const cooldownMs = cooldownMinutes * 60 * 1000;
@@ -73,7 +75,6 @@ export class DuplicateSuppressionService {
       }
     }
 
-    // Unresolved same type → duplicate
     if (existingAlert.resolutionStatus !== AlertResolutionStatus.RESOLVED) {
       return {
         isDuplicate: true,

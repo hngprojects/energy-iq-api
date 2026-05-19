@@ -41,7 +41,10 @@ export function formatAlertMessage(alert: AlertForFormatting): string {
  * @param maxLength - Maximum allowed length (default: 4096)
  * @returns Truncated string ending with "..." if over limit
  */
-export function truncateMessage(body: string, maxLength: number = 4096): string {
+export function truncateMessage(
+  body: string,
+  maxLength: number = 4096,
+): string {
   if (body.length <= maxLength) return body;
   return body.substring(0, maxLength - 3) + '...';
 }
