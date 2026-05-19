@@ -14,6 +14,7 @@ import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
 import { QUEUES } from '../../../common/constants/queue';
 import { AlertType, AlertSeverity, AlertResolutionStatus } from '../../../common/enums';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { ALERT_DEFERRED_DELIVERY_JOB } from './alert-dispatch.jobs';
 
 @Injectable()
 export class AlertDetectionJob {
@@ -138,10 +139,9 @@ export class AlertDetectionJob {
         resolutionStatus: AlertResolutionStatus.UNRESOLVED,
         triggeredAt: new Date(),
         isActive: true,
-        deliveryProcesingStatus: ProcessingStatus.pending,
-        // The following fields don't exist on the entity yet
-        // deliverable: !deferDelivery,
-        // deliveryStatus: 'pending',
+        deliveryProcessingStatus: ProcessingStatus.pending,
+        deliverable: !deferDelivery,
+        deliveryStatus: 'pending',
       });
 
       const savedAlert = await this.alertRepo.save(newAlert);
@@ -165,9 +165,32 @@ export class AlertDetectionJob {
 
       // If deferred, we would schedule a job for later delivery
       if (deferDelivery) {
-        // TODO: schedule deferred delivery when quiet hours end
-        // For now, just log it
-        this.logger.log(`Alert will be delivered when quiet hours end`);
+        // Schedule deferred delivery when quiet hours end
+        if (settings?.quietHoursEnd && settings?.timezone) {
+          const utcEnd = convertToUTC(settings.quietHoursEnd, settings.timezone);
+          const [endH, endM] = utcEnd.split(':').map(Number);
+          const quietHoursEndDate = new Date(now);
+          quietHoursEndDate.setUTCHours(endH, endM, 0, 0);
+
+          // If quiet hours end is in the past for today, schedule for tomorrow
+          if (quietHoursEndDate <= now) {
+            quietHoursEndDate.setUTCDate(quietHoursEndDate.getUTCDate() + 1);
+          }
+
+          const delay = quietHoursEndDate.getTime() - now.getTime();
+
+          await this.alertQueue.add(ALERT_DEFERRED_DELIVERY_JOB, {
+            alertId: savedAlert.id,
+            userId: savedAlert.userId,
+            scheduledFor: quietHoursEndDate.toISOString(),
+          }, {
+            delay,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+          });
+
+          this.logger.log(`Scheduled deferred delivery for alert ${savedAlert.id} at ${quietHoursEndDate.toISOString()}`);
+        }
       }
     } catch (error) {
       this.logger.error(

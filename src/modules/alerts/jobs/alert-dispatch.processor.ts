@@ -53,7 +53,7 @@ export class AlertDispatchProcessor extends WorkerHost {
     }
 
     // Mark as processing
-    alert.deliveryProcesingStatus = ProcessingStatus.processing;
+    alert.deliveryProcessingStatus = ProcessingStatus.processing;
     await this.alertRepo.save(alert);
 
     // --- Channel delivery logic would go here ---
@@ -68,7 +68,7 @@ export class AlertDispatchProcessor extends WorkerHost {
     // deliverWithFallback() is called.
   
     this.logger.log(`Alert ${alertId} processed successfully`);
-    alert.deliveryProcesingStatus = ProcessingStatus.successful;
+    alert.deliveryProcessingStatus = ProcessingStatus.successful;
     await this.alertRepo.save(alert);
   }
 
@@ -91,7 +91,7 @@ export class AlertDispatchProcessor extends WorkerHost {
     // In a full implementation, this would re-queue with a new job.
     this.logger.log(`Deferred delivery complete for alert ${alertId}`);
 
-    alert.deliveryProcesingStatus = ProcessingStatus.successful;
+    alert.deliveryProcessingStatus = ProcessingStatus.successful;
     await this.alertRepo.save(alert);
   }
 }
