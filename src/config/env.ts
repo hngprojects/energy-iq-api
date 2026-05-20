@@ -78,7 +78,7 @@ export const env = createEnv({
       .default('https://vrmapi.victronenergy.com/v2'),
     GROWATT_API_BASE_URL: z.url().default(''),
     SUNSYNK_API_BASE_URL: z.url().default('https://globalapi.solarmanpv.com'),
-    SANDBOX_API_BASE_URL: z.url().default('http://energyiq.duckdns.org'),
+    SANDBOX_API_BASE_URL: z.url().default('http://localhost:3002'),
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
 
