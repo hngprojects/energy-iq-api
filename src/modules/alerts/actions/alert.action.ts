@@ -10,7 +10,7 @@ import {
   LessThanOrEqual,
 } from 'typeorm';
 import { FindAlertsDto } from '../../chatbot/dto/find-alerts.dto';
-import { AlertResolutionStatus } from '../enums/resolution-status.enum';
+import { AlertResolutionStatus } from '../../../common/enums';
 import { noTransaction } from '../../../common/constants/transaction-options';
 
 @Injectable()
@@ -18,6 +18,13 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
   constructor(@InjectRepository(Alert) repository: Repository<Alert>) {
     super(repository, Alert);
   }
+
+  // async createalert(alert: Partial<Alert>) {
+  //   return this.create({
+  //     ...noTransaction(),
+  //     createPayload: alert,
+  //   });
+  // }
 
   findById(id: string) {
     return this.get({

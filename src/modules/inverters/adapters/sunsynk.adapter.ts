@@ -11,6 +11,7 @@ import {
 import { NormalisedMetric, VerifiedSystem } from '../types/shared.types';
 import { BrandApiException } from '../types/brand-api.exception';
 import { appConfig } from '../../../config/app.config';
+import { InverterBrand } from '../../../common/enums';
 
 @Injectable()
 export class SunsynkAdapter {
@@ -190,6 +191,7 @@ export class SunsynkAdapter {
 
     return {
       inverterId: '',
+      inverterBrand: InverterBrand.SUNSYNK, // should this be Deye instead?
       recordedAt,
       inverterStatus: this.normaliseDeviceState(data.data.deviceState),
 

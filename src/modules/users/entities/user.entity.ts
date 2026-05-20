@@ -1,7 +1,8 @@
 import { Exclude } from 'class-transformer';
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { UserRole } from '../../../common/enums';
+import { UserSettings } from './user-settings.entity';
 
 @Entity('users')
 export class User extends AbstractBaseEntity {
@@ -42,6 +43,9 @@ export class User extends AbstractBaseEntity {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phoneNumber?: string;
+
   @Exclude()
   @Column({
     type: 'varchar',
@@ -49,4 +53,7 @@ export class User extends AbstractBaseEntity {
     nullable: true,
   })
   refreshTokenHash: string | null;
+
+  @OneToOne(() => UserSettings, (settings) => settings.user)
+  settings: UserSettings;
 }

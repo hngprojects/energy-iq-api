@@ -49,10 +49,11 @@ export class MetricsStreamService {
         where: { inverterId },
         order: { metricTimestamp: 'DESC' },
       });
-
+      const inv = await this.invertersService.findOne(inverterId);
       if (latest) {
         const snapshot: NormalisedMetric = {
           inverterId: latest.inverterId,
+          inverterBrand: inv.brand,
           recordedAt: latest.metricTimestamp.toISOString(),
           inverterStatus: latest.inverterStatus ?? 'unknown',
           batterySoc:

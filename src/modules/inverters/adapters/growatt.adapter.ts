@@ -10,6 +10,7 @@ import {
 import { NormalisedMetric, VerifiedSystem } from '../types/shared.types';
 import { BrandApiException } from '../types/brand-api.exception';
 import { appConfig } from '../../../config/app.config';
+import { InverterBrand } from '../../../common/enums';
 
 @Injectable()
 export class GrowattAdapter {
@@ -155,6 +156,7 @@ export class GrowattAdapter {
 
     return {
       inverterId: '',
+      inverterBrand: InverterBrand.GROWATT,
       recordedAt: d.time
         ? new Date(d.time).toISOString()
         : new Date().toISOString(),

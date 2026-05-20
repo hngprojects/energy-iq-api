@@ -18,5 +18,6 @@ import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.m
   ],
   controllers: [MetricsStreamController],
   providers: [MetricsStreamService, MetricsPollerService, MetricsPubSubService],
+  exports: [MetricsPubSubService],
 })
 export class MetricsStreamModule {}
