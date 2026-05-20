@@ -27,6 +27,9 @@ import { GoogleOAuthDto } from './dto/google-oauth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { PasswordUtil } from '../../common/utils/password.util';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { googleConfig } from '../../config/google.config';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
+import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 
 export interface AuthTokens {
   accessToken: string;
@@ -39,16 +42,22 @@ export interface AuthResponse extends AuthTokens {
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
+
   constructor(
     @Inject(jwtConfig.KEY)
     private readonly jwtCfg: ConfigType<typeof jwtConfig>,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
+    @Inject(googleConfig.KEY)
+    private readonly googleCfg: ConfigType<typeof googleConfig>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
+  }
 
   async register(dto: RegisterDto): Promise<PublicUser> {
     const user = await this.usersService.create({
@@ -80,6 +89,47 @@ export class AuthService {
       await this.sendVerificationEmail(user);
       throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
     }
+
+    return this.issueTokens(user);
+  }
+
+  async googleMobileLogin(dto: GoogleMobileLoginDto): Promise<AuthResponse> {
+    let payload: TokenPayload | undefined;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.idToken,
+        audience: [this.googleCfg.googleClientId],
+      });
+
+      payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        throw new UnauthorizedException(SYS_MSG.INVALID_GOOGLE_TOKEN);
+      }
+      if (!payload.email_verified) {
+        throw new UnauthorizedException(
+          SYS_MSG.UNVERIFIED_GOOGLE_ACCOUNT_EMAIL,
+        );
+      }
+      if (payload.email.length === 0 || payload.email === '') {
+        throw new UnauthorizedException(SYS_MSG.MISSING_GOOGLE_PROFILE_INFO);
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
+      throw new UnauthorizedException(SYS_MSG.GOOGLE_MOBILE_AUTH_FAILED);
+    }
+
+    const firstName =
+      payload.given_name ?? payload.name?.split(' ')[0] ?? 'User';
+    const lastName =
+      payload.family_name ?? payload.email.split(' ').slice(1).join(' ') ?? '';
+    const googleOAuthDto = {
+      email: payload.email,
+      firstName,
+      lastName,
+      googleId: payload.sub,
+    };
+
+    const user = await this.usersService.findOrCreateByGoogle(googleOAuthDto);
 
     return this.issueTokens(user);
   }
