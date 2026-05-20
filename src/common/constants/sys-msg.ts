@@ -34,6 +34,8 @@ export const SYS_MSG = {
   INVERTER_DEACTIVATED: 'Inverter deactivated successfully',
   INVERTER_ALREADY_INACTIVE: 'This inverter is already deactivated',
   EMPTY_WHATSAPP_MESSAGE: 'Either contentSid or a non-empty body is required',
+  WAITLIST_SUCCESS: 'Successfully joined the waitlist',
+  WAITLIST_EXISTING: 'You are already registered or on the waitlist',
   GOOGLE_MOBILE_AUTH_FAILED: 'Google authentication failed',
   INVALID_GOOGLE_TOKEN: 'Invalid Google token payload',
 } as const;

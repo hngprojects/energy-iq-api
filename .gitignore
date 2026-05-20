@@ -2,6 +2,8 @@
 /dist
 /node_modules
 /build
+mock-inverter-server/dist
+mock-inverter-server/node_modules
 *.tsbuildinfo
 
 # Logs
