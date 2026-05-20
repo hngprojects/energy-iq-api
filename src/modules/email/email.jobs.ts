@@ -5,6 +5,7 @@ export const EMAIL_JOBS = {
   PASSWORD_UPDATE: 'password-update',
   LINK_EXPIRE: 'link-expire',
   CONTACT_US: 'contact-us',
+  ALERT_ALERT: 'alert-notification',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -48,10 +49,16 @@ export interface ContactUsJobData {
   message: string;
 }
 
+export interface AlertNotificationJobData {
+  to: string;
+  message: string;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
   | VerifyEmailJobData
   | PasswordUpdateJobData
   | LinkExpiredJobData
-  | ContactUsJobData;
+  | ContactUsJobData
+  | AlertNotificationJobData;

@@ -10,3 +10,5 @@ onlyBuiltDependencies:
   - bcrypt
   - msgpackr-extract
   - unrs-resolver
+packages:
+  - mock-inverter-server

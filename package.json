@@ -37,7 +37,8 @@
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
     "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
     "mock:install": "cd mock-inverter-server && pnpm install",
-    "mock:start": "cd mock-inverter-server && pnpm start"
+    "mock:start": "cd mock-inverter-server && pnpm start",
+    "mock:dev": "pnpm --prefix mock-inverter-server run dev"
   },
   "dependencies": {
     "@hng-sdk/orm": "^0.0.0",
@@ -64,6 +65,7 @@
     "class-validator": "^0.15.1",
     "compression": "^1.8.1",
     "dotenv": "^17.4.2",
+    "google-auth-library": "^10.6.2",
     "handlebars": "^4.7.9",
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",

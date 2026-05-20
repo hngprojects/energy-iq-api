@@ -8,6 +8,7 @@ import {
 import { NormalisedMetric, VerifiedSystem } from '../types/shared.types';
 import { BrandApiException } from '../types/brand-api.exception';
 import { appConfig } from '../../../config/app.config';
+import { InverterBrand } from '../../../common/enums';
 
 @Injectable()
 export class VictronAdapter {
@@ -103,6 +104,7 @@ export class VictronAdapter {
 
     return {
       inverterId,
+      inverterBrand: InverterBrand.VICTRON,
       recordedAt: new Date().toISOString(),
       inverterStatus: getString('S') ?? 'unknown',
       solarPowerKw: getFloat('Pdc'),

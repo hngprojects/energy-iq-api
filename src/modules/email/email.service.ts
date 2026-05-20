@@ -10,6 +10,7 @@ import {
   VerifyEmailJobData,
   WelcomeJobData,
   ContactUsJobData,
+  AlertNotificationJobData,
 } from './email.jobs';
 
 @Injectable()
@@ -92,5 +93,12 @@ export class EmailService {
       message,
       phoneNumber,
     } satisfies ContactUsJobData);
+  }
+
+  async sendAlert(to: string, message: string): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.ALERT_ALERT, {
+      to,
+      message,
+    } satisfies AlertNotificationJobData);
   }
 }

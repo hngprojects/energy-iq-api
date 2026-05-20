@@ -21,4 +21,7 @@ export const appConfig = registerAs('app', () => ({
   victronPollingRateSeconds: 120,
   growattPollingRateSeconds: 300,
   sunsynkPollingRateSeconds: 300,
+  lowBatteryThreshold: env.METRIC_LOW_BATTERY_THRESHOLD,
+  criticalBatteryThreshold: env.METRIC_CRITICAL_BATTERY_THRESHOLD,
+  highBatteryTemperatureThreshold: env.METRIC_HIGH_BATTERY_TEMP_THRESHOLD,
 }));
