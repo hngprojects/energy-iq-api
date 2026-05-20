@@ -27,6 +27,15 @@ export class InverterConnectorDto {
 
   @ApiPropertyOptional({
     description:
+      'Sandbox Access Token. 9001, 9002, or 9003.',
+  })
+  @ValidateIf((o: InverterConnectorDto) => o.brand === InverterBrand.SANDBOX)
+  @IsString()
+  @MinLength(3)
+  sandboxAccessToken?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Growatt API token from ShinePhone app. Required when brand is GROWATT.',
   })
   @ValidateIf((o: InverterConnectorDto) => o.brand === InverterBrand.GROWATT)

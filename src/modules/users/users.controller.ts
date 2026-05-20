@@ -10,8 +10,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { type Response } from 'express';
 import { UsersService } from './users.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -33,11 +35,14 @@ export class UsersController {
 
   @Post('onboard')
   @ApiOperation({ summary: 'Connect user inverter brand' })
-  connectInverter(
+  async connectInverter(
     @Body() dto: InverterConnectorDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.usersService.connectUserInverter(dto, user.sub);
+    const { inverter, created } = await this.usersService.connectUserInverter(dto, user.sub);
+    res.status(created ? HttpStatus.CREATED : HttpStatus.OK);
+    return inverter;
   }
 
   @Get('onboard/status')

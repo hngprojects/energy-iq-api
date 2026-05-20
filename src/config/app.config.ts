@@ -14,6 +14,7 @@ export const appConfig = registerAs('app', () => ({
     .map((o) => o.trim())
     .filter(Boolean),
   victronApiBaseUrl: env.VICTRON_API_BASE_URL,
+  sandboxApiBaseUrl: env.SANDBOX_API_BASE_URL,
   growattApiBaseUrl: env.GROWATT_API_BASE_URL,
   sunsynkApiBaseUrl: env.SUNSYNK_API_BASE_URL,
   solarmanAppId: env.SOLARMAN_APP_ID,
