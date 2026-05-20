@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Inject,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { type ConfigType } from '@nestjs/config';
 import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -85,11 +87,34 @@ export class AuthController {
   })
   googleCallback(
     @CurrentUser() authResponse: AuthResponse,
+    @Query('state') state: string,
     @Res() res: Response,
   ) {
+    if (state === 'mobile') {
+      return res.json({
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        user: authResponse.user,
+      });
+    }
+
     const redirectUrl = `${this.appCfg.clientUrl}/onboarding`;
     ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
     return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Public()
+  @Post('google/mobile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Authenticate a mobile user via Google ID Token',
+    description:
+      'Verifies the Google ID token provided by the mobile application and returns ' +
+      'local application tokens.',
+  })
+  async googleMobile(@Body() dto: GoogleMobileLoginDto): Promise<AuthResponse> {
+    return this.authService.googleMobileLogin(dto);
   }
 
   @Public()
