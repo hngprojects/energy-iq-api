@@ -5,34 +5,64 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { UserModelAction } from './actions/user.action';
+import { noTransaction } from '../../common/constants/transaction-options';
+import { SYS_MSG } from '../../common/constants/sys-msg';
+import { UserModelAction } from './actions/users.action';
 import { CreateUserDto } from './dto/create-user.dto';
-import { PaginationDto } from './dto/pagination.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { PaginationDto } from '../../common/dto/pagination.do';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { InvertersService } from '../inverters/inverters.service';
+import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
+import { Inverter } from '../inverters/entities/inverters.entity';
+import { GoogleOAuthDto } from '../auth/dto/google-oauth.dto';
 
 const BCRYPT_ROUNDS = 10;
-const NO_TRANSACTION = { transactionOptions: { useTransaction: false as const } };
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly userModelAction: UserModelAction) {}
+  constructor(
+    private readonly userModelAction: UserModelAction,
+    private readonly invertersService: InvertersService,
+  ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
     const existing = await this.userModelAction.findByEmail(dto.email);
-    if (existing) {
-      throw new ConflictException('Email already in use');
-    }
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     return this.userModelAction.create({
-      ...NO_TRANSACTION,
+      ...noTransaction(),
       createPayload: {
         email: dto.email,
-        password: passwordHash,
-        fullName: dto.fullName,
+        passwordHash: passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
         role: dto.role,
+        onboardingStep: 1,
+        onboardingComplete: false,
       },
+    });
+  }
+
+  async findOrCreateByGoogle(dto: GoogleOAuthDto): Promise<User> {
+    const existing = await this.userModelAction.findByGoogleId(dto.googleId);
+    if (existing) return existing;
+
+    const existingByEmail = await this.userModelAction.findByEmail(dto.email);
+
+    if (
+      existingByEmail?.googleId &&
+      existingByEmail.googleId !== dto.googleId
+    ) {
+      throw new ConflictException(SYS_MSG.CONFLICTING_GOOGLE_ACCOUNT);
+    }
+
+    return this.userModelAction.upsertByGoogle({
+      email: dto.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      googleId: dto.googleId,
     });
   }
 
@@ -47,7 +77,7 @@ export class UsersService {
     const user = await this.userModelAction.get({
       identifierOptions: { id },
     });
-    if (!user) throw new NotFoundException(`User ${id} not found`);
+    if (!user) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     return user;
   }
 
@@ -59,17 +89,30 @@ export class UsersService {
     await this.findOne(id);
 
     const payload: Partial<User> = { ...dto };
-    if (dto.password) {
-      payload.password = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-    }
 
     const updated = await this.userModelAction.update({
-      ...NO_TRANSACTION,
+      ...noTransaction(),
       identifierOptions: { id },
       updatePayload: payload,
     });
     if (!updated) {
-      throw new InternalServerErrorException('Failed to update user');
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+    }
+    return updated;
+  }
+
+  async updatePasswordHash(id: string, passwordHash: string): Promise<User> {
+    await this.findOne(id);
+
+    const payload: Partial<User> = { passwordHash };
+
+    const updated = await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: payload,
+    });
+    if (!updated) {
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
     }
     return updated;
   }
@@ -77,16 +120,63 @@ export class UsersService {
   async remove(id: string): Promise<void> {
     await this.findOne(id);
     await this.userModelAction.delete({
-      ...NO_TRANSACTION,
+      ...noTransaction(),
       identifierOptions: { id },
     });
   }
 
   async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
     await this.userModelAction.update({
-      ...NO_TRANSACTION,
+      ...noTransaction(),
       identifierOptions: { id },
       updatePayload: { refreshTokenHash: hash },
     });
+  }
+
+  async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {
+    await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: {
+        emailVerified,
+        onboardingStep: emailVerified ? 2 : 1,
+      },
+    });
+  }
+
+  async connectUserInverter(
+    dto: InverterConnectorDto,
+    userId: string,
+  ): Promise<{ inverter: Inverter; created: boolean }> {
+    const result = await this.invertersService.connectInverterWithMeta(
+      dto,
+      userId,
+    );
+
+    await this.userModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: userId },
+      updatePayload: {
+        onboardingStep: 3,
+        onboardingComplete: true,
+        inverterBrand: dto.brand,
+      },
+    });
+
+    return result;
+  }
+
+  async getOnboardingStatus(id: string) {
+    const user = await this.findOne(id);
+
+    return {
+      currentStep: user.onboardingStep ?? 1,
+      onboardingComplete: user.onboardingComplete,
+      steps: {
+        accountCreated: true,
+        emailVerified: user.emailVerified,
+        inverterConnected: user.onboardingComplete,
+      },
+    };
   }
 }

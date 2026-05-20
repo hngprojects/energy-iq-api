@@ -4,40 +4,29 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { map, Observable } from 'rxjs';
-
-export interface ApiResponse<T> {
-  success: true;
-  data: T;
-  meta?: Record<string, unknown>;
-}
+import { StandardResponse } from '../responses/standard-response';
 
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>> {
+export class TransformInterceptor<T> implements NestInterceptor<T, unknown> {
   intercept(
-    _context: ExecutionContext,
+    context: ExecutionContext,
     next: CallHandler<T>,
-  ): Observable<ApiResponse<T>> {
+  ): Observable<unknown> {
+    const httpContext = context.switchToHttp();
+    const request = httpContext.getRequest<Request>();
+    const response = httpContext.getResponse<Response>();
+
     return next.handle().pipe(
       map((payload) => {
-        if (
-          payload &&
-          typeof payload === 'object' &&
-          'paginationMeta' in (payload as object)
-        ) {
-          const { paginationMeta, payload: data, ...rest } = payload as unknown as {
-            paginationMeta: Record<string, unknown>;
-            payload: T;
-            [key: string]: unknown;
-          };
-          return {
-            success: true,
-            data: data,
-            meta: { ...rest, ...paginationMeta },
-          };
-        }
-        return { success: true, data: payload };
+        if (response.statusCode === 204) return undefined;
+
+        return StandardResponse.success(payload, {
+          request,
+          method: request.method,
+          statusCode: response.statusCode,
+        });
       }),
     );
   }

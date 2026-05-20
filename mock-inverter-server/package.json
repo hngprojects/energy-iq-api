@@ -1,0 +1,21 @@
+{
+  "name": "mock-inverter-server",
+  "version": "1.0.0",
+  "description": "Mock Victron VRM API server for local and staging development",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc",
+    "start:prod": "node dist/index.js",
+    "dev": "tsx watch --watch src src/index.ts"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "20.11.5",
+    "tsx": "^4.21.0",
+    "typescript": "5.3.3"
+  }
+}

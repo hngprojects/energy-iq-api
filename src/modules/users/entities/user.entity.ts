@@ -1,56 +1,59 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
-import {
-  Column,
-  CreateDateColumn,
-  DeleteDateColumn,
-  Entity,
-  Index,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
-
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-}
+import { Column, Entity, OneToOne } from 'typeorm';
+import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
+import { UserRole } from '../../../common/enums';
+import { UserSettings } from './user-settings.entity';
 
 @Entity('users')
-export class User {
-  @ApiProperty({ format: 'uuid' })
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @ApiProperty({ example: 'user@example.com' })
-  @Index({ unique: true })
-  @Column({ type: 'varchar', length: 255, unique: true })
+export class User extends AbstractBaseEntity {
+  @Column({ type: 'citext', unique: true })
   email: string;
 
   @Exclude()
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  passwordHash: string;
+
   @Column({ type: 'varchar', length: 255 })
-  password: string;
+  firstName: string;
 
-  @ApiProperty()
-  @Column({ type: 'varchar', length: 255, name: 'full_name' })
-  fullName: string;
+  @Column({ type: 'varchar', length: 255 })
+  lastName: string;
 
-  @ApiProperty({ enum: UserRole, default: UserRole.USER })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  googleId?: string;
+
+  @Column({ type: 'boolean', default: false })
+  emailVerified: boolean;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  inverterBrand?: string;
+
+  @Column({ type: 'smallint', nullable: true })
+  onboardingStep?: number;
+
+  @Column({ type: 'boolean', default: false })
+  onboardingComplete: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  isActive: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastLoginAt?: Date;
+
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phoneNumber?: string;
+
   @Exclude()
-  @Column({ type: 'varchar', length: 500, nullable: true, name: 'refresh_token_hash' })
+  @Column({
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+  })
   refreshTokenHash: string | null;
 
-  @ApiProperty()
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
-
-  @ApiProperty()
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
-
-  @Exclude()
-  @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt: Date | null;
+  @OneToOne(() => UserSettings, (settings) => settings.user)
+  settings: UserSettings;
 }

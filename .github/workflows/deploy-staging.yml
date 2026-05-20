@@ -1,0 +1,69 @@
+name: Deploy to Staging
+
+on:
+  workflow_run:
+    workflows:
+      - "CI Quality & Security Gate"
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Staging Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'staging')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            
+            cd /home/appuser/backend/staging/
+
+            git pull origin staging
+
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            pnpm install --frozen-lockfile
+            pnpm migration:run
+            pnpm build
+
+            pm2 reload be-staging --update-env || pm2 start dist/main.js --name be-staging
+            pm2 save
+            
+
+      - name: Health check
+        run: |
+          echo "Waiting for staging service to be ready..."
+          for i in $(seq 1 12); do
+            if curl --silent --fail --max-time 10 \
+                "${{ secrets.STAGING_HEALTH_URL }}"; then
+              echo "Health check passed on attempt $i."
+              exit 0
+            fi
+            echo "Attempt $i/12 failed — retrying in 10s..."
+            sleep 10
+          done
+          echo "Health check failed after 2 minutes."
+          exit 1

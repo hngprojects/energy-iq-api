@@ -1,0 +1,14 @@
+allowBuilds:
+  '@nestjs/core': false
+  '@scarf/scarf': false
+  bcrypt: false
+  msgpackr-extract: false
+  unrs-resolver: false
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - '@scarf/scarf'
+  - bcrypt
+  - msgpackr-extract
+  - unrs-resolver
+packages:
+  - mock-inverter-server
