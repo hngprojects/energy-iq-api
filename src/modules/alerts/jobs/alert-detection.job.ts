@@ -74,6 +74,9 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
    * @param channel - The exact channel that fired, e.g. "inverter:abc-123"
    */
   private handleMetricMessage(message: string, channel: string): void {
+    this.logger.log(
+      `AlertDetectionJob: received message on channel ${channel} (${message.length} bytes)`,
+    );
     let metric: NormalisedMetric;
     try {
       metric = JSON.parse(message) as NormalisedMetric;
@@ -84,22 +87,37 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    this.logger.log(
+      `AlertDetectionJob: parsed metric for inverter ${metric.inverterId}, SOC=${metric.batterySoc}`,
+    );
     void this.evaluateFromMetric(metric);
   }
 
   private async evaluateFromMetric(metric: NormalisedMetric): Promise<void> {
+    this.logger.log(
+      `AlertDetectionJob: evaluating inverter ${metric.inverterId}`,
+    );
     const inverter = await this.inverterRepo.findOne({
       where: { id: metric.inverterId },
     });
 
     if (!inverter) {
       this.logger.warn(
-        `AlertDetectionJob: inverter ${metric.inverterId} not found`,
+        `AlertDetectionJob: inverter ${metric.inverterId} not found in DB`,
       );
       return;
     }
 
-    if (!inverter.isActive) return;
+    this.logger.log(
+      `AlertDetectionJob: inverter ${inverter.id} found, isActive=${inverter.isActive}`,
+    );
+
+    if (!inverter.isActive) {
+      this.logger.log(
+        `AlertDetectionJob: inverter ${inverter.id} is inactive, skipping`,
+      );
+      return;
+    }
 
     await this.evaluateInverter(inverter, metric);
   }
@@ -113,6 +131,10 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         where: { user: { id: inverter.userId } },
       });
 
+      this.logger.log(
+        `AlertDetectionJob: settings for user ${inverter.userId}: ${settings ? `found (threshold=${settings.depletionThreshold}, cooldown=${settings.alertCooldownMinutes})` : 'not found, using defaults'}`,
+      );
+
       const threshold = settings?.depletionThreshold ?? 10;
       const cooldown = settings?.alertCooldownMinutes ?? 15;
       const timezone = settings?.timezone ?? '+00:00';
@@ -125,13 +147,31 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         inverterRatedPowerKw: Number(inverter.panelCapacityKw),
       };
 
+      this.logger.log(
+        `AlertDetectionJob: depletion input: SOC=${depletionInput.batterySocPercent}%, load=${depletionInput.loadKw}kW, solar=${depletionInput.solarGenKw}kW, capacity=${depletionInput.batteryCapacityKwh}kWh, threshold=${threshold}%`,
+      );
+
       const depletionResult = calculateDepletion(depletionInput, threshold);
+
+      this.logger.log(
+        `AlertDetectionJob: depletion result: minutesUntilDepletion=${depletionResult.minutesUntilDepletion}, isCharging=${depletionResult.isCharging}, netDischargeKw=${depletionResult.netDischargeKw}`,
+      );
 
       const alertInfo = shouldFireAlert(
         depletionResult.minutesUntilDepletion,
         depletionResult.isCharging,
       );
-      if (!alertInfo) return;
+
+      if (!alertInfo) {
+        this.logger.log(
+          `AlertDetectionJob: no alert needed for inverter ${inverter.id} (safe zone or charging)`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `AlertDetectionJob: alert needed — severity=${alertInfo.severity}, minutes=${alertInfo.minutesUntilDepletion}`,
+      );
 
       const dupCheck = await this.duplicateSuppression.isDuplicate(
         {
