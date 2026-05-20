@@ -8,6 +8,7 @@ import { Inverter } from './entities/inverters.entity';
 import { GrowattAdapter } from './adapters/growatt.adapter';
 import { SunsynkAdapter } from './adapters/sunsynk.adapter';
 import { VictronAdapter } from './adapters/victron.adapters';
+import { SandboxAdapter } from './adapters/sandbox.adapter';
 import { InverterModelAction } from './action/inverters.action';
 
 @Module({
@@ -22,6 +23,7 @@ import { InverterModelAction } from './action/inverters.action';
     VictronAdapter,
     GrowattAdapter,
     SunsynkAdapter,
+    SandboxAdapter,
   ],
   exports: [
     InvertersService,
@@ -29,6 +31,7 @@ import { InverterModelAction } from './action/inverters.action';
     VictronAdapter,
     GrowattAdapter,
     SunsynkAdapter,
+    SandboxAdapter,
   ],
 })
 export class InvertersModule {}
