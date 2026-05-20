@@ -26,8 +26,7 @@ export class InverterConnectorDto {
   victronAccessToken?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Sandbox Access Token. 9001, 9002, or 9003.',
+    description: 'Sandbox Access Token. 9001, 9002, or 9003.',
   })
   @ValidateIf((o: InverterConnectorDto) => o.brand === InverterBrand.SANDBOX)
   @IsString()

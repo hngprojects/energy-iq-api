@@ -40,7 +40,10 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { inverter, created } = await this.usersService.connectUserInverter(dto, user.sub);
+    const { inverter, created } = await this.usersService.connectUserInverter(
+      dto,
+      user.sub,
+    );
     res.status(created ? HttpStatus.CREATED : HttpStatus.OK);
     return inverter;
   }

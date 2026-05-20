@@ -66,8 +66,12 @@ export class MissingTablesMigration1779272737779 implements MigrationInterface {
       )
     `);
 
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_28ae56bc5bbfbab9a6b3210464" ON "inverters" ("brand", "serial_number")`);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_233e641a7c5306e9aa24a82aa3" ON "inverters" ("user_id", "is_active")`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_28ae56bc5bbfbab9a6b3210464" ON "inverters" ("brand", "serial_number")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_233e641a7c5306e9aa24a82aa3" ON "inverters" ("user_id", "is_active")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "inverter_metrics" (
@@ -95,7 +99,9 @@ export class MissingTablesMigration1779272737779 implements MigrationInterface {
       )
     `);
 
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_dd3bcf8fdc5f345eda1e7671d4" ON "inverter_metrics" ("inverter_id", "created_at")`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_dd3bcf8fdc5f345eda1e7671d4" ON "inverter_metrics" ("inverter_id", "created_at")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "daily_metrics" (
@@ -112,7 +118,9 @@ export class MissingTablesMigration1779272737779 implements MigrationInterface {
       )
     `);
 
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_50f7e2d6cbbde644fcff3adf3c" ON "daily_metrics" ("inverter_id", "date")`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_50f7e2d6cbbde644fcff3adf3c" ON "daily_metrics" ("inverter_id", "date")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "chats" (
@@ -213,21 +221,39 @@ export class MissingTablesMigration1779272737779 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "user_settings" DROP CONSTRAINT IF EXISTS "FK_4ed056b9344e6f7d8d46ec4b302"`);
-    await queryRunner.query(`ALTER TABLE "messages" DROP CONSTRAINT IF EXISTS "FK_7540635fef1922f0b156b9ef74f"`);
-    await queryRunner.query(`ALTER TABLE "daily_metrics" DROP CONSTRAINT IF EXISTS "FK_25013b61db327b6629e194da1b1"`);
-    await queryRunner.query(`ALTER TABLE "inverter_metrics" DROP CONSTRAINT IF EXISTS "FK_cd66337ed18480287071464ab23"`);
-    await queryRunner.query(`ALTER TABLE "inverters" DROP CONSTRAINT IF EXISTS "FK_7e7dc9572076d05e7599f5fc4ae"`);
+    await queryRunner.query(
+      `ALTER TABLE "user_settings" DROP CONSTRAINT IF EXISTS "FK_4ed056b9344e6f7d8d46ec4b302"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "messages" DROP CONSTRAINT IF EXISTS "FK_7540635fef1922f0b156b9ef74f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "daily_metrics" DROP CONSTRAINT IF EXISTS "FK_25013b61db327b6629e194da1b1"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "inverter_metrics" DROP CONSTRAINT IF EXISTS "FK_cd66337ed18480287071464ab23"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "inverters" DROP CONSTRAINT IF EXISTS "FK_7e7dc9572076d05e7599f5fc4ae"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "user_settings"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "waitlist"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "messages"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "chats"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_50f7e2d6cbbde644fcff3adf3c"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_50f7e2d6cbbde644fcff3adf3c"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "daily_metrics"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_dd3bcf8fdc5f345eda1e7671d4"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_dd3bcf8fdc5f345eda1e7671d4"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "inverter_metrics"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_233e641a7c5306e9aa24a82aa3"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_28ae56bc5bbfbab9a6b3210464"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_233e641a7c5306e9aa24a82aa3"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "public"."IDX_28ae56bc5bbfbab9a6b3210464"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "inverters"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "users"`);
   }

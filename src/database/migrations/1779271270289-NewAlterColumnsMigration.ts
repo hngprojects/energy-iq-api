@@ -78,26 +78,44 @@ export class NewAlterColumnsMigration1779271270289 implements MigrationInterface
     `);
 
     // Add new columns to alerts if not already there
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_processing_status" character varying(255) NOT NULL DEFAULT 'PENDING'`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "deliverable" boolean NOT NULL DEFAULT true`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_status" character varying(50) NOT NULL DEFAULT 'pending'`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_channel" character varying(50)`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "quiet_hours_deferred_until" TIMESTAMP WITH TIME ZONE`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "cooldown_expires_at" TIMESTAMP WITH TIME ZONE`);
-    await queryRunner.query(`ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "metadata" jsonb`);
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_processing_status" character varying(255) NOT NULL DEFAULT 'PENDING'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "deliverable" boolean NOT NULL DEFAULT true`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_status" character varying(50) NOT NULL DEFAULT 'pending'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "delivery_channel" character varying(50)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "quiet_hours_deferred_until" TIMESTAMP WITH TIME ZONE`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "cooldown_expires_at" TIMESTAMP WITH TIME ZONE`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "metadata" jsonb`,
+    );
 
     // Migrate alerts.severity from varchar to enum (only if it's still a varchar)
-    const severityIsVarchar = await queryRunner.query(`
+    const severityIsVarchar = (await queryRunner.query(`
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'alerts'
         AND column_name = 'severity'
         AND data_type = 'character varying'
-    `);
+    `)) as unknown[];
     if (severityIsVarchar.length > 0) {
-      await queryRunner.query(`CREATE TYPE "public"."alerts_severity_enum" AS ENUM('LOW', 'MEDIUM', 'HIGH', 'WARNING', 'CRITICAL', 'NONE')`);
+      await queryRunner.query(
+        `CREATE TYPE "public"."alerts_severity_enum" AS ENUM('LOW', 'MEDIUM', 'HIGH', 'WARNING', 'CRITICAL', 'NONE')`,
+      );
       await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN "severity"`);
-      await queryRunner.query(`ALTER TABLE "alerts" ADD "severity" "public"."alerts_severity_enum" NOT NULL`);
+      await queryRunner.query(
+        `ALTER TABLE "alerts" ADD "severity" "public"."alerts_severity_enum" NOT NULL`,
+      );
     }
 
     // Add FK for user_settings -> users (ignore if already exists)
@@ -108,28 +126,50 @@ export class NewAlterColumnsMigration1779271270289 implements MigrationInterface
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "user_settings" DROP CONSTRAINT IF EXISTS "FK_4ed056b9344e6f7d8d46ec4b302"`);
+    await queryRunner.query(
+      `ALTER TABLE "user_settings" DROP CONSTRAINT IF EXISTS "FK_4ed056b9344e6f7d8d46ec4b302"`,
+    );
     // Revert severity enum back to varchar if it was changed
-    const severityIsEnum = await queryRunner.query(`
+    const severityIsEnum = (await queryRunner.query(`
       SELECT 1 FROM information_schema.columns
       WHERE table_schema = 'public'
         AND table_name = 'alerts'
         AND column_name = 'severity'
         AND udt_name = 'alerts_severity_enum'
-    `);
+    `)) as unknown[];
     if (severityIsEnum.length > 0) {
       await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN "severity"`);
-      await queryRunner.query(`DROP TYPE IF EXISTS "public"."alerts_severity_enum"`);
-      await queryRunner.query(`ALTER TABLE "alerts" ADD "severity" character varying(50) NOT NULL`);
+      await queryRunner.query(
+        `DROP TYPE IF EXISTS "public"."alerts_severity_enum"`,
+      );
+      await queryRunner.query(
+        `ALTER TABLE "alerts" ADD "severity" character varying(50) NOT NULL`,
+      );
     }
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "metadata"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "cooldown_expires_at"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "quiet_hours_deferred_until"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_channel"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_status"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "deliverable"`);
-    await queryRunner.query(`ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_processing_status"`);
-    await queryRunner.query(`ALTER TABLE "users" DROP COLUMN IF EXISTS "phone_number"`);
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "metadata"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "cooldown_expires_at"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "quiet_hours_deferred_until"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_channel"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "deliverable"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "alerts" DROP COLUMN IF EXISTS "delivery_processing_status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" DROP COLUMN IF EXISTS "phone_number"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "user_settings"`);
   }
 }

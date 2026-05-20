@@ -40,11 +40,20 @@ export class InvertersService {
   ): Promise<{ inverter: Inverter; created: boolean }> {
     switch (dto.brand) {
       case InverterBrand.VICTRON:
-        return { inverter: await this.connectVictronInverter(dto, userId), created: true };
+        return {
+          inverter: await this.connectVictronInverter(dto, userId),
+          created: true,
+        };
       case InverterBrand.GROWATT:
-        return { inverter: await this.connectGrowattInverter(dto, userId), created: true };
+        return {
+          inverter: await this.connectGrowattInverter(dto, userId),
+          created: true,
+        };
       case InverterBrand.SUNSYNK:
-        return { inverter: await this.connectSunsynkInverter(dto, userId), created: true };
+        return {
+          inverter: await this.connectSunsynkInverter(dto, userId),
+          created: true,
+        };
       case InverterBrand.SANDBOX:
         return this.connectSandboxInverter(dto, userId);
       default:
@@ -69,9 +78,13 @@ export class InvertersService {
     );
   }
 
-  async connectSandboxInverter(dto: InverterConnectorDto, userId: string): Promise<{ inverter: Inverter; created: boolean }> {
+  async connectSandboxInverter(
+    dto: InverterConnectorDto,
+    userId: string,
+  ): Promise<{ inverter: Inverter; created: boolean }> {
     const token = dto.sandboxAccessToken!;
-    const systemData = await this.sandboxAdapter.verifyAndGetSandboxSystem(token);
+    const systemData =
+      await this.sandboxAdapter.verifyAndGetSandboxSystem(token);
     return this.persistSandboxInverter(systemData, token, userId);
   }
 
