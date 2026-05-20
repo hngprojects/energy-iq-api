@@ -140,9 +140,11 @@ function timeToGo(soc: number, capacityKwh: number, netDrawKw: number): number {
 // Tick 
 
 /**
- * Advance all device states by one tick (called every 2 minutes).
+ * Advance all device states by one tick (called every 30 seconds).
  * Uses Lagos time (UTC+1) for the solar curve.
  */
+const TICK_DURATION_MINUTES = 0.5; // 30 seconds expressed in minutes
+
 export function tick(): void {
   const now = new Date();
   const lagosHour = (now.getUTCHours() + 1) % 24; // UTC+1
@@ -165,8 +167,8 @@ export function tick(): void {
     // Net power: positive = charging battery, negative = draining
     const netKw = device.solarPowerKw - device.acOutputPowerKw;
 
-    // SOC change over 2 minutes: (netKw × 2/60) / capacityKwh × 100
-    const socDelta = (netKw * (2 / 60)) / device.batteryCapacityKwh * 100;
+    // SOC change over tick duration: (netKw × tickMinutes/60) / capacityKwh × 100
+    const socDelta = (netKw * (TICK_DURATION_MINUTES / 60)) / device.batteryCapacityKwh * 100;
     device.batterySoc = clamp(device.batterySoc + socDelta, 0, 100);
 
     // Derived values

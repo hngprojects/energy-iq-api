@@ -15,6 +15,7 @@ import { SYS_MSG } from '../../common/constants/sys-msg';
 import { VerifiedSystem } from './types/shared.types';
 import { InverterApiType, InverterBrand } from '../../common/enums';
 import { SecretManager } from '../../common/utils/crypto.utils';
+import { SandboxAdapter } from './adapters/sandbox.adapter';
 
 @Injectable()
 export class InvertersService {
@@ -22,6 +23,7 @@ export class InvertersService {
     private readonly victronAdapter: VictronAdapter,
     private readonly growattAdapter: GrowattAdapter,
     private readonly sunsynkAdapter: SunsynkAdapter,
+    private readonly sandboxAdapter: SandboxAdapter,
     private readonly inverterModelAction: InverterModelAction,
   ) {}
 
@@ -29,13 +31,31 @@ export class InvertersService {
     dto: InverterConnectorDto,
     userId: string,
   ): Promise<Inverter> {
+    return (await this.connectInverterWithMeta(dto, userId)).inverter;
+  }
+
+  async connectInverterWithMeta(
+    dto: InverterConnectorDto,
+    userId: string,
+  ): Promise<{ inverter: Inverter; created: boolean }> {
     switch (dto.brand) {
       case InverterBrand.VICTRON:
-        return this.connectVictronInverter(dto, userId);
+        return {
+          inverter: await this.connectVictronInverter(dto, userId),
+          created: true,
+        };
       case InverterBrand.GROWATT:
-        return this.connectGrowattInverter(dto, userId);
+        return {
+          inverter: await this.connectGrowattInverter(dto, userId),
+          created: true,
+        };
       case InverterBrand.SUNSYNK:
-        return this.connectSunsynkInverter(dto, userId);
+        return {
+          inverter: await this.connectSunsynkInverter(dto, userId),
+          created: true,
+        };
+      case InverterBrand.SANDBOX:
+        return this.connectSandboxInverter(dto, userId);
       default:
         throw new ConflictException(
           `Unsupported inverter brand: ${dto.brand as string}`,
@@ -56,6 +76,16 @@ export class InvertersService {
       token,
       userId,
     );
+  }
+
+  async connectSandboxInverter(
+    dto: InverterConnectorDto,
+    userId: string,
+  ): Promise<{ inverter: Inverter; created: boolean }> {
+    const token = dto.sandboxAccessToken!;
+    const systemData =
+      await this.sandboxAdapter.verifyAndGetSandboxSystem(token);
+    return this.persistSandboxInverter(systemData, token, userId);
   }
 
   async connectGrowattInverter(
@@ -91,6 +121,45 @@ export class InvertersService {
       rawCredential,
       userId,
     );
+  }
+
+  /**
+   * Sandbox-specific persistence: skips the duplicate serial check so multiple
+   * users can connect to the same sandbox installation (9001, 9002, 9003).
+   * Each user gets their own inverter record keyed by {serialNumber}-{userId}.
+   * If the same user reconnects, the existing record is returned (idempotent).
+   */
+  private async persistSandboxInverter(
+    systemData: VerifiedSystem,
+    rawCredential: string,
+    userId: string,
+  ): Promise<{ inverter: Inverter; created: boolean }> {
+    const sandboxSerial = `${systemData.serialNumber}-${userId}`;
+
+    // Idempotent: return existing record if this user already connected this installation
+    const existing =
+      await this.inverterModelAction.findBySerialNumber(sandboxSerial);
+    if (existing) {
+      return { inverter: existing, created: false };
+    }
+
+    const encryptedCredentials = SecretManager.encrypt(rawCredential);
+
+    const inverter = await this.inverterModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId,
+        model: systemData.model,
+        brand: InverterBrand.SANDBOX,
+        serialNumber: sandboxSerial,
+        installationId: systemData.installationId,
+        ratedCapacityKwh: systemData.ratedCapacityKwh,
+        apiType: InverterApiType.LIVE_API,
+        encryptedCredentials,
+      },
+    });
+
+    return { inverter, created: true };
   }
 
   /**

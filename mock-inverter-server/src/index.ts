@@ -41,8 +41,8 @@ app.get('/health', (_req, res) => {
 
 // State progression
 
-// Advance device state every 2 minutes (matches Victron poll interval)
-const TICK_INTERVAL_MS = 2 * 60 * 1000;
+// Advance device state every 30 seconds (matches sandbox poll interval)
+const TICK_INTERVAL_MS = 30_000;
 setInterval(tick, TICK_INTERVAL_MS);
 
 // Run one tick immediately so state is non-stale on first request

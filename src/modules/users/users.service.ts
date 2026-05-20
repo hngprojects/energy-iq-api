@@ -147,8 +147,11 @@ export class UsersService {
   async connectUserInverter(
     dto: InverterConnectorDto,
     userId: string,
-  ): Promise<Inverter> {
-    const inverter = await this.invertersService.connectInverter(dto, userId);
+  ): Promise<{ inverter: Inverter; created: boolean }> {
+    const result = await this.invertersService.connectInverterWithMeta(
+      dto,
+      userId,
+    );
 
     await this.userModelAction.update({
       ...noTransaction(),
@@ -156,10 +159,11 @@ export class UsersService {
       updatePayload: {
         onboardingStep: 3,
         onboardingComplete: true,
+        inverterBrand: dto.brand,
       },
     });
 
-    return inverter;
+    return result;
   }
 
   async getOnboardingStatus(id: string) {

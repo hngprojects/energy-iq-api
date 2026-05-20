@@ -11,6 +11,7 @@ import { MetricsPollerService } from '../poller/metrics-poller.service';
 import { VictronAdapter } from '../../inverters/adapters/victron.adapters';
 import { GrowattAdapter } from '../../inverters/adapters/growatt.adapter';
 import { SunsynkAdapter } from '../../inverters/adapters/sunsynk.adapter';
+import { SandboxAdapter } from '../../inverters/adapters/sandbox.adapter';
 import { InverterModelAction } from '../../inverters/action/inverters.action';
 import { InvertersMetrics } from '../../inverters-metrics/entities/inverters-metrics.entity';
 import { MetricsPubSubService } from '../pubsub/metrics-pubsub.service';
@@ -29,6 +30,7 @@ function makeInverter(overrides: Partial<Inverter> = {}): Inverter {
     brand: InverterBrand.VICTRON,
     apiType: InverterApiType.LIVE_API,
     isActive: true,
+    isOffline: false,
     installationId: 'site-123',
     encryptedCredentials: 'encrypted-token',
     model: 'Cerbo GX',
@@ -48,6 +50,7 @@ function makeInverter(overrides: Partial<Inverter> = {}): Inverter {
 function makeMetric(inverterId = 'inv-uuid-1'): NormalisedMetric {
   return {
     inverterId,
+    inverterBrand: InverterBrand.SANDBOX,
     recordedAt: new Date().toISOString(),
     inverterStatus: 'normal',
     batterySoc: 80,
@@ -74,6 +77,7 @@ function makeMetric(inverterId = 'inv-uuid-1'): NormalisedMetric {
 // fast-check arbitrary for NormalisedMetric
 const normalisedMetricArb = fc.record<NormalisedMetric>({
   inverterId: fc.uuid(),
+  inverterBrand: fc.constant(InverterBrand.SANDBOX),
   recordedAt: fc
     .integer({ min: 0, max: Date.now() })
     .map((ms) => new Date(ms).toISOString()),
@@ -130,6 +134,10 @@ const mockVictronFetch = jest.fn<
   Promise<NormalisedMetric>,
   [string, string, string]
 >();
+const mockSandboxFetch = jest.fn<
+  Promise<NormalisedMetric>,
+  [string, string, string]
+>();
 const mockGrowattFetch = jest.fn<Promise<NormalisedMetric>, [string, string]>();
 const mockSunsynkFetch = jest.fn<
   Promise<NormalisedMetric>,
@@ -172,6 +180,10 @@ describe('MetricsPollerService', () => {
           useValue: { fetchMetrics: mockVictronFetch },
         },
         {
+          provide: SandboxAdapter,
+          useValue: { fetchMetrics: mockSandboxFetch },
+        },
+        {
           provide: GrowattAdapter,
           useValue: { fetchMetrics: mockGrowattFetch },
         },
@@ -208,10 +220,11 @@ describe('MetricsPollerService', () => {
     it('loads inverters for all three brands at startup', async () => {
       mockFindSpecificBrand.mockResolvedValue([]);
       await service.onModuleInit();
-      expect(mockFindSpecificBrand).toHaveBeenCalledTimes(3);
+      expect(mockFindSpecificBrand).toHaveBeenCalledTimes(4);
       expect(mockFindSpecificBrand).toHaveBeenCalledWith(InverterBrand.VICTRON);
       expect(mockFindSpecificBrand).toHaveBeenCalledWith(InverterBrand.GROWATT);
       expect(mockFindSpecificBrand).toHaveBeenCalledWith(InverterBrand.SUNSYNK);
+      expect(mockFindSpecificBrand).toHaveBeenCalledWith(InverterBrand.SANDBOX);
     });
 
     it('starts without error when no inverters are found', async () => {

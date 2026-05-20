@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { VictronAdapter } from '../../inverters/adapters/victron.adapters';
 import { GrowattAdapter } from '../../inverters/adapters/growatt.adapter';
 import { SunsynkAdapter } from '../../inverters/adapters/sunsynk.adapter';
+import { SandboxAdapter } from '../../inverters/adapters/sandbox.adapter';
 import { InverterModelAction } from '../../inverters/action/inverters.action';
 import { InvertersMetrics } from '../../inverters-metrics/entities/inverters-metrics.entity';
 import { MetricsPubSubService } from '../pubsub/metrics-pubsub.service';
@@ -21,6 +22,7 @@ import { SecretManager } from '../../../common/utils/crypto.utils';
 const VICTRON_POLL_MS = 120_000; // 2 min
 const GROWATT_POLL_MS = 300_000; // 5 min
 const SUNSYNK_POLL_MS = 300_000; // 5 min
+const SANDBOX_POLL_MS = 30_000; // 30 seconds — matches mock server tick interval
 
 @Injectable()
 export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
@@ -29,6 +31,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
   private victronInverters: Inverter[] = [];
   private growattInverters: Inverter[] = [];
   private sunsynkInverters: Inverter[] = [];
+  private sandboxInverters: Inverter[] = [];
 
   private failureCounts = new Map<string, number>();
 
@@ -36,6 +39,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     private readonly victronAdapter: VictronAdapter,
     private readonly growattAdapter: GrowattAdapter,
     private readonly sunsynkAdapter: SunsynkAdapter,
+    private readonly sandboxAdapter: SandboxAdapter,
     private readonly inverterModelAction: InverterModelAction,
     @InjectRepository(InvertersMetrics)
     private readonly metricsRepo: Repository<InvertersMetrics>,
@@ -74,17 +78,31 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  @Interval(SANDBOX_POLL_MS)
+  async pollSandbox(): Promise<void> {
+    if (!this.sandboxInverters.length) return;
+    await Promise.allSettled(
+      this.sandboxInverters.map((inv) => this.pollSandboxOne(inv)),
+    );
+  }
+
   private async loadInverters(): Promise<void> {
-    [this.victronInverters, this.growattInverters, this.sunsynkInverters] =
-      await Promise.all([
-        this.inverterModelAction.findSpecificBrand(InverterBrand.VICTRON),
-        this.inverterModelAction.findSpecificBrand(InverterBrand.GROWATT),
-        this.inverterModelAction.findSpecificBrand(InverterBrand.SUNSYNK),
-      ]);
+    [
+      this.victronInverters,
+      this.growattInverters,
+      this.sunsynkInverters,
+      this.sandboxInverters,
+    ] = await Promise.all([
+      this.inverterModelAction.findSpecificBrand(InverterBrand.VICTRON),
+      this.inverterModelAction.findSpecificBrand(InverterBrand.GROWATT),
+      this.inverterModelAction.findSpecificBrand(InverterBrand.SUNSYNK),
+      this.inverterModelAction.findSpecificBrand(InverterBrand.SANDBOX),
+    ]);
 
     this.logger.log(
       `MetricsPollerService: loaded ${this.victronInverters.length} Victron, ` +
-        `${this.growattInverters.length} Growatt, ${this.sunsynkInverters.length} Sunsynk inverters`,
+        `${this.growattInverters.length} Growatt, ${this.sunsynkInverters.length} Sunsynk, ` +
+        `${this.sandboxInverters.length} Sandbox inverters`,
     );
   }
 
@@ -112,6 +130,44 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.error(
         `Victron fetch failed for ${inverter.id}`,
+        (err as Error).message,
+      );
+      const fetchInverterFailures = this.failureCounts.get(inverter.id) ?? 0;
+      this.failureCounts.set(inverter.id, fetchInverterFailures + 1);
+
+      if (fetchInverterFailures >= 2) {
+        await this.inverterModelAction.markOffline(inverter.id);
+      }
+      return;
+    }
+
+    await this.persistAndPublish(metric, inverter.id);
+  }
+
+  private async pollSandboxOne(inverter: Inverter): Promise<void> {
+    let accessToken: string;
+    try {
+      accessToken = SecretManager.decrypt(inverter.encryptedCredentials!);
+    } catch (err) {
+      this.logger.error(
+        `Sandbox decrypt failed for ${inverter.id}`,
+        (err as Error).message,
+      );
+      return;
+    }
+
+    let metric: NormalisedMetric;
+    try {
+      metric = await this.sandboxAdapter.fetchMetrics(
+        accessToken,
+        inverter.installationId!,
+        inverter.id,
+      );
+      this.failureCounts.set(inverter.id, 0);
+      await this.inverterModelAction.markOnline(inverter.id);
+    } catch (err) {
+      this.logger.error(
+        `Sandbox fetch failed for ${inverter.id}`,
         (err as Error).message,
       );
       const fetchInverterFailures = this.failureCounts.get(inverter.id) ?? 0;
