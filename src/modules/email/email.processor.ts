@@ -12,11 +12,13 @@ import {
   VerifyEmailJobData,
   WelcomeJobData,
   ContactUsJobData,
+  AlertNotificationJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { QUEUES } from '../../common/constants/queue';
+import { error } from 'console';
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -51,6 +53,8 @@ export class EmailProcessor extends WorkerHost {
         return this.handleLinkExpire(job as Job<LinkExpiredJobData>);
       case EMAIL_JOBS.CONTACT_US:
         return this.handleContactUs(job as Job<ContactUsJobData>);
+      case EMAIL_JOBS.ALERT_ALERT:
+        return this.handleInverterAlert(job as Job<AlertNotificationJobData>)
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -256,6 +260,35 @@ export class EmailProcessor extends WorkerHost {
     this.logger.log(
       `Contact us email sent successfully for ${this.maskEmail(email)}`,
     );
+  }
+
+  private async handleInverterAlert(job: Job<AlertNotificationJobData>): Promise<void> {
+    const { to, firstName, message, alertType, alertSeverity, dashboardUrl } = job.data
+
+    this.logger.log(`Sending ${alertType} ${alertSeverity} email to ${this.maskEmail(to)}`);
+    const html = this.renderTemplate(EMAIL_JOBS.ALERT_ALERT, {
+      alertSeverity, firstName, alertType, message, dashboardUrl
+    })
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `${alertType} Alert`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `${alertType} ${alertSeverity} email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(`${alertType} ${alertSeverity} email sent successfully to ${this.maskEmail(to)}`);
   }
 
   private renderTemplate(
