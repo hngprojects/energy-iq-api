@@ -56,7 +56,7 @@ export class AlertDispatchProcessor extends WorkerHost {
   }
 
   private async handleDispatch(job: Job<AlertDispatchJobData>): Promise<void> {
-    const { alertId, userId, severity, type } = job.data;
+    const { alertId, userId, severity, type, dashboardUrl } = job.data;
 
     const alert = await this.alertRepo.findOne({ where: { id: alertId } });
     if (!alert) {
@@ -107,7 +107,14 @@ export class AlertDispatchProcessor extends WorkerHost {
         },
         email: {
           send: (_details) =>
-            this.emailService.sendAlert(user.email, formattedMessage),
+            this.emailService.sendAlert(
+              user.email,
+              formattedMessage,
+              user.firstName,
+              dashboardUrl,
+              type,
+              severity,
+            ),
         },
       },
     );

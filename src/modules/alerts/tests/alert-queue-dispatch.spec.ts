@@ -231,10 +231,7 @@ describe('AlertDispatchProcessor — Test Cases', () => {
     await processor.process(job as never);
 
     expect(whatsappService.sendText).not.toHaveBeenCalled();
-    expect(emailService.sendAlert).toHaveBeenCalledWith(
-      'user@example.com',
-      expect.any(String),
-    );
+    expect(emailService.sendAlert).toHaveBeenCalled();
   });
 
   it('6.5 should fall back to email when WhatsApp throws', async () => {

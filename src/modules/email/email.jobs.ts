@@ -1,3 +1,5 @@
+import { AlertSeverity, AlertType } from '../../common/enums';
+
 export const EMAIL_JOBS = {
   WELCOME: 'welcome',
   PASSWORD_RESET: 'password-reset',
@@ -52,6 +54,10 @@ export interface ContactUsJobData {
 export interface AlertNotificationJobData {
   to: string;
   message: string;
+  firstName: string;
+  alertType: AlertType;
+  alertSeverity: AlertSeverity;
+  dashboardUrl: string;
 }
 
 export type EmailJobData =
