@@ -18,7 +18,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { QUEUES } from '../../common/constants/queue';
-import { error } from 'console';
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -54,7 +53,7 @@ export class EmailProcessor extends WorkerHost {
       case EMAIL_JOBS.CONTACT_US:
         return this.handleContactUs(job as Job<ContactUsJobData>);
       case EMAIL_JOBS.ALERT_ALERT:
-        return this.handleInverterAlert(job as Job<AlertNotificationJobData>)
+        return this.handleInverterAlert(job as Job<AlertNotificationJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -262,13 +261,22 @@ export class EmailProcessor extends WorkerHost {
     );
   }
 
-  private async handleInverterAlert(job: Job<AlertNotificationJobData>): Promise<void> {
-    const { to, firstName, message, alertType, alertSeverity, dashboardUrl } = job.data
+  private async handleInverterAlert(
+    job: Job<AlertNotificationJobData>,
+  ): Promise<void> {
+    const { to, firstName, message, alertType, alertSeverity, dashboardUrl } =
+      job.data;
 
-    this.logger.log(`Sending ${alertType} ${alertSeverity} email to ${this.maskEmail(to)}`);
+    this.logger.log(
+      `Sending ${alertType} ${alertSeverity} email to ${this.maskEmail(to)}`,
+    );
     const html = this.renderTemplate(EMAIL_JOBS.ALERT_ALERT, {
-      alertSeverity, firstName, alertType, message, dashboardUrl
-    })
+      alertSeverity,
+      firstName,
+      alertType,
+      message,
+      dashboardUrl,
+    });
 
     const fromAddress = this.appCfg.resendFrom;
     const { error } = await this.resend.emails.send({
@@ -288,7 +296,9 @@ export class EmailProcessor extends WorkerHost {
       throw new Error(error.message);
     }
 
-    this.logger.log(`${alertType} ${alertSeverity} email sent successfully to ${this.maskEmail(to)}`);
+    this.logger.log(
+      `${alertType} ${alertSeverity} email sent successfully to ${this.maskEmail(to)}`,
+    );
   }
 
   private renderTemplate(

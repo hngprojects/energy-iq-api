@@ -107,7 +107,14 @@ export class AlertDispatchProcessor extends WorkerHost {
         },
         email: {
           send: (_details) =>
-            this.emailService.sendAlert(user.email, formattedMessage, user.firstName, dashboardUrl, type, severity),
+            this.emailService.sendAlert(
+              user.email,
+              formattedMessage,
+              user.firstName,
+              dashboardUrl,
+              type,
+              severity,
+            ),
         },
       },
     );

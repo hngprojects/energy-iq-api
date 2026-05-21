@@ -1,4 +1,4 @@
-import { AlertSeverity, AlertType } from "../../../common/enums";
+import { AlertSeverity, AlertType } from '../../../common/enums';
 
 export const ALERT_DISPATCH_JOB = 'alert.dispatch';
 export const ALERT_DEFERRED_DELIVERY_JOB = 'alert.deferred-delivery';

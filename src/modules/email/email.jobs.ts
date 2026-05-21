@@ -1,4 +1,4 @@
-import { AlertSeverity, AlertType } from "../../common/enums";
+import { AlertSeverity, AlertType } from '../../common/enums';
 
 export const EMAIL_JOBS = {
   WELCOME: 'welcome',

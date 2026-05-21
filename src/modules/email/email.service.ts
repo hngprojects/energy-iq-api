@@ -96,14 +96,21 @@ export class EmailService {
     } satisfies ContactUsJobData);
   }
 
-  async sendAlert(to: string, message: string, firstName: string, dashboardUrl: string, alertType: AlertType, alertSeverity: AlertSeverity): Promise<void> {
+  async sendAlert(
+    to: string,
+    message: string,
+    firstName: string,
+    dashboardUrl: string,
+    alertType: AlertType,
+    alertSeverity: AlertSeverity,
+  ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.ALERT_ALERT, {
       to,
       message,
       firstName,
       dashboardUrl,
       alertType,
-      alertSeverity
+      alertSeverity,
     } satisfies AlertNotificationJobData);
   }
 }
