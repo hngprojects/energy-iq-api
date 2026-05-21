@@ -85,13 +85,13 @@ const DEVICES: DeviceState[] = [
     name: 'EnergyIQ Test Site C (Low Battery)',
     identifier: 'MOCK-VIC-003',
     victronUserId: 9003,
-    batterySoc: 15,
+    batterySoc: 18,
     batteryVoltageV: 45.2,
-    batteryCurrentA: -5.0,
+    batteryCurrentA: -10.0,
     batteryTemperatureC: 35,
-    batteryTimeToGoMin: 20,
-    solarPowerKw: 0.0,
-    acOutputPowerKw: 1.5,
+    batteryTimeToGoMin: 25,
+    solarPowerKw: 0.0,       // no solar — forces net discharge every tick
+    acOutputPowerKw: 2.5,    // load > solar → depletion engine fires
     gridVoltageV: 231,
     gridFrequencyHz: 50,
     inverterTemperatureC: 40,
