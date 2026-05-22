@@ -18,19 +18,19 @@ export class UserSettings extends AbstractBaseEntity {
   city?: string
 
   // Notification settings
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: false, nullable: true })
   smsNotification: boolean;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: false, nullable: true })
   whatsappAlerts: boolean;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: false, nullable: true })
   emailAlerts: boolean;
 
-  @Column({ type: 'boolean' })
+  @Column({ type: 'boolean', default: false, nullable: true })
   criticalAlerts: boolean;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', nullable: true })
   AiLanguage: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
@@ -42,10 +42,10 @@ export class UserSettings extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 30, nullable: true })
   timezone: string | null;
 
-  @Column({ type: 'int', default: 15 })
+  @Column({ type: 'int', default: 15, nullable: true })
   alertCooldownMinutes: number;
 
-  @Column({ type: 'int', default: 10 })
+  @Column({ type: 'int', default: 10, nullable: true })
   depletionThreshold: number;
 
   @Column({ type: 'jsonb', nullable: true })
