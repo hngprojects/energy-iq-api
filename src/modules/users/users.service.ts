@@ -183,12 +183,12 @@ export class UsersService {
 
   /**
    * METHODS FOR UPDATING A USER'S SETTING
-  */
+   */
 
   // Personal/business settings
   async updatePersonalSettings(
     userId: string,
-    dto: UpdateUserPersonalSettingsDto
+    dto: UpdateUserPersonalSettingsDto,
   ): Promise<UserSettings> {
     let settings = await this.userSettingsModelAction.findByUserId(userId);
 
@@ -228,5 +228,4 @@ export class UsersService {
     }
     return updated;
   }
-  
 }

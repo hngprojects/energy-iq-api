@@ -15,7 +15,7 @@ export class UserSettings extends AbstractBaseEntity {
   state?: string;
 
   @Column({ type: 'varchar', nullable: true })
-  city?: string
+  city?: string;
 
   // Notification settings
   @Column({ type: 'boolean', default: false, nullable: true })

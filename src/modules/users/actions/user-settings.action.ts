@@ -6,14 +6,16 @@ import { UserSettings } from '../entities/user-settings.entity';
 
 @Injectable()
 export class UserSettingsModelAction extends AbstractModelAction<UserSettings> {
-  constructor(@InjectRepository(UserSettings) repository: Repository<UserSettings>) {
+  constructor(
+    @InjectRepository(UserSettings) repository: Repository<UserSettings>,
+  ) {
     super(repository, UserSettings);
   }
 
   // find settings record by the owning user's ID
   async findByUserId(userId: string): Promise<UserSettings | null> {
     return this.repository.findOne({
-      where: { user: {  id: userId } },
+      where: { user: { id: userId } },
     });
   }
 }
