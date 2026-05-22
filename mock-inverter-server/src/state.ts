@@ -240,6 +240,7 @@ export function getDeviceByVictronUserId(userId: number): DeviceState | undefine
 // Manual override
 
 const DEFAULT_OVERRIDE_DURATION_MINUTES = 60;
+const MAX_OVERRIDE_DURATION_MINUTES = 480;
 
 /**
  * Force a device into a specific mode for a given duration.
@@ -262,8 +263,9 @@ export function setDeviceMode(
     device.mode = 'normal';
     device.modeExpiresAt = null;
   } else {
+    const safeDuration = Number.isFinite(durationMinutes) && durationMinutes > 0 ? Math.min(durationMinutes, MAX_OVERRIDE_DURATION_MINUTES) : DEFAULT_OVERRIDE_DURATION_MINUTES;
     device.mode = mode;
-    device.modeExpiresAt = Date.now() + durationMinutes * 60_000;
+    device.modeExpiresAt = Date.now() + safeDuration * 60_000;
   }
 
   return device;

@@ -44,13 +44,17 @@ function handleOverride(mode: DeviceMode) {
   return (req: Request, res: Response): void => {
     const { id } = req.params as { id: string };
 
-    const duration = parseDuration(req.body);
-    if (duration === null) {
-      res.status(400).json({
-        success: false,
-        error: '`durationMinutes` must be a positive number (max 480)',
-      });
-      return;
+    let duration = DEFAULT_DURATION;
+    if (mode !== 'normal') {
+      const parsed = parseDuration(req.body);
+      if (parsed === null) {
+        res.status(400).json({
+          success: false,
+          error: '`durationMinutes must be a positive number (max 480)',
+        });
+        return;
+      }
+      duration = parsed;
     }
 
     const device = setDeviceMode(id, mode, duration);
