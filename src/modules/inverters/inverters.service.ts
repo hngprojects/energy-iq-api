@@ -260,6 +260,21 @@ export class InvertersService {
       throw new ConflictException(SYS_MSG.INVERTER_ALREADY_INACTIVE);
 
     await this.inverterModelAction.deactivateById(inverterId);
+
+    const message: InverterControlMessage = {
+      event: 'deregistered',
+      inverterId,
+      brand: inverter.brand,
+    };
+    this.pubsubService
+      .publish(INVERTER_CONTROL_CHANNEL, JSON.stringify(message))
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish inverter:control deregistered for ${inverterId}`,
+          err.message,
+        );
+      });
+
     return { ...inverter, isActive: false };
   }
 

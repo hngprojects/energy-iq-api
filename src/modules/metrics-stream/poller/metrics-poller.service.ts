@@ -65,12 +65,19 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     await this.pubSubService.subscribe(
       INVERTER_CONTROL_CHANNEL,
       (raw: string) => {
-        let msg: InverterControlMessage;
+        let msg: unknown;
         try {
-          msg = JSON.parse(raw) as InverterControlMessage;
+          msg = JSON.parse(raw);
         } catch {
           this.logger.warn(
             `MetricsPollerService: malformed control message: ${raw}`,
+          );
+          return;
+        }
+
+        if (!this.isValidControlMessage(msg)) {
+          this.logger.warn(
+            `MetricsPollerService: invalid control message shape`,
           );
           return;
         }
@@ -89,6 +96,17 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     );
     this.logger.log(
       `MetricsPollerService: subscribed to ${INVERTER_CONTROL_CHANNEL}`,
+    );
+  }
+
+  private isValidControlMessage(msg: unknown): msg is InverterControlMessage {
+    if (!msg || typeof msg !== 'object') return false;
+    const m = msg as Partial<InverterControlMessage>;
+    return (
+      (m.event === 'registered' || m.event === 'deregistered') &&
+      typeof m.inverterId === 'string' &&
+      m.inverterId.length > 0 &&
+      typeof m.brand === 'string'
     );
   }
 

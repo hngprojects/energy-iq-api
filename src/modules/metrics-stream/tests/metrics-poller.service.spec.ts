@@ -169,6 +169,7 @@ describe('MetricsPollerService', () => {
     mockRepoCreate.mockImplementation((dto: Partial<InvertersMetrics>) => dto);
     mockRepoSave.mockResolvedValue({} as InvertersMetrics);
     mockPublish.mockResolvedValue(undefined);
+    mockSubscribe.mockResolvedValue(undefined);
 
     // Default: no inverters for any brand
     mockFindSpecificBrand.mockResolvedValue([]);
