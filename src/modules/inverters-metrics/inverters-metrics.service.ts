@@ -184,8 +184,8 @@ export class InvertersMetricsService {
         solarKwh: parseFloat(r.solarKwh),
         avgBatterySoc: parseFloat(r.avgBatterySoc),
         avgLoadKw: parseFloat(r.avgLoadKw),
-      }))
-    }
+      })),
+    };
   }
 
   private getPeriodConfig(
