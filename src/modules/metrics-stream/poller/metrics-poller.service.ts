@@ -18,6 +18,10 @@ import { InverterBrand } from '../../../common/enums';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { SecretManager } from '../../../common/utils/crypto.utils';
+import {
+  INVERTER_CONTROL_CHANNEL,
+  InverterControlMessage,
+} from '../../../common/constants/queue';
 
 const VICTRON_POLL_MS = 120_000; // 2 min
 const GROWATT_POLL_MS = 300_000; // 5 min
@@ -48,10 +52,106 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     await this.loadInverters();
+    await this.subscribeToControlChannel();
   }
 
   onModuleDestroy(): void {
     this.logger.log('MetricsPollerService: shutting down');
+  }
+
+  // Dynamic registration
+
+  private async subscribeToControlChannel(): Promise<void> {
+    await this.pubSubService.subscribe(
+      INVERTER_CONTROL_CHANNEL,
+      (raw: string) => {
+        let msg: InverterControlMessage;
+        try {
+          msg = JSON.parse(raw) as InverterControlMessage;
+        } catch {
+          this.logger.warn(
+            `MetricsPollerService: malformed control message: ${raw}`,
+          );
+          return;
+        }
+
+        if (msg.event === 'registered') {
+          void this.handleInverterRegistered(msg.inverterId);
+        } else if (msg.event === 'deregistered') {
+          this.handleInverterDeregistered(msg.inverterId);
+        } else {
+          // Exhaustive guard — unknown event from a future version of the publisher
+          this.logger.warn(
+            'MetricsPollerService: unknown control event received',
+          );
+        }
+      },
+    );
+    this.logger.log(
+      `MetricsPollerService: subscribed to ${INVERTER_CONTROL_CHANNEL}`,
+    );
+  }
+
+  async handleInverterRegistered(inverterId: string): Promise<void> {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+
+    if (!inverter) {
+      this.logger.warn(
+        `MetricsPollerService: received registered event for unknown inverter ${inverterId}`,
+      );
+      return;
+    }
+
+    // Guard against duplicate registration (e.g. multiple API instances)
+    const alreadyTracked = this.getArrayForBrand(inverter.brand).some(
+      (i) => i.id === inverterId,
+    );
+    if (alreadyTracked) {
+      this.logger.debug(
+        `MetricsPollerService: inverter ${inverterId} already tracked — skipping`,
+      );
+      return;
+    }
+
+    this.getArrayForBrand(inverter.brand).push(inverter);
+    this.logger.log(
+      `MetricsPollerService: dynamically registered inverter ${inverterId} (${inverter.brand})`,
+    );
+  }
+
+  handleInverterDeregistered(inverterId: string): void {
+    for (const brand of Object.values(InverterBrand)) {
+      const arr = this.getArrayForBrand(brand);
+      const idx = arr.findIndex((i) => i.id === inverterId);
+      if (idx !== -1) {
+        arr.splice(idx, 1);
+        this.failureCounts.delete(inverterId);
+        this.logger.log(
+          `MetricsPollerService: deregistered inverter ${inverterId} (${brand})`,
+        );
+        return;
+      }
+    }
+    this.logger.debug(
+      `MetricsPollerService: deregister called for untracked inverter ${inverterId}`,
+    );
+  }
+
+  private getArrayForBrand(brand: InverterBrand): Inverter[] {
+    switch (brand) {
+      case InverterBrand.VICTRON:
+        return this.victronInverters;
+      case InverterBrand.GROWATT:
+        return this.growattInverters;
+      case InverterBrand.SUNSYNK:
+        return this.sunsynkInverters;
+      case InverterBrand.SANDBOX:
+        return this.sandboxInverters;
+      default:
+        return [];
+    }
   }
 
   @Interval(VICTRON_POLL_MS)

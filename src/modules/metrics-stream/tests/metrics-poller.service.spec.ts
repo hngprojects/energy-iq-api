@@ -153,6 +153,7 @@ const mockMarkOffline = jest
 const mockRepoCreate = jest.fn();
 const mockRepoSave = jest.fn<Promise<InvertersMetrics>, [InvertersMetrics]>();
 const mockPublish = jest.fn<Promise<void>, [string, string]>();
+const mockSubscribe = jest.fn<Promise<void>, [string, string]>();
 
 // ─── Test setup ──────────────────────────────────────────────────────────────
 
@@ -203,7 +204,10 @@ describe('MetricsPollerService', () => {
           provide: getRepositoryToken(InvertersMetrics),
           useValue: { create: mockRepoCreate, save: mockRepoSave },
         },
-        { provide: MetricsPubSubService, useValue: { publish: mockPublish } },
+        {
+          provide: MetricsPubSubService,
+          useValue: { publish: mockPublish, subscribe: mockSubscribe },
+        },
       ],
     }).compile();
 
