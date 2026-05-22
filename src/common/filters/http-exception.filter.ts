@@ -20,7 +20,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string | string[] = SYS_MSG.INTERNAL_SERVER_ERROR;
+    let message: string = SYS_MSG.INTERNAL_SERVER_ERROR;
     let error = 'InternalServerError';
 
     if (exception instanceof HttpException) {
@@ -30,7 +30,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
         const r = res as Record<string, unknown>;
-        message = (r.message as string | string[]) ?? message;
+        if (Array.isArray(r.message)) {
+          message = (r.message[0] as string) ?? message;
+        } else {
+          message = (r.message as string) ?? message;
+        }
         error = (r.error as string) ?? exception.name;
       }
     } else if (exception instanceof Error) {
