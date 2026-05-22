@@ -112,7 +112,7 @@ export class InvertersMetricsService {
     );
 
     return {
-      // Current snapshot — initial page-load values; live updates come via SSE
+      // Current snapshot - initial page-load values; live updates come via SSE
       currentReadings: emptyData
         ? null
         : {
@@ -139,9 +139,9 @@ export class InvertersMetricsService {
       // 7-day daily aggregates for the chart
       sevenDayHistory: sevenDayRows.map((r) => ({
         date: r.date,
-        solarKwh: parseFloat(r.solarKwh),
-        avgBatterySocPercent: parseFloat(r.avgBatterySoc),
-        avgLoadKw: parseFloat(r.avgLoadKw),
+        solarKwh: !isNaN(parseFloat(r.solarKwh)) ? parseFloat(r.solarKwh) : 0,
+        avgBatterySocPercent: !isNaN(parseFloat(r.avgBatterySoc)) ? parseFloat(r.avgBatterySoc) : 0,
+        avgLoadKw: !isNaN(parseFloat(r.avgLoadKw)) ? parseFloat(r.avgLoadKw) : 0,
       })),
     };
   }
