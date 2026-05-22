@@ -21,5 +21,5 @@ export class GetAlertsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page_size: number;
+  page_size?: number;
 }
