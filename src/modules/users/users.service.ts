@@ -206,15 +206,21 @@ export class UsersService {
       return settings;
     }
 
+    const updatePayload: Partial<UserSettings> = {
+      ...(dto.businessName !== undefined && { businessName: dto.businessName }),
+      ...(dto.businessType !== undefined && { businessType: dto.businessType }),
+      ...(dto.state !== undefined && { state: dto.state }),
+      ...(dto.city !== undefined && { city: dto.city }),
+    };
+
+    if (Object.keys(updatePayload).length === 0) {
+      return settings;
+    }
+
     const updated = await this.userSettingsModelAction.update({
       ...noTransaction(),
       identifierOptions: { id: settings.id },
-      updatePayload: {
-        ...(dto.businessName !== undefined && { businessName: dto.businessName }),
-        ...(dto.businessType !== undefined && { businessType: dto.businessType }),
-        ...(dto.state !== undefined && { state: dto.state }),
-        ...(dto.city !== undefined && { city: dto.city }),
-      },
+      updatePayload,
     });
 
     if (!updated) {
