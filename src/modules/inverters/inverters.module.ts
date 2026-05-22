@@ -10,11 +10,13 @@ import { SunsynkAdapter } from './adapters/sunsynk.adapter';
 import { VictronAdapter } from './adapters/victron.adapters';
 import { SandboxAdapter } from './adapters/sandbox.adapter';
 import { InverterModelAction } from './action/inverters.action';
+import { MetricsPubSubModule } from '../metrics-stream/pubsub/metrics-pubsub.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Inverter]),
     ConfigModule.forFeature(appConfig),
+    MetricsPubSubModule,
   ],
   controllers: [InvertersController],
   providers: [
