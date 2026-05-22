@@ -8,6 +8,7 @@ import type { Response } from 'express';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { WaitlistModelAction } from './actions/waitlist.action';
 import { PaginationDto } from '../../common/dto/pagination.do';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class WaitlistService {
@@ -17,6 +18,7 @@ export class WaitlistService {
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
     private readonly waitlistModelAction: WaitlistModelAction,
+    private readonly emailService: EmailService,
   ) {}
 
   async join(dto: JoinWaitlistDto, response: Response) {
@@ -39,6 +41,8 @@ export class WaitlistService {
     const subscriber = this.waitlistRepository.create({ email });
     await this.waitlistRepository.save(subscriber);
 
+    await this.sendWaitlistJoinedEmail(email);
+
     response.status(HttpStatus.CREATED);
     return { message: SYS_MSG.WAITLIST_SUCCESS };
   }
@@ -52,5 +56,9 @@ export class WaitlistService {
       filterRecordOptions: { isSubscribed: true },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  private async sendWaitlistJoinedEmail(email: string) {
+    return this.emailService.sendWaitlistJoinedEmail(email);
   }
 }
