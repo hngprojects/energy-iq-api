@@ -1,0 +1,8 @@
+# Trivy configuration file
+# https://trivy.dev/docs/references/configuration/config-file/
+
+scan:
+  # Skip .github directory from secret scanning — pinned action commit SHAs
+  # (40-char hex strings) trigger false positives in Trivy's secret scanner.
+  skip-dirs:
+    - .github
