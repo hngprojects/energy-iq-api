@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InverterConnectorDto } from './dto/inverter-connector.dto';
@@ -16,22 +17,54 @@ import { VerifiedSystem } from './types/shared.types';
 import { InverterApiType, InverterBrand } from '../../common/enums';
 import { SecretManager } from '../../common/utils/crypto.utils';
 import { SandboxAdapter } from './adapters/sandbox.adapter';
+import { MetricsPubSubService } from '../metrics-stream/pubsub/metrics-pubsub.service';
+import {
+  INVERTER_CONTROL_CHANNEL,
+  InverterControlMessage,
+} from '../../common/constants/queue';
 
 @Injectable()
 export class InvertersService {
+  private readonly logger = new Logger(InvertersService.name);
+
   constructor(
     private readonly victronAdapter: VictronAdapter,
     private readonly growattAdapter: GrowattAdapter,
     private readonly sunsynkAdapter: SunsynkAdapter,
     private readonly sandboxAdapter: SandboxAdapter,
     private readonly inverterModelAction: InverterModelAction,
+    private readonly pubsubService: MetricsPubSubService,
   ) {}
 
   async connectInverter(
     dto: InverterConnectorDto,
     userId: string,
-  ): Promise<Inverter> {
-    return (await this.connectInverterWithMeta(dto, userId)).inverter;
+  ): Promise<{ inverter: Inverter; created: boolean }> {
+    const { inverter, created } = await this.connectInverterWithMeta(
+      dto,
+      userId,
+    );
+
+    // Notify the poller that a new inverter is ready to be polled.
+    // The DB write is complete at this point, so the poller can safely fetch the record.
+    if (created) {
+      const message: InverterControlMessage = {
+        event: 'registered',
+        inverterId: inverter.id,
+        brand: inverter.brand,
+      };
+      this.pubsubService
+        .publish(INVERTER_CONTROL_CHANNEL, JSON.stringify(message))
+        .catch((err: Error) => {
+          // Not a fatal error - the poller will pick up the inverter on next restart
+          this.logger.error(
+            `Failed to publish inverter:control for ${inverter.id}`,
+            err.message,
+          );
+        });
+    }
+
+    return { inverter, created };
   }
 
   async connectInverterWithMeta(
@@ -227,6 +260,21 @@ export class InvertersService {
       throw new ConflictException(SYS_MSG.INVERTER_ALREADY_INACTIVE);
 
     await this.inverterModelAction.deactivateById(inverterId);
+
+    const message: InverterControlMessage = {
+      event: 'deregistered',
+      inverterId,
+      brand: inverter.brand,
+    };
+    this.pubsubService
+      .publish(INVERTER_CONTROL_CHANNEL, JSON.stringify(message))
+      .catch((err: Error) => {
+        this.logger.error(
+          `Failed to publish inverter:control deregistered for ${inverterId}`,
+          err.message,
+        );
+      });
+
     return { ...inverter, isActive: false };
   }
 
