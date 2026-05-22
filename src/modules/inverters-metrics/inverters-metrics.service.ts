@@ -140,8 +140,12 @@ export class InvertersMetricsService {
       sevenDayHistory: sevenDayRows.map((r) => ({
         date: r.date,
         solarKwh: !isNaN(parseFloat(r.solarKwh)) ? parseFloat(r.solarKwh) : 0,
-        avgBatterySocPercent: !isNaN(parseFloat(r.avgBatterySoc)) ? parseFloat(r.avgBatterySoc) : 0,
-        avgLoadKw: !isNaN(parseFloat(r.avgLoadKw)) ? parseFloat(r.avgLoadKw) : 0,
+        avgBatterySocPercent: !isNaN(parseFloat(r.avgBatterySoc))
+          ? parseFloat(r.avgBatterySoc)
+          : 0,
+        avgLoadKw: !isNaN(parseFloat(r.avgLoadKw))
+          ? parseFloat(r.avgLoadKw)
+          : 0,
       })),
     };
   }
