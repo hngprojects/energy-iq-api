@@ -44,7 +44,7 @@ export const inverterSeeder: Seeder = {
     await inverterRepository.save(inverter);
 
     console.log(
-      `[InverterSeeder] created inverter → ${adminEmail} / Admin@123456`,
+      `[InverterSeeder] created inverter → ${adminEmail}`,
     );
   },
 };

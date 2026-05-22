@@ -16,9 +16,12 @@ export const userSeeder: Seeder = {
       return;
     }
 
+    const adminPassword =
+      process.env.SEED_ADMIN_PASSWORD ?? 'change-me-before-use';
+
     const admin = repository.create({
       email: adminEmail,
-      passwordHash: await bcrypt.hash('Admin@123456', 10),
+      passwordHash: await bcrypt.hash(adminPassword, 10),
       role: UserRole.ADMIN,
       firstName: 'Admin',
       lastName: 'User',
@@ -27,7 +30,7 @@ export const userSeeder: Seeder = {
     await repository.save(admin);
 
     console.log(
-      `[UserSeeder] created admin user → ${adminEmail} / Admin@123456`,
+      `[UserSeeder] created admin user → ${adminEmail} (password from SEED_ADMIN_PASSWORD env var)`,
     );
   },
 };
