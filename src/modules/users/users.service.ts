@@ -16,6 +16,9 @@ import { InvertersService } from '../inverters/inverters.service';
 import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
 import { Inverter } from '../inverters/entities/inverters.entity';
 import { GoogleOAuthDto } from '../auth/dto/google-oauth.dto';
+import { UserSettingsModelAction } from './actions/user-settings.action';
+import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
+import { UserSettings } from './entities/user-settings.entity';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -23,6 +26,7 @@ const BCRYPT_ROUNDS = 10;
 export class UsersService {
   constructor(
     private readonly userModelAction: UserModelAction,
+    private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
   ) {}
 
@@ -176,4 +180,47 @@ export class UsersService {
       },
     };
   }
+
+  /**
+   * METHODS FOR UPDATING A USER'S SETTING
+  */
+
+  // Personal/business settings
+  async updatePersonalSettings(
+    userId: string,
+    dto: UpdateUserPersonalSettingsDto
+  ): Promise<UserSettings> {
+    let settings = await this.userSettingsModelAction.findByUserId(userId);
+
+    if (!settings) {
+      // Auto-create settings if they dont exist yet
+      const user = await this.findOne(userId);
+      settings = await this.userSettingsModelAction.create({
+        ...noTransaction(),
+        createPayload: {
+          user,
+          ...dto,
+        },
+      });
+
+      return settings;
+    }
+
+    const updated = await this.userSettingsModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: settings.id },
+      updatePayload: {
+        ...(dto.businessName !== undefined && { businessName: dto.businessName }),
+        ...(dto.businessType !== undefined && { businessType: dto.businessType }),
+        ...(dto.state !== undefined && { state: dto.state }),
+        ...(dto.city !== undefined && { city: dto.city }),
+      },
+    });
+
+    if (!updated) {
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+    }
+    return updated;
+  }
+  
 }

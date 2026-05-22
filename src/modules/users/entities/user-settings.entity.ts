@@ -4,6 +4,20 @@ import { User } from './user.entity';
 
 @Entity('user_settings')
 export class UserSettings extends AbstractBaseEntity {
+  // Personal Business settings
+  @Column({ type: 'varchar', nullable: true })
+  businessName?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  businessType?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  state?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  city?: string
+
+  // Notification settings
   @Column({ type: 'boolean', default: false })
   smsNotification: boolean;
 
