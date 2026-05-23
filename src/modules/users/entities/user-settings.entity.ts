@@ -19,37 +19,37 @@ export class UserSettings extends AbstractBaseEntity {
 
   // Notification settings
   @Column({ type: 'boolean', default: false, nullable: true })
-  smsNotification: boolean;
+  smsNotification?: boolean;
 
   @Column({ type: 'boolean', default: false, nullable: true })
-  whatsappAlerts: boolean;
+  whatsappAlerts?: boolean;
 
   @Column({ type: 'boolean', default: false, nullable: true })
-  emailAlerts: boolean;
+  emailAlerts?: boolean;
 
   @Column({ type: 'boolean', default: false, nullable: true })
-  criticalAlerts: boolean;
+  criticalAlerts?: boolean;
 
   @Column({ type: 'varchar', nullable: true })
-  AiLanguage: string;
+  AiLanguage?: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
-  quietHoursStart: string | null;
+  quietHoursStart?: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
-  quietHoursEnd: string | null;
+  quietHoursEnd?: string;
 
   @Column({ type: 'varchar', length: 30, nullable: true })
-  timezone: string | null;
+  timezone?: string;
 
   @Column({ type: 'int', default: 15, nullable: true })
-  alertCooldownMinutes: number;
+  alertCooldownMinutes?: number;
 
   @Column({ type: 'int', default: 10, nullable: true })
-  depletionThreshold: number;
+  depletionThreshold?: number;
 
   @Column({ type: 'jsonb', nullable: true })
-  channelQuietHours: Record<string, { start: string; end: string }> | null;
+  channelQuietHours?: Record<string, { start: string; end: string }>;
 
   @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
