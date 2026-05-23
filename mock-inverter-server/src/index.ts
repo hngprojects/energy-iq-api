@@ -15,6 +15,7 @@
 
 import express from 'express';
 import { victronRouter } from './routes/victron';
+import { controlRouter } from './routes/control';
 import { tick } from './state';
 
 const app = express();
@@ -33,6 +34,9 @@ app.use((req, _res, next) => {
 
 // Victron VRM API — all routes are mounted at root to match the real API shape
 app.use('/', victronRouter);
+
+// Manual override controls — public, team-only sandbox use
+app.use('/', controlRouter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -56,6 +60,11 @@ app.listen(PORT, () => {
   console.log('  Site 100001 — EnergyIQ Test Site A  (healthy, 5kW panels)');
   console.log('  Site 100002 — EnergyIQ Test Site B  (moderate, 3kW panels)');
   console.log('  Site 100003 — EnergyIQ Test Site C  (low battery, RED health)');
+  console.log('\nManual override endpoints (no auth required):');
+  console.log('  POST /charge/:id        — force charging (body: { durationMinutes? })');
+  console.log('  POST /discharge/:id     — force discharging (body: { durationMinutes? })');
+  console.log('  POST /normal/:id        — clear override immediately');
+  console.log('  Default duration: 60 min  |  Max: 480 min');
   console.log('\nSet in your .env:');
   console.log(`  VICTRON_API_BASE_URL=http://localhost:${PORT}\n`);
 });

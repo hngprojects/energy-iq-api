@@ -148,10 +148,7 @@ export class UsersService {
     dto: InverterConnectorDto,
     userId: string,
   ): Promise<{ inverter: Inverter; created: boolean }> {
-    const result = await this.invertersService.connectInverterWithMeta(
-      dto,
-      userId,
-    );
+    const result = await this.invertersService.connectInverter(dto, userId);
 
     await this.userModelAction.update({
       ...noTransaction(),
