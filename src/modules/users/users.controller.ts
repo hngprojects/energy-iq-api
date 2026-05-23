@@ -78,12 +78,12 @@ export class UsersController {
    * USER SETTINGS
    */
 
-  @Patch(':id/settings/personal')
-  @ApiOperation({ summary: 'Update user personal / business settings' })
+  @Patch('settings/personal')
+  @ApiOperation({ summary: 'Update personal / business settings and name' })
   updatePersonalSettings(
-    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateUserPersonalSettingsDto,
   ) {
-    return this.usersService.updatePersonalSettings(id, dto);
+    return this.usersService.updatePersonalSettings(user.sub, dto);
   }
 }

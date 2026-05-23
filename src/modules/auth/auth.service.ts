@@ -189,27 +189,25 @@ export class AuthService {
     /**
      * Steps to execute forgotPassword
      *
-     * 1. ensure that a user exists with the email
-     * 2. ensure that the user is email verified
-     * 3. send password reset email
+     * 1. check that a user exists with the email
+     * 2. If user does not exist, return 200 without sending mail
+     * 3. If user exists, ensure that the user is email verified
+     * 4. send password reset email
      * 5. cache a password reset record
      *
      * Notes: Users that signed up with google should be able to attach passwords to their accounts (confirm that having a password will not break google auth)
      */
     const user = await this.usersService.findByEmail(dto.email);
-    if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+    if (user) {
+      if (!user.emailVerified) return dto;
 
-    if (!user.emailVerified)
-      throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+      const token = await this.sendPasswordResetEmail(user);
 
-    const token = await this.sendPasswordResetEmail(user);
-    console.log({ token, length: token.length });
-
-    const passwordResetKey = dto.email;
-    const uniqueKey = 'password_reset_token';
-    const tokenHash = await bcrypt.hash(token, 10);
-    await this.redis.set(passwordResetKey, tokenHash, uniqueKey, 300);
-
+      const passwordResetKey = dto.email;
+      const uniqueKey = 'password_reset_token';
+      const tokenHash = await bcrypt.hash(token, 10);
+      await this.redis.set(passwordResetKey, tokenHash, uniqueKey, 300);
+    }
     return dto;
   }
 
