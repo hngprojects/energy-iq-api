@@ -190,16 +190,43 @@ export class UsersService {
     userId: string,
     dto: UpdateUserPersonalSettingsDto,
   ): Promise<UserSettings> {
+    // update user-level fields
+    if (dto.firstName !== undefined || dto.lastName !== undefined) {
+      const userUpdatePayload: Partial<User> = {};
+      if (dto.firstName !== undefined)
+        userUpdatePayload.firstName = dto.firstName;
+      if (dto.lastName !== undefined) userUpdatePayload.lastName = dto.lastName;
+
+      const updatedUser = await this.userModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: userId },
+        updatePayload: userUpdatePayload,
+      });
+
+      if (!updatedUser) {
+        throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+      }
+    }
+
+    // update settings-level fields
     let settings = await this.userSettingsModelAction.findByUserId(userId);
+
+    const user = await this.findOne(userId);
 
     if (!settings) {
       // Auto-create settings if they dont exist yet
-      const user = await this.findOne(userId);
       settings = await this.userSettingsModelAction.create({
         ...noTransaction(),
         createPayload: {
           user,
-          ...dto,
+          ...(dto.businessName !== undefined && {
+            businessName: dto.businessName,
+          }),
+          ...(dto.businessType !== undefined && {
+            businessType: dto.businessType,
+          }),
+          ...(dto.state !== undefined && { state: dto.state }),
+          ...(dto.city !== undefined && { city: dto.city }),
         },
       });
 
@@ -226,6 +253,10 @@ export class UsersService {
     if (!updated) {
       throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
     }
-    return updated;
+
+    return {
+      ...updated,
+      user: user,
+    };
   }
 }
