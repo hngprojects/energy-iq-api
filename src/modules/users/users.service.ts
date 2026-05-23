@@ -193,7 +193,8 @@ export class UsersService {
     // update user-level fields
     if (dto.firstName !== undefined || dto.lastName !== undefined) {
       const userUpdatePayload: Partial<User> = {};
-      if (dto.firstName !== undefined) userUpdatePayload.firstName = dto.firstName;
+      if (dto.firstName !== undefined)
+        userUpdatePayload.firstName = dto.firstName;
       if (dto.lastName !== undefined) userUpdatePayload.lastName = dto.lastName;
 
       const updatedUser = await this.userModelAction.update({
@@ -209,7 +210,7 @@ export class UsersService {
 
     // update settings-level fields
     let settings = await this.userSettingsModelAction.findByUserId(userId);
-    
+
     const user = await this.findOne(userId);
 
     if (!settings) {
@@ -218,8 +219,12 @@ export class UsersService {
         ...noTransaction(),
         createPayload: {
           user,
-          ...(dto.businessName !== undefined && { businessName: dto.businessName }),
-          ...(dto.businessType !== undefined && { businessType: dto.businessType }),
+          ...(dto.businessName !== undefined && {
+            businessName: dto.businessName,
+          }),
+          ...(dto.businessType !== undefined && {
+            businessType: dto.businessType,
+          }),
           ...(dto.state !== undefined && { state: dto.state }),
           ...(dto.city !== undefined && { city: dto.city }),
         },
