@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
@@ -8,15 +8,19 @@ import type { Response } from 'express';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { WaitlistModelAction } from './actions/waitlist.action';
 import { PaginationDto } from '../../common/dto/pagination.do';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class WaitlistService {
+  private logger = new Logger(WaitlistService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Waitlist)
     private readonly waitlistRepository: Repository<Waitlist>,
     private readonly waitlistModelAction: WaitlistModelAction,
+    private readonly emailService: EmailService,
   ) {}
 
   async join(dto: JoinWaitlistDto, response: Response) {
@@ -39,6 +43,10 @@ export class WaitlistService {
     const subscriber = this.waitlistRepository.create({ email });
     await this.waitlistRepository.save(subscriber);
 
+    this.sendWaitlistJoinedEmail(email).catch((err: Error) => {
+      this.logger.error('failed to enqueue waitlist joined email', err.message);
+    });
+
     response.status(HttpStatus.CREATED);
     return { message: SYS_MSG.WAITLIST_SUCCESS };
   }
@@ -52,5 +60,13 @@ export class WaitlistService {
       filterRecordOptions: { isSubscribed: true },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  private async sendWaitlistJoinedEmail(email: string) {
+    const todaysDate = new Date();
+    return this.emailService.sendWaitlistJoinedEmail(
+      email,
+      todaysDate.getFullYear(),
+    );
   }
 }

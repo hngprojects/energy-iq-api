@@ -13,6 +13,7 @@ import {
   WelcomeJobData,
   ContactUsJobData,
   AlertNotificationJobData,
+  WaitlistJoinedJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -54,6 +55,8 @@ export class EmailProcessor extends WorkerHost {
         return this.handleContactUs(job as Job<ContactUsJobData>);
       case EMAIL_JOBS.ALERT_ALERT:
         return this.handleInverterAlert(job as Job<AlertNotificationJobData>);
+      case EMAIL_JOBS.WAITLIST_JOINED:
+        return this.handleWaitlistJoined(job as Job<WaitlistJoinedJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -298,6 +301,40 @@ export class EmailProcessor extends WorkerHost {
 
     this.logger.log(
       `${alertType} ${alertSeverity} email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
+
+  private async handleWaitlistJoined(
+    job: Job<WaitlistJoinedJobData>,
+  ): Promise<void> {
+    const { to, year } = job.data;
+
+    this.logger.log(`Sending waitlist joined email to ${this.maskEmail(to)}`);
+    const html = this.renderTemplate(EMAIL_JOBS.WAITLIST_JOINED, {
+      email: to,
+      year,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `You have joined the waitlist`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `waitlist joined email delivery failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Waitlist joined email sent successfully to ${this.maskEmail(to)}`,
     );
   }
 

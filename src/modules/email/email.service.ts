@@ -11,6 +11,7 @@ import {
   WelcomeJobData,
   ContactUsJobData,
   AlertNotificationJobData,
+  WaitlistJoinedJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
 
@@ -112,5 +113,12 @@ export class EmailService {
       alertType,
       alertSeverity,
     } satisfies AlertNotificationJobData);
+  }
+
+  async sendWaitlistJoinedEmail(toEmail: string, year: number): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.WAITLIST_JOINED, {
+      to: toEmail,
+      year: year.toString(),
+    } satisfies WaitlistJoinedJobData);
   }
 }
