@@ -192,7 +192,7 @@ export class AuthService {
      * 1. check that a user exists with the email
      * 2. If user does not exist, return 200 without sending mail
      * 3. If user exists, ensure that the user is email verified
-     * 3. send password reset email
+     * 4. send password reset email
      * 5. cache a password reset record
      *
      * Notes: Users that signed up with google should be able to attach passwords to their accounts (confirm that having a password will not break google auth)
@@ -202,7 +202,6 @@ export class AuthService {
       if (!user.emailVerified) return dto;
 
       const token = await this.sendPasswordResetEmail(user);
-      console.log({ token, length: token.length });
 
       const passwordResetKey = dto.email;
       const uniqueKey = 'password_reset_token';
