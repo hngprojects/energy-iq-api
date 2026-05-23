@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
@@ -12,6 +12,8 @@ import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class WaitlistService {
+  private logger = new Logger(WaitlistService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -41,7 +43,9 @@ export class WaitlistService {
     const subscriber = this.waitlistRepository.create({ email });
     await this.waitlistRepository.save(subscriber);
 
-    await this.sendWaitlistJoinedEmail(email);
+    this.sendWaitlistJoinedEmail(email).catch((err: Error) => {
+      this.logger.error('failed to enqueue waitlist joined email', err.message);
+    });
 
     response.status(HttpStatus.CREATED);
     return { message: SYS_MSG.WAITLIST_SUCCESS };

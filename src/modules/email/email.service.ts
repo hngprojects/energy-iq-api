@@ -118,7 +118,7 @@ export class EmailService {
   async sendWaitlistJoinedEmail(toEmail: string, year: number): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.WAITLIST_JOINED, {
       to: toEmail,
-      year: String(year),
+      year: year.toString(),
     } satisfies WaitlistJoinedJobData);
   }
 }
