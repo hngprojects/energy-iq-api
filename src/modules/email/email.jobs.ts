@@ -63,6 +63,7 @@ export interface AlertNotificationJobData {
 
 export interface WaitlistJoinedJobData {
   to: string;
+  year: string;
 }
 
 export type EmailJobData =

@@ -307,11 +307,12 @@ export class EmailProcessor extends WorkerHost {
   private async handleWaitlistJoined(
     job: Job<WaitlistJoinedJobData>,
   ): Promise<void> {
-    const { to } = job.data;
+    const { to, year } = job.data;
 
     this.logger.log(`Sending waitlist joined email to ${this.maskEmail(to)}`);
     const html = this.renderTemplate(EMAIL_JOBS.WAITLIST_JOINED, {
       email: to,
+      year,
     });
 
     const fromAddress = this.appCfg.resendFrom;

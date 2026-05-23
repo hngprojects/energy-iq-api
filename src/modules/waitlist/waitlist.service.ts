@@ -59,6 +59,10 @@ export class WaitlistService {
   }
 
   private async sendWaitlistJoinedEmail(email: string) {
-    return this.emailService.sendWaitlistJoinedEmail(email);
+    const todaysDate = new Date();
+    return this.emailService.sendWaitlistJoinedEmail(
+      email,
+      todaysDate.getFullYear(),
+    );
   }
 }

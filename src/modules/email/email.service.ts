@@ -115,10 +115,10 @@ export class EmailService {
     } satisfies AlertNotificationJobData);
   }
 
-  async sendWaitlistJoinedEmail(toEmail: string): Promise<void> {
+  async sendWaitlistJoinedEmail(toEmail: string, year: number): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.WAITLIST_JOINED, {
       to: toEmail,
+      year: String(year),
     } satisfies WaitlistJoinedJobData);
-    console.log(`added ${toEmail} to waitlist email queue`);
   }
 }
