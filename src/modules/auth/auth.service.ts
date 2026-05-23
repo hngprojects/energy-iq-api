@@ -196,7 +196,6 @@ export class AuthService {
      * 5. cache a password reset record
      *
      * Notes: Users that signed up with google should be able to attach passwords to their accounts (confirm that having a password will not break google auth)
-     * Question: What happens when a user who has not verified email forgets his password. Sign up again?
      */
     const user = await this.usersService.findByEmail(dto.email);
     if (user) {
