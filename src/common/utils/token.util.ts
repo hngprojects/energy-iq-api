@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { SYS_MSG } from '../constants/sys-msg';
 
 export function validateSandboxToken(
   token: string,
@@ -11,8 +12,6 @@ export function validateSandboxToken(
   });
 
   if (!isAllowed) {
-    throw new BadRequestException(
-      'Could not connect to your Sandbox Inverter. Check your access token',
-    );
+    throw new BadRequestException(SYS_MSG.SANDBOX_CONNECTION_FAILED);
   }
 }

@@ -25,7 +25,6 @@ import { Throttle } from '@nestjs/throttler';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
-import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
@@ -90,26 +89,7 @@ export class AuthController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    if (state === 'mobile') {
-      return res.json({
-        accessToken: authResponse.accessToken,
-        refreshToken: authResponse.refreshToken,
-        user: authResponse.user,
-      });
-    }
-
-    let redirectBase = this.appCfg.clientUrl;
-
-    if (state.startsWith('web:')) {
-      const requested = decodeURIComponent(state.replace('web:', ''));
-      // violently reject it if an unallowed redirect origin was passed
-      ValidateRedirectUrl(requested, this.appCfg.allowedRedirectOrigins);
-      redirectBase = requested;
-    }
-
-    const redirectUrl = `${redirectBase}/onboarding`;
-    ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
-    return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
+    return this.authService.googleCallbackRedirect(state, res, authResponse);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })

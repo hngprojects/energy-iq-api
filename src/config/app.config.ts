@@ -8,11 +8,13 @@ export const appConfig = registerAs('app', () => {
       and client url has to be among allowed redirect origins
   */
   const clientUrl = env.CLIENT_URL;
+  const normalizedClientOrigin = new URL(clientUrl).origin;
   const allowedRedirectOrigins = env.ALLOWED_REDIRECT_ORIGINS.split(',')
     .map((o) => o.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((o) => new URL(o).origin);
 
-  if (!allowedRedirectOrigins.includes(clientUrl)) {
+  if (!allowedRedirectOrigins.includes(normalizedClientOrigin)) {
     throw new Error(
       `Configuration error: CLIENT_URL (${clientUrl}) must be included in ALLOWED_REDIRECT_ORIGINS.`,
     );
