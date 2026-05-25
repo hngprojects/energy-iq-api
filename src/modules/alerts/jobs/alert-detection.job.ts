@@ -74,7 +74,7 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
    * @param channel - The exact channel that fired, e.g. "inverter:abc-123"
    */
   private handleMetricMessage(message: string, channel: string): void {
-    this.logger.log(
+    this.logger.debug(
       `AlertDetectionJob: received message on channel ${channel} (${message.length} bytes)`,
     );
     let metric: NormalisedMetric;

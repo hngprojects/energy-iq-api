@@ -18,4 +18,16 @@ export class UserSettingsModelAction extends AbstractModelAction<UserSettings> {
       where: { user: { id: userId } },
     });
   }
+
+  async getSettingValue<K extends keyof UserSettings>(
+    userId: string,
+    settingName: K,
+  ): Promise<UserSettings[K] | null> {
+    const result = await this.repository.findOne({
+      where: { user: { id: userId } },
+      select: ['id', settingName],
+    });
+
+    return result ? result[settingName] : null;
+  }
 }

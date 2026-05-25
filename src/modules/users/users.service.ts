@@ -227,6 +227,7 @@ export class UsersService {
           }),
           ...(dto.state !== undefined && { state: dto.state }),
           ...(dto.city !== undefined && { city: dto.city }),
+          ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
         },
       });
 
@@ -238,6 +239,7 @@ export class UsersService {
       ...(dto.businessType !== undefined && { businessType: dto.businessType }),
       ...(dto.state !== undefined && { state: dto.state }),
       ...(dto.city !== undefined && { city: dto.city }),
+      ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
     };
 
     if (Object.keys(updatePayload).length === 0) {
@@ -258,5 +260,15 @@ export class UsersService {
       ...updated,
       user: user,
     };
+  }
+
+  async getUserSetting<K extends keyof UserSettings>(
+    userId: string,
+    settingName: K,
+  ): Promise<UserSettings[K] | null> {
+    return await this.userSettingsModelAction.getSettingValue(
+      userId,
+      settingName,
+    );
   }
 }

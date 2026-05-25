@@ -153,14 +153,27 @@ export class ChatService {
       description: `${this.chatbotCfg.chatbotName} is typing`,
     };
     socket.emit(ChatSocketEvent.CHAT_ACTION, botActionDto);
+
+    let userPreferredLanguage: string | null | undefined;
+
+    try {
+      userPreferredLanguage = await this.getUserPreferredLanguage(dto.senderId);
+    } catch {
+      userPreferredLanguage = undefined;
+    }
+
     // feed the last ten messages into the LLM
-    // const messagesInContext =
-    //   await this.messageModelAction.getMessagesWithCount(
-    //     chat.id,
-    //     this.chatbotCfg.chatContextLength,
-    //   );
+    const messagesInContext =
+      await this.messageModelAction.getMessagesWithCount(
+        chat.id,
+        this.chatbotCfg.chatContextLength,
+      );
     // console.log('invoking llmService');
-    const botMessageContent = await this.llmService.invoke(dto.textContent);
+    const botMessageContent = await this.llmService.invokeWithHistory(
+      messagesInContext,
+      dto.senderId,
+      userPreferredLanguage ? userPreferredLanguage : undefined,
+    );
 
     const botMessage = await this.messageModelAction.saveMessage({
       chat,
@@ -176,6 +189,12 @@ export class ChatService {
       event: ChatSocketEvent.NEW_SYSTEM_MESSAGE,
       data: botMessage,
     };
+  }
+
+  private async getUserPreferredLanguage(
+    userId: string,
+  ): Promise<string | null | undefined> {
+    return await this.usersService.getUserSetting(userId, 'AiLanguage');
   }
 
   getLastContextLengthMessages(chatId: string): Promise<Message[]> {

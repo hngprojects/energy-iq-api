@@ -3,57 +3,60 @@ import { AgentTool } from '../helpers/agent-tool';
 import { tool } from '@langchain/core/tools';
 import { FindAlertsDto } from '../dto/find-alerts.dto';
 import { AlertModelAction } from '../../alerts/actions/alert.action';
+import { z } from 'zod';
 
 @Injectable()
 export class AlertReader implements AgentTool {
   constructor(private readonly alertAction: AlertModelAction) {}
 
-  create() {
-    return tool(async (dto: FindAlertsDto) => await this.readAlert(dto), {
-      name: 'read_alerts',
-      description: this.getDescription(),
-      schema: {
-        type: 'object',
-        properties: {
-          count: {
-            type: 'integer',
-            description: 'the number of alerts the user wants to read',
-          },
-          end_date: {
-            type: 'string',
-            description:
-              'a date whose value must come at the time of or after the creation date of the alert',
-            format: 'date',
-          },
-          platform: {
-            type: 'string',
-            description:
-              'the inverter plaftorm. it can be one of "victron", "growatt" or "sunsynk". It is represented by the column named "platform" in the alerts table',
-          },
-          resolved: {
-            type: 'string',
-            description:
-              'the inverter plaftorm. it can be one of "victron", "growatt" or "sunsynk". It is represented by the column named "platform" in the alerts table',
-          },
-          severity: {
-            type: 'string',
-            description:
-              'this represents the severity of the alert. its value must be either "low", "medium", "high" or "critical". It is represented by the column named "severity" in the alerts table',
-          },
-          start_date: {
-            type: 'string',
-            description:
-              'a date whose value must come before or on the creation date of the alert',
-            format: 'date',
-          },
-          type: {
-            type: 'string',
-            description:
-              'this represents the type of the alert. It is represented by the column named "severity" in the alerts table',
-          },
-        },
-      },
+  create(userId: string) {
+    const schema = z.object({
+      end_date: z
+        .string()
+        .optional()
+        .describe(
+          'ISO date string (YYYY-MM-DD). Only include alerts created on or before this date.',
+        ),
+      platform: z
+        .string()
+        .optional()
+        .describe(
+          'The inverter platform. Must be exactly one of: "victron", "growatt", "sunsynk".',
+        ),
+      resolved: z.coerce
+        .boolean()
+        .optional()
+        .describe(
+          'Boolean. Pass true to fetch resolved alerts, false for active/unresolved alerts. Omit to fetch all.',
+        ),
+      severity: z
+        .string()
+        .optional()
+        .describe(
+          'Alert severity. Must be exactly one of: "low", "medium", "high", "critical".',
+        ),
+      start_date: z
+        .string()
+        .optional()
+        .describe(
+          'ISO date string (YYYY-MM-DD). Only include alerts created on or after this date.',
+        ),
+      type: z
+        .string()
+        .optional()
+        .describe(
+          'The alert type category, e.g. "battery", "temperature", "voltage". Omit to fetch all types.',
+        ),
     });
+
+    return tool(
+      async (dto: FindAlertsDto) => await this.readAlert(dto, userId),
+      {
+        name: 'read_alerts',
+        description: this.getDescription(),
+        schema,
+      },
+    );
   }
 
   /**
@@ -92,7 +95,11 @@ export class AlertReader implements AgentTool {
     `;
   }
 
-  async readAlert(options: FindAlertsDto) {
-    return await this.alertAction.findAlertsWhere(options);
+  async readAlert(options: FindAlertsDto, userId: string) {
+    const alerts = await this.alertAction.findAlertsWhere(options, userId);
+    if (!alerts || alerts.length === 0) {
+      return 'No alerts found matching the given criteria.';
+    }
+    return JSON.stringify(alerts);
   }
 }

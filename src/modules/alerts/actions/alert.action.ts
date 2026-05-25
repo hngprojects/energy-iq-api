@@ -40,8 +40,10 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
     });
   }
 
-  async findAlertsWhere(options: FindAlertsDto) {
-    const whereOptions: FindOptionsWhere<Alert> = {};
+  async findAlertsWhere(options: FindAlertsDto, userId: string) {
+    const whereOptions: FindOptionsWhere<Alert> = {
+      userId,
+    };
 
     if (options.end_date)
       whereOptions.createdAt = LessThanOrEqual(options.end_date);
