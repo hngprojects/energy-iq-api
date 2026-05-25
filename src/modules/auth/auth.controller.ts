@@ -98,7 +98,16 @@ export class AuthController {
       });
     }
 
-    const redirectUrl = `${this.appCfg.clientUrl}/onboarding`;
+    let redirectBase = this.appCfg.clientUrl;
+
+    if (state.startsWith('web:')) {
+      const requested = decodeURIComponent(state.replace('web:', ''));
+      // violently reject it if an unallowed redirect origin was passed
+      ValidateRedirectUrl(requested, this.appCfg.allowedRedirectOrigins);
+      redirectBase = requested;
+    }
+
+    const redirectUrl = `${redirectBase}/onboarding`;
     ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
     return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
   }
