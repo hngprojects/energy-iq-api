@@ -64,7 +64,7 @@ export class ChatService {
 
     const chat = await this.chatModelAction.createChat(chatPayload);
     if (dto.startingMessage) {
-      const message = await this.messageModelAction.saveMessage({
+      await this.messageModelAction.saveMessage({
         chat,
         content: dto.startingMessage,
         contentType: MessageContentType.TEXT,
@@ -72,9 +72,9 @@ export class ChatService {
         isTransitioning: false,
         senderId: userId,
       });
-      if (chat.messages) chat.messages.push(message);
-      else chat.messages = [message];
     }
+    // Return the chat without the messages relation to avoid circular serialization
+    chat.messages = [];
     return chat;
   }
 
