@@ -184,7 +184,7 @@ export class ChatService {
 
     const botMessage = await this.messageModelAction.saveMessage({
       chat,
-      content: botMessageContent as string,
+      content: botMessageContent,
       contentType: MessageContentType.TEXT,
       deliveryStatus: MessageDeliveryStatus.DELIVERED,
       isTransitioning: false,

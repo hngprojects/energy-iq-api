@@ -51,7 +51,11 @@ export class AgentService {
       return 'No message to respond to.';
     }
 
-    const agent = this.buildAgent(userId, preferredLanguage, historyLines || undefined);
+    const agent = this.buildAgent(
+      userId,
+      preferredLanguage,
+      historyLines || undefined,
+    );
 
     const response = await agent.invoke(
       { messages: [new HumanMessage(currentMessage.content)] },

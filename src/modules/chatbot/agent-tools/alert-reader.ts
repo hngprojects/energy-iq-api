@@ -24,14 +24,15 @@ export class AlertReader implements AgentTool {
           'The inverter platform. Must be exactly one of: "victron", "growatt", "sunsynk".',
         ),
       // resolved field replaced by status enum — see below
-      status: z.enum(['active', 'resolved', 'all'])
+      status: z
+        .enum(['active', 'resolved', 'all'])
         .optional()
         .default('all')
         .describe(
           '"active" = currently active alerts (status: UNRESOLVED -> isActive: true). ' +
-          '"resolved" = alerts that have been resolved. ' +
-          '"all" = no filter, return everything. ' +
-          'Default is "all". Use "active" when the user asks about current/ongoing alerts.'
+            '"resolved" = alerts that have been resolved. ' +
+            '"all" = no filter, return everything. ' +
+            'Default is "all". Use "active" when the user asks about current/ongoing alerts.',
         ),
       severity: z
         .string()
