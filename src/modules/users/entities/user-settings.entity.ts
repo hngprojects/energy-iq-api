@@ -6,6 +6,9 @@ import { User } from './user.entity';
 export class UserSettings extends AbstractBaseEntity {
   // Personal Business settings
   @Column({ type: 'varchar', nullable: true })
+  profileUrl?: string;
+
+  @Column({ type: 'varchar', nullable: true })
   businessName?: string;
 
   @Column({ type: 'varchar', nullable: true })
