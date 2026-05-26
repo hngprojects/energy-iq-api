@@ -16,6 +16,12 @@ export class UpdateUserPersonalSettingsDto {
   @MaxLength(150)
   lastName?: string;
 
+  @ApiProperty({ example: 'https://energyiq.com/myprofile.jpg' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  profileUrl?: string;
+
   @ApiProperty({ example: 'Test Business' })
   @IsOptional()
   @IsString()
@@ -43,4 +49,11 @@ export class UpdateUserPersonalSettingsDto {
   @MinLength(1)
   @MaxLength(100)
   city?: string;
+
+  @ApiProperty({ example: 'English' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(25)
+  @IsOptional()
+  aiLanguage?: string;
 }

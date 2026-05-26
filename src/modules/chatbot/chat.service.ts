@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -30,6 +31,8 @@ import { GatewayResponseDTO } from './dto/gateway-response.dto';
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     @Inject(chatbotConfig.KEY)
     private readonly chatbotCfg: ConfigType<typeof chatbotConfig>,
@@ -64,7 +67,7 @@ export class ChatService {
 
     const chat = await this.chatModelAction.createChat(chatPayload);
     if (dto.startingMessage) {
-      const message = await this.messageModelAction.saveMessage({
+      await this.messageModelAction.saveMessage({
         chat,
         content: dto.startingMessage,
         contentType: MessageContentType.TEXT,
@@ -72,9 +75,9 @@ export class ChatService {
         isTransitioning: false,
         senderId: userId,
       });
-      if (chat.messages) chat.messages.push(message);
-      else chat.messages = [message];
     }
+    // Return the chat without the messages relation to avoid circular serialization
+    chat.messages = [];
     return chat;
   }
 
@@ -153,18 +156,39 @@ export class ChatService {
       description: `${this.chatbotCfg.chatbotName} is typing`,
     };
     socket.emit(ChatSocketEvent.CHAT_ACTION, botActionDto);
+
+    let userPreferredLanguage: string | null | undefined;
+
+    try {
+      userPreferredLanguage = await this.getUserPreferredLanguage(dto.senderId);
+    } catch {
+      userPreferredLanguage = undefined;
+    }
+
     // feed the last ten messages into the LLM
-    // const messagesInContext =
-    //   await this.messageModelAction.getMessagesWithCount(
-    //     chat.id,
-    //     this.chatbotCfg.chatContextLength,
-    //   );
-    // console.log('invoking llmService');
-    const botMessageContent = await this.llmService.invoke(dto.textContent);
+    const messagesInContext =
+      await this.messageModelAction.getMessagesWithCount(
+        chat.id,
+        this.chatbotCfg.chatContextLength,
+      );
+    let botMessageContent: string;
+    try {
+      const result = await this.llmService.invokeWithHistory(
+        messagesInContext,
+        dto.senderId,
+        userPreferredLanguage ? userPreferredLanguage : undefined,
+      );
+      botMessageContent = result as string;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Agent invocation failed: ${errMsg}`);
+      botMessageContent =
+        'Sorry, something went wrong on my end. Please try again.';
+    }
 
     const botMessage = await this.messageModelAction.saveMessage({
       chat,
-      content: botMessageContent as string,
+      content: botMessageContent,
       contentType: MessageContentType.TEXT,
       deliveryStatus: MessageDeliveryStatus.DELIVERED,
       isTransitioning: false,
@@ -176,6 +200,12 @@ export class ChatService {
       event: ChatSocketEvent.NEW_SYSTEM_MESSAGE,
       data: botMessage,
     };
+  }
+
+  private async getUserPreferredLanguage(
+    userId: string,
+  ): Promise<string | null | undefined> {
+    return await this.usersService.getUserSetting(userId, 'AiLanguage');
   }
 
   getLastContextLengthMessages(chatId: string): Promise<Message[]> {

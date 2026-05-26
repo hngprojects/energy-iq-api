@@ -4,6 +4,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -30,6 +31,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { googleConfig } from '../../config/google.config';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
+import type { Response } from 'express';
+import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 
 export interface AuthTokens {
   accessToken: string;
@@ -132,6 +135,38 @@ export class AuthService {
     const user = await this.usersService.findOrCreateByGoogle(googleOAuthDto);
 
     return this.issueTokens(user);
+  }
+
+  googleCallbackRedirect(
+    state: string,
+    res: Response,
+    authResponse: AuthResponse,
+  ) {
+    if (state === 'mobile') {
+      return res.json({
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        user: authResponse.user,
+      });
+    }
+
+    let redirectBase = this.appCfg.clientUrl;
+
+    if (typeof state === 'string' && state.startsWith('web:')) {
+      let requested: string;
+      try {
+        requested = decodeURIComponent(state.slice(4));
+      } catch {
+        throw new BadRequestException(SYS_MSG.INVALID_OAUTH_STATE);
+      }
+      // violently reject it if an unallowed redirect origin was passed
+      ValidateRedirectUrl(requested, this.appCfg.allowedRedirectOrigins);
+      redirectBase = requested;
+    }
+
+    const redirectUrl = `${redirectBase}/onboarding`;
+    ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
+    return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse | PublicUser> {

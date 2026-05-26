@@ -81,6 +81,9 @@ export const env = createEnv({
     SANDBOX_API_BASE_URL: z.url().default('http://localhost:3002'),
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
+    ALLOWED_SANDBOX_TOKENS: z
+      .string()
+      .default('mock-token-a,mock-token-b,mock-token-c'),
 
     TWILIO_ACCOUNT_SID: z.string().min(1),
     TWILIO_AUTH_TOKEN: z.string().min(1),
