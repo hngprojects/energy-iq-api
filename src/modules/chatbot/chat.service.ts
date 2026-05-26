@@ -168,12 +168,19 @@ export class ChatService {
         chat.id,
         this.chatbotCfg.chatContextLength,
       );
-    // console.log('invoking llmService');
-    const botMessageContent = await this.llmService.invokeWithHistory(
-      messagesInContext,
-      dto.senderId,
-      userPreferredLanguage ? userPreferredLanguage : undefined,
-    );
+    let botMessageContent: string;
+    try {
+      const result = await this.llmService.invokeWithHistory(
+        messagesInContext,
+        dto.senderId,
+        userPreferredLanguage ? userPreferredLanguage : undefined,
+      );
+      botMessageContent = result as string;
+    } catch (err) {
+      console.error('[AgentService] invokeWithHistory failed:', err);
+      botMessageContent =
+        'Sorry, something went wrong on my end. Please try again.';
+    }
 
     const botMessage = await this.messageModelAction.saveMessage({
       chat,

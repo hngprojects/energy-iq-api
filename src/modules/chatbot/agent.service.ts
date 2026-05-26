@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { chatbotConfig } from '../../config/chatbot.config';
-import { AIMessage, createAgent, HumanMessage, ReactAgent } from 'langchain';
+import { createAgent, HumanMessage, ReactAgent } from 'langchain';
 import { ChatGroq } from '@langchain/groq';
 import { AlertReader } from './agent-tools/alert-reader';
 import { SYSTEM_PROMPT } from './helpers/prompts';
@@ -19,15 +19,9 @@ export class AgentService {
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
   ) {
-    this.model = new ChatGroq({ model: 'llama-3.1-8b-instant' });
+    this.model = new ChatGroq({ model: 'llama-3.3-70b-versatile' });
     this.botName = chatBotCfg.chatbotName;
     this.alertReader = alertReader;
-    // this.agent = createAgent({
-    //   model: groq,
-    //   tools: [alertReader.create()],
-    //   systemPrompt: SYSTEM_PROMPT,
-    //   name: chatBotCfg.chatbotName,
-    // });
   }
 
   async invokeWithHistory(
@@ -35,38 +29,34 @@ export class AgentService {
     userId: string,
     preferredLanguage?: string,
   ) {
-    const agent = this.buildAgent(userId);
-
-    // Filter out messages that contain raw tool call syntax — these are
-    // intermediate agent reasoning steps that confuse the model when replayed
-    // as history. Only pass clean human messages and clean AI text responses.
-    const agentMessages = messages
+    // Build a readable conversation history from all messages except the last one.
+    // This gets injected into the system prompt so the agent has context without
+    // confusing the ReAct loop with raw message objects.
+    const historyLines = messages
+      .slice(0, -1)
       .filter((msg) => {
         const content = msg.content ?? '';
-        // Drop messages that look like raw tool invocations or empty messages
         if (!content.trim()) return false;
         if (content.includes('<function=')) return false;
-        if (content.includes('(function=')) return false;
         return true;
       })
       .map((msg) => {
-        if (msg.senderId === SYSTEM_SENDER_ID)
-          return new AIMessage(msg.content);
-        return new HumanMessage(msg.content);
-      });
+        const role = msg.senderId === SYSTEM_SENDER_ID ? 'Assistant' : 'User';
+        return `${role}: ${msg.content}`;
+      })
+      .join('\n');
 
-    const contextMessages = preferredLanguage
-      ? [
-          new HumanMessage(
-            `Respond in ${preferredLanguage}. This is the user's preferred language setting.`,
-          ),
-          ...agentMessages,
-        ]
-      : agentMessages;
+    const currentMessage = messages[messages.length - 1];
+    if (!currentMessage?.content?.trim()) {
+      return 'No message to respond to.';
+    }
 
-    const response = await agent.invoke({
-      messages: contextMessages,
-    });
+    const agent = this.buildAgent(userId, preferredLanguage, historyLines || undefined);
+
+    const response = await agent.invoke(
+      { messages: [new HumanMessage(currentMessage.content)] },
+      { recursionLimit: 10 },
+    );
     const msgs = response.messages;
     return msgs[msgs.length - 1].content;
   }
@@ -80,11 +70,25 @@ export class AgentService {
     return messages[messages.length - 1].content;
   }
 
-  private buildAgent(userId: string): ReactAgent {
+  private buildAgent(
+    userId: string,
+    preferredLanguage?: string,
+    conversationHistory?: string,
+  ): ReactAgent {
+    let systemPrompt = SYSTEM_PROMPT;
+
+    if (conversationHistory) {
+      systemPrompt += `\n\n## Conversation history\nThe following is the conversation so far. Use it for context when answering the user's latest message.\n\n${conversationHistory}`;
+    }
+
+    if (preferredLanguage) {
+      systemPrompt += `\n\nThe user's preferred language is ${preferredLanguage}. Always respond in this language regardless of what they write in.`;
+    }
+
     return createAgent({
       model: this.model,
       tools: [this.alertReader.create(userId)],
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt,
       name: this.botName,
     });
   }

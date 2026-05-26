@@ -23,11 +23,15 @@ export class AlertReader implements AgentTool {
         .describe(
           'The inverter platform. Must be exactly one of: "victron", "growatt", "sunsynk".',
         ),
-      resolved: z.coerce
-        .boolean()
+      // resolved field replaced by status enum — see below
+      status: z.enum(['active', 'resolved', 'all'])
         .optional()
+        .default('all')
         .describe(
-          'Boolean. Pass true to fetch resolved alerts, false for active/unresolved alerts. Omit to fetch all.',
+          '"active" = currently active alerts (status: UNRESOLVED -> isActive: true). ' +
+          '"resolved" = alerts that have been resolved. ' +
+          '"all" = no filter, return everything. ' +
+          'Default is "all". Use "active" when the user asks about current/ongoing alerts.'
         ),
       severity: z
         .string()
@@ -58,21 +62,6 @@ export class AlertReader implements AgentTool {
       },
     );
   }
-
-  /**
-   *
-   * @returns
-   * export class FindAlertsDto {
-     count?: number;
-     end_date?: Date;
-     platform?: string;
-     resolved?: boolean;
-     severity?: string;
-     start_date?: Date;
-     type?: string;
-     userId?: string;
-   }
-   */
 
   getDescription(): string {
     return `

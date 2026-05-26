@@ -8,6 +8,7 @@ import {
   FindOptionsWhere,
   MoreThanOrEqual,
   LessThanOrEqual,
+  Not,
 } from 'typeorm';
 import { FindAlertsDto } from '../../chatbot/dto/find-alerts.dto';
 import { AlertResolutionStatus } from '../../../common/enums';
@@ -48,13 +49,20 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
     if (options.end_date)
       whereOptions.createdAt = LessThanOrEqual(options.end_date);
     if (options.platform) whereOptions.platform = options.platform;
-    if (options.resolved)
+
+    if (options.status === 'active') {
+      // Active = isActive flag is true AND not yet resolved
+      whereOptions.isActive = true;
+      whereOptions.resolutionStatus = Not(AlertResolutionStatus.RESOLVED);
+    } else if (options.status === 'resolved') {
       whereOptions.resolutionStatus = AlertResolutionStatus.RESOLVED;
+    }
+    // 'all' or undefined → no status filter
+
     if (options.severity) whereOptions.severity = options.severity;
     if (options.start_date)
       whereOptions.createdAt = MoreThanOrEqual(options.start_date);
     if (options.type) whereOptions.type = options.type;
-    if (options.severity) whereOptions.severity = options.severity;
 
     const queryOptions: FindManyOptions = {
       where: whereOptions,
