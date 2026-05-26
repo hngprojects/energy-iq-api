@@ -4,38 +4,55 @@ import { User } from './user.entity';
 
 @Entity('user_settings')
 export class UserSettings extends AbstractBaseEntity {
-  @Column({ type: 'boolean', default: false })
-  smsNotification: boolean;
+  // Personal Business settings
+  @Column({ type: 'varchar', nullable: true })
+  profileUrl?: string;
 
-  @Column({ type: 'boolean', default: false })
-  whatsappAlerts: boolean;
+  @Column({ type: 'varchar', nullable: true })
+  businessName?: string;
 
-  @Column({ type: 'boolean', default: false })
-  emailAlerts: boolean;
+  @Column({ type: 'varchar', nullable: true })
+  businessType?: string;
 
-  @Column({ type: 'boolean' })
-  criticalAlerts: boolean;
+  @Column({ type: 'varchar', nullable: true })
+  state?: string;
 
-  @Column({ type: 'varchar' })
-  AiLanguage: string;
+  @Column({ type: 'varchar', nullable: true })
+  city?: string;
+
+  // Notification settings
+  @Column({ type: 'boolean', default: false, nullable: true })
+  smsNotification?: boolean;
+
+  @Column({ type: 'boolean', default: false, nullable: true })
+  whatsappAlerts?: boolean;
+
+  @Column({ type: 'boolean', default: false, nullable: true })
+  emailAlerts?: boolean;
+
+  @Column({ type: 'boolean', default: false, nullable: true })
+  criticalAlerts?: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  AiLanguage?: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
-  quietHoursStart: string | null;
+  quietHoursStart?: string;
 
   @Column({ type: 'varchar', length: 5, nullable: true })
-  quietHoursEnd: string | null;
+  quietHoursEnd?: string;
 
   @Column({ type: 'varchar', length: 30, nullable: true })
-  timezone: string | null;
+  timezone?: string;
 
-  @Column({ type: 'int', default: 15 })
-  alertCooldownMinutes: number;
+  @Column({ type: 'int', default: 15, nullable: true })
+  alertCooldownMinutes?: number;
 
-  @Column({ type: 'int', default: 10 })
-  depletionThreshold: number;
+  @Column({ type: 'int', default: 10, nullable: true })
+  depletionThreshold?: number;
 
   @Column({ type: 'jsonb', nullable: true })
-  channelQuietHours: Record<string, { start: string; end: string }> | null;
+  channelQuietHours?: Record<string, { start: string; end: string }>;
 
   @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })

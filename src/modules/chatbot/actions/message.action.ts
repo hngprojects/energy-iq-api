@@ -12,27 +12,25 @@ export class MessageModelAction extends AbstractModelAction<Message> {
   }
 
   async findByChatId(chatId: string): Promise<Message[]> {
-    const result = await this.list({
-      filterRecordOptions: { chat: { id: chatId } },
+    return this.repository.find({
+      where: { chat: { id: chatId } },
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
-    return result.payload;
   }
 
   async getMessagesWithCount(
     chatId: string,
     count: number,
   ): Promise<Message[]> {
-    const result = await this.list({
-      filterRecordOptions: { chat: { id: chatId } },
-      paginationPayload: {
-        limit: count,
-        page: 1,
-      },
-      order: {
-        createdAt: 'DESC',
-      },
+    // Fetch the N most recent messages, then reverse so they are oldest-first.
+    // The agent expects [oldest ... newest] so that messages[messages.length-1]
+    // is always the current user message.
+    const rows = await this.repository.find({
+      where: { chat: { id: chatId } },
+      order: { createdAt: 'DESC', id: 'DESC' },
+      take: count,
     });
-    return result.payload;
+    return rows.reverse();
   }
 
   async saveMessage(message: Partial<Message>) {

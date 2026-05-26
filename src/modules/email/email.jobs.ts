@@ -8,6 +8,7 @@ export const EMAIL_JOBS = {
   LINK_EXPIRE: 'link-expire',
   CONTACT_US: 'contact-us',
   ALERT_ALERT: 'alert-notification',
+  WAITLIST_JOINED: 'waitlist-joined',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -58,6 +59,11 @@ export interface AlertNotificationJobData {
   alertType: AlertType;
   alertSeverity: AlertSeverity;
   dashboardUrl: string;
+}
+
+export interface WaitlistJoinedJobData {
+  to: string;
+  year: string;
 }
 
 export type EmailJobData =

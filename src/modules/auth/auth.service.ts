@@ -4,6 +4,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -30,6 +31,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { googleConfig } from '../../config/google.config';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
+import type { Response } from 'express';
+import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 
 export interface AuthTokens {
   accessToken: string;
@@ -134,6 +137,38 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  googleCallbackRedirect(
+    state: string,
+    res: Response,
+    authResponse: AuthResponse,
+  ) {
+    if (state === 'mobile') {
+      return res.json({
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+        user: authResponse.user,
+      });
+    }
+
+    let redirectBase = this.appCfg.clientUrl;
+
+    if (typeof state === 'string' && state.startsWith('web:')) {
+      let requested: string;
+      try {
+        requested = decodeURIComponent(state.slice(4));
+      } catch {
+        throw new BadRequestException(SYS_MSG.INVALID_OAUTH_STATE);
+      }
+      // violently reject it if an unallowed redirect origin was passed
+      ValidateRedirectUrl(requested, this.appCfg.allowedRedirectOrigins);
+      redirectBase = requested;
+    }
+
+    const redirectUrl = `${redirectBase}/onboarding`;
+    ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
+    return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
+  }
+
   async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse | PublicUser> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_OTP);
@@ -189,27 +224,25 @@ export class AuthService {
     /**
      * Steps to execute forgotPassword
      *
-     * 1. ensure that a user exists with the email
-     * 2. ensure that the user is email verified
-     * 3. send password reset email
+     * 1. check that a user exists with the email
+     * 2. If user does not exist, return 200 without sending mail
+     * 3. If user exists, ensure that the user is email verified
+     * 4. send password reset email
      * 5. cache a password reset record
      *
      * Notes: Users that signed up with google should be able to attach passwords to their accounts (confirm that having a password will not break google auth)
      */
     const user = await this.usersService.findByEmail(dto.email);
-    if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+    if (user) {
+      if (!user.emailVerified) return dto;
 
-    if (!user.emailVerified)
-      throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+      const token = await this.sendPasswordResetEmail(user);
 
-    const token = await this.sendPasswordResetEmail(user);
-    console.log({ token, length: token.length });
-
-    const passwordResetKey = dto.email;
-    const uniqueKey = 'password_reset_token';
-    const tokenHash = await bcrypt.hash(token, 10);
-    await this.redis.set(passwordResetKey, tokenHash, uniqueKey, 300);
-
+      const passwordResetKey = dto.email;
+      const uniqueKey = 'password_reset_token';
+      const tokenHash = await bcrypt.hash(token, 10);
+      await this.redis.set(passwordResetKey, tokenHash, uniqueKey, 300);
+    }
     return dto;
   }
 
