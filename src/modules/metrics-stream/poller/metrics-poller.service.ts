@@ -312,8 +312,8 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // brandDeviceId stores the device_sn for Growatt
-    const deviceSn = inverter.installationId!;
+    // serialNumber stores the device_sn for Growatt; installationId holds the plant_id
+    const deviceSn = inverter.serialNumber;
 
     let metric: NormalisedMetric;
     try {
