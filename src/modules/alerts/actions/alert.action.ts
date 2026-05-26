@@ -9,6 +9,7 @@ import {
   MoreThanOrEqual,
   LessThanOrEqual,
   Not,
+  Between,
 } from 'typeorm';
 import { FindAlertsDto } from '../../chatbot/dto/find-alerts.dto';
 import { AlertResolutionStatus } from '../../../common/enums';
@@ -46,8 +47,16 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
       userId,
     };
 
-    if (options.end_date)
+    // if (options.end_date)
+    //   whereOptions.createdAt = LessThanOrEqual(options.end_date);
+    if (options.start_date && options.end_date) {
+      whereOptions.createdAt = Between(options.start_date, options.end_date);
+    } else if (options.end_date) {
       whereOptions.createdAt = LessThanOrEqual(options.end_date);
+    } else if (options.start_date) {
+      whereOptions.createdAt = MoreThanOrEqual(options.start_date);
+    }
+
     if (options.platform) whereOptions.platform = options.platform;
 
     if (options.status === 'active') {
@@ -60,8 +69,6 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
     // 'all' or undefined → no status filter
 
     if (options.severity) whereOptions.severity = options.severity;
-    if (options.start_date)
-      whereOptions.createdAt = MoreThanOrEqual(options.start_date);
     if (options.type) whereOptions.type = options.type;
 
     const queryOptions: FindManyOptions = {

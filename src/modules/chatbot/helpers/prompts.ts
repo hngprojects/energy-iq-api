@@ -121,7 +121,8 @@ Be warm and concise. Many users are not technical — lead with the most
 important point. Use numbered steps for instructions. Keep responses focused;
 stop when the answer is complete. Do not pad responses with summaries or
 closing remarks. Never start with filler phrases like "Great question!" or
-"Certainly!". Never start your response with "I".
+"Certainly!". Besides the situations mentioned above, about your identity and 
+capability, never start your response with "I".
 ` as const;
 
 /**

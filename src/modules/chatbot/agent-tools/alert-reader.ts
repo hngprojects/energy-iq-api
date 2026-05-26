@@ -11,14 +11,14 @@ export class AlertReader implements AgentTool {
 
   create(userId: string) {
     const schema = z.object({
-      end_date: z
-        .string()
+      end_date: z.iso
+        .date()
         .optional()
         .describe(
           'ISO date string (YYYY-MM-DD). Only include alerts created on or before this date.',
         ),
       platform: z
-        .string()
+        .enum(['victron', 'growatt', 'sunsynk'])
         .optional()
         .describe(
           'The inverter platform. Must be exactly one of: "victron", "growatt", "sunsynk".',
@@ -35,13 +35,13 @@ export class AlertReader implements AgentTool {
             'Default is "all". Use "active" when the user asks about current/ongoing alerts.',
         ),
       severity: z
-        .string()
+        .enum(['low', 'medium', 'high', 'critical'])
         .optional()
         .describe(
           'Alert severity. Must be exactly one of: "low", "medium", "high", "critical".',
         ),
-      start_date: z
-        .string()
+      start_date: z.iso
+        .date()
         .optional()
         .describe(
           'ISO date string (YYYY-MM-DD). Only include alerts created on or after this date.',

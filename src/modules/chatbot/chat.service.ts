@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -30,6 +31,8 @@ import { GatewayResponseDTO } from './dto/gateway-response.dto';
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     @Inject(chatbotConfig.KEY)
     private readonly chatbotCfg: ConfigType<typeof chatbotConfig>,
@@ -177,7 +180,8 @@ export class ChatService {
       );
       botMessageContent = result as string;
     } catch (err) {
-      console.error('[AgentService] invokeWithHistory failed:', err);
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Agent invocation failed: ${errMsg}`);
       botMessageContent =
         'Sorry, something went wrong on my end. Please try again.';
     }

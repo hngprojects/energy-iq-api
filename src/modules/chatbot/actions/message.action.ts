@@ -14,7 +14,7 @@ export class MessageModelAction extends AbstractModelAction<Message> {
   async findByChatId(chatId: string): Promise<Message[]> {
     return this.repository.find({
       where: { chat: { id: chatId } },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'ASC', id: 'ASC' },
     });
   }
 
@@ -27,7 +27,7 @@ export class MessageModelAction extends AbstractModelAction<Message> {
     // is always the current user message.
     const rows = await this.repository.find({
       where: { chat: { id: chatId } },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC', id: 'DESC' },
       take: count,
     });
     return rows.reverse();
