@@ -9,6 +9,7 @@ import { NormalisedMetric, VerifiedSystem } from '../types/shared.types';
 import { BrandApiException } from '../types/brand-api.exception';
 import { appConfig } from '../../../config/app.config';
 import { InverterBrand } from '../../../common/enums';
+import { validateSandboxToken } from '../../../common/utils/token.util';
 
 @Injectable()
 export class SandboxAdapter {
@@ -20,6 +21,7 @@ export class SandboxAdapter {
   async verifyAndGetSandboxSystem(
     accessToken: string,
   ): Promise<VerifiedSystem> {
+    validateSandboxToken(accessToken, this.appCfg.allowedSandboxTokens);
     const meRes = await fetch(`${this.appCfg.sandboxApiBaseUrl}/users/me`, {
       headers: { 'X-Authorization': `Token ${accessToken}` },
     });
