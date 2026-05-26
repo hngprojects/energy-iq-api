@@ -219,6 +219,9 @@ export class UsersService {
         ...noTransaction(),
         createPayload: {
           user,
+          ...(dto.profileUrl !== undefined && {
+            profileUrl: dto.profileUrl,
+          }),
           ...(dto.businessName !== undefined && {
             businessName: dto.businessName,
           }),
@@ -234,6 +237,7 @@ export class UsersService {
     }
 
     const updatePayload: Partial<UserSettings> = {
+      ...(dto.profileUrl !== undefined && { profileUrl: dto.profileUrl }),
       ...(dto.businessName !== undefined && { businessName: dto.businessName }),
       ...(dto.businessType !== undefined && { businessType: dto.businessType }),
       ...(dto.state !== undefined && { state: dto.state }),
