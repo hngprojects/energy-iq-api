@@ -49,4 +49,11 @@ export class UpdateUserPersonalSettingsDto {
   @MinLength(1)
   @MaxLength(100)
   city?: string;
+
+  @ApiProperty({ example: 'English' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(25)
+  @IsOptional()
+  aiLanguage?: string;
 }

@@ -1,3 +1,5 @@
+import { StructuredToolInterface } from '@langchain/core/tools';
+
 export interface AgentTool {
-  create();
+  create(userId: string): StructuredToolInterface;
 }
