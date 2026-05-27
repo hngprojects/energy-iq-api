@@ -114,7 +114,7 @@ export class ChatService {
     return { chatId, dto };
   }
 
-  async sendMessage(
+  async sendMessageStream(
     socket: Socket,
     dto: ChatMessageDto,
   ): Promise<GatewayResponseDTO | null> {
@@ -192,7 +192,7 @@ export class ChatService {
       onToken,
       userPreferredLanguage ? userPreferredLanguage : undefined,
     );
-    
+
     // 6. Save the complete bot message to DB
     const botMessage = await this.messageModelAction.saveMessage({
       chat,
@@ -207,7 +207,7 @@ export class ChatService {
     socket.emit(ChatSocketEvent.STREAM_END, {
       chatId: dto.chatId,
       botMessageId: botMessage.id,
-    })
+    });
 
     // 8. Emit the final complete message to the room
     // This lets ALL clients in the room (if multi-device) get the final message
@@ -218,93 +218,93 @@ export class ChatService {
     };
   }
 
-  // async sendMessage(
-  //   socket: Socket,
-  //   dto: ChatMessageDto,
-  // ): Promise<GatewayResponseDTO | null> {
-  //   /**
-  //    * Steps to send a message
-  //    *
-  //    * throw an error if the chat does not exist
-  //    * throw an error if the chat was not started by the user
-  //    * save the message
-  //    * [MAYBE] recreate chat context with last 10 messages
-  //    * send message to LLM integration
-  //    * return message to the sender
-  //    */
-  //   const chat = await this.chatModelAction.findById(dto.chatId);
-  //   if (!chat) {
-  //     socket.emit(ChatSocketEvent.ERROR, SYS_MSG.NOT_FOUND);
-  //     return null;
-  //   }
+  async sendMessage(
+    socket: Socket,
+    dto: ChatMessageDto,
+  ): Promise<GatewayResponseDTO | null> {
+    /**
+     * Steps to send a message
+     *
+     * throw an error if the chat does not exist
+     * throw an error if the chat was not started by the user
+     * save the message
+     * [MAYBE] recreate chat context with last 10 messages
+     * send message to LLM integration
+     * return message to the sender
+     */
+    const chat = await this.chatModelAction.findById(dto.chatId);
+    if (!chat) {
+      socket.emit(ChatSocketEvent.ERROR, SYS_MSG.NOT_FOUND);
+      return null;
+    }
 
-  //   if (chat.userId !== dto.senderId) {
-  //     return {
-  //       roomId: chat.roomId,
-  //       event: ChatSocketEvent.ERROR,
-  //       data: SYS_MSG.FORBIDDEN,
-  //     };
-  //   }
+    if (chat.userId !== dto.senderId) {
+      return {
+        roomId: chat.roomId,
+        event: ChatSocketEvent.ERROR,
+        data: SYS_MSG.FORBIDDEN,
+      };
+    }
 
-  //   await this.messageModelAction.saveMessage({
-  //     chat,
-  //     content: dto.textContent,
-  //     contentType: dto.contentType,
-  //     deliveryStatus: MessageDeliveryStatus.DELIVERED,
-  //     isTransitioning: false,
-  //     senderId: dto.senderId,
-  //   });
+    await this.messageModelAction.saveMessage({
+      chat,
+      content: dto.textContent,
+      contentType: dto.contentType,
+      deliveryStatus: MessageDeliveryStatus.DELIVERED,
+      isTransitioning: false,
+      senderId: dto.senderId,
+    });
 
-  //   const botActionDto: BotActionDto = {
-  //     action: BotAction.TYPING,
-  //     description: `${this.chatbotCfg.chatbotName} is typing`,
-  //   };
-  //   socket.emit(ChatSocketEvent.CHAT_ACTION, botActionDto);
+    const botActionDto: BotActionDto = {
+      action: BotAction.TYPING,
+      description: `${this.chatbotCfg.chatbotName} is typing`,
+    };
+    socket.emit(ChatSocketEvent.CHAT_ACTION, botActionDto);
 
-  //   let userPreferredLanguage: string | null | undefined;
+    let userPreferredLanguage: string | null | undefined;
 
-  //   try {
-  //     userPreferredLanguage = await this.getUserPreferredLanguage(dto.senderId);
-  //   } catch {
-  //     userPreferredLanguage = undefined;
-  //   }
+    try {
+      userPreferredLanguage = await this.getUserPreferredLanguage(dto.senderId);
+    } catch {
+      userPreferredLanguage = undefined;
+    }
 
-  //   // feed the last ten messages into the LLM
-  //   const messagesInContext =
-  //     await this.messageModelAction.getMessagesWithCount(
-  //       chat.id,
-  //       this.chatbotCfg.chatContextLength,
-  //     );
-  //   let botMessageContent: string;
-  //   try {
-  //     const result = await this.llmService.invokeWithHistory(
-  //       messagesInContext,
-  //       dto.senderId,
-  //       userPreferredLanguage ? userPreferredLanguage : undefined,
-  //     );
-  //     botMessageContent = result as string;
-  //   } catch (err) {
-  //     const errMsg = err instanceof Error ? err.message : 'Unknown error';
-  //     this.logger.error(`Agent invocation failed: ${errMsg}`);
-  //     botMessageContent =
-  //       'Sorry, something went wrong on my end. Please try again.';
-  //   }
+    // feed the last ten messages into the LLM
+    const messagesInContext =
+      await this.messageModelAction.getMessagesWithCount(
+        chat.id,
+        this.chatbotCfg.chatContextLength,
+      );
+    let botMessageContent: string;
+    try {
+      const result = await this.llmService.invokeWithHistory(
+        messagesInContext,
+        dto.senderId,
+        userPreferredLanguage ? userPreferredLanguage : undefined,
+      );
+      botMessageContent = result as string;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Agent invocation failed: ${errMsg}`);
+      botMessageContent =
+        'Sorry, something went wrong on my end. Please try again.';
+    }
 
-  //   const botMessage = await this.messageModelAction.saveMessage({
-  //     chat,
-  //     content: botMessageContent,
-  //     contentType: MessageContentType.TEXT,
-  //     deliveryStatus: MessageDeliveryStatus.DELIVERED,
-  //     isTransitioning: false,
-  //     senderId: SYSTEM_SENDER_ID,
-  //   });
+    const botMessage = await this.messageModelAction.saveMessage({
+      chat,
+      content: botMessageContent,
+      contentType: MessageContentType.TEXT,
+      deliveryStatus: MessageDeliveryStatus.DELIVERED,
+      isTransitioning: false,
+      senderId: SYSTEM_SENDER_ID,
+    });
 
-  //   return {
-  //     roomId: chat.roomId,
-  //     event: ChatSocketEvent.NEW_SYSTEM_MESSAGE,
-  //     data: botMessage,
-  //   };
-  // }
+    return {
+      roomId: chat.roomId,
+      event: ChatSocketEvent.NEW_SYSTEM_MESSAGE,
+      data: botMessage,
+    };
+  }
 
   private async getUserPreferredLanguage(
     userId: string,
