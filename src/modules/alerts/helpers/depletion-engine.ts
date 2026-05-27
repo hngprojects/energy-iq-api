@@ -28,12 +28,56 @@ export interface DepletionResult {
  * @param threshold - User's depletion threshold % (default 10)
  * @returns DepletionResult with minutes, charging status, net discharge
  */
+/** Minimum battery capacity (kWh) below which depletion cannot be meaningfully calculated.
+ * This guards against misconfigured inverter records (e.g. Growatt stores panel peak_power
+ * as ratedCapacityKwh, producing values like 0.01 kWh) triggering false alerts.
+ * Set low enough to allow genuinely small batteries (e.g. 100Wh = 0.1kWh) through.
+ */
+const MIN_MEANINGFUL_CAPACITY_KWH = 0.02;
+
 export function calculateDepletion(
   input: DepletionInput,
   threshold: number = 10,
 ): DepletionResult {
   const safeSOC = Math.max(0, Math.min(100, input.batterySocPercent));
   const safeCapacity = Math.max(0, input.batteryCapacityKwh);
+
+  // Zero capacity: treat as immediately depleted (no energy available).
+  if (safeCapacity === 0) {
+    const netLoad = Math.max(
+      0,
+      Math.max(0, input.loadKw) - Math.max(0, input.solarGenKw),
+    );
+    if (netLoad <= 0) {
+      return {
+        minutesUntilDepletion: null,
+        isCharging: true,
+        netDischargeKw: 0,
+        thresholdPercent: threshold,
+        usedThresholdPercent: threshold,
+      };
+    }
+    return {
+      minutesUntilDepletion: 0,
+      isCharging: false,
+      netDischargeKw: Math.round(netLoad * 100) / 100,
+      thresholdPercent: threshold,
+      usedThresholdPercent: threshold,
+    };
+  }
+
+  // If battery capacity is suspiciously small (likely a misconfigured record),
+  // we cannot calculate a meaningful depletion time — treat as safe to avoid
+  // false alerts.
+  if (safeCapacity < MIN_MEANINGFUL_CAPACITY_KWH) {
+    return {
+      minutesUntilDepletion: null,
+      isCharging: true,
+      netDischargeKw: 0,
+      thresholdPercent: threshold,
+      usedThresholdPercent: threshold,
+    };
+  }
   const netLoad = Math.max(
     0,
     Math.max(0, input.loadKw) - Math.max(0, input.solarGenKw),
