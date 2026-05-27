@@ -90,7 +90,7 @@ export class AuthService {
 
     if (!user.emailVerified) {
       await this.sendVerificationEmail(user);
-      throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
+      throw new ForbiddenException(SYS_MSG.EMAIL_NOT_VERIFIED);
     }
 
     return this.issueTokens(user);
