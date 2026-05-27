@@ -186,28 +186,31 @@ export class ChatService {
       });
     };
 
-    const fullContent = await this.llmService.invokeWithHistoryStream(
-      messagesInContext,
-      dto.senderId,
-      onToken,
-      userPreferredLanguage ? userPreferredLanguage : undefined,
-    );
+    let botMessage: Message | null = null;
+    try {
+      const fullContent = await this.llmService.invokeWithHistoryStream(
+        messagesInContext,
+        dto.senderId,
+        onToken,
+        userPreferredLanguage ? userPreferredLanguage : undefined,
+      );
 
-    // 6. Save the complete bot message to DB
-    const botMessage = await this.messageModelAction.saveMessage({
-      chat,
-      content: fullContent,
-      contentType: MessageContentType.TEXT,
-      deliveryStatus: MessageDeliveryStatus.DELIVERED,
-      isTransitioning: false,
-      senderId: SYSTEM_SENDER_ID,
-    });
-
-    // 7. Emit stream_end so the client can finalize (e.g., remove "typing" indicator)
-    socket.emit(ChatSocketEvent.STREAM_END, {
-      chatId: dto.chatId,
-      botMessageId: botMessage.id,
-    });
+      // 6. Save the complete bot message to DB
+      botMessage = await this.messageModelAction.saveMessage({
+        chat,
+        content: fullContent,
+        contentType: MessageContentType.TEXT,
+        deliveryStatus: MessageDeliveryStatus.DELIVERED,
+        isTransitioning: false,
+        senderId: SYSTEM_SENDER_ID,
+      });
+    } finally {
+      // 7. Emit stream_end so the client can finalize (e.g., remove "typing" indicator)
+      socket.emit(ChatSocketEvent.STREAM_END, {
+        chatId: dto.chatId,
+        botMessageId: botMessage?.id ?? null,
+      });
+    }
 
     // 8. Emit the final complete message to the room
     // This lets ALL clients in the room (if multi-device) get the final message

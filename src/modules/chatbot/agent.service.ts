@@ -97,8 +97,9 @@ export class AgentService {
 
     const currentMessage = messages[messages.length - 1];
     if (!currentMessage?.content?.trim()) {
-      onToken('No message to respond to.');
-      return 'No message to response to.';
+      const emptyMessage = 'No message to respond to.';
+      onToken(emptyMessage);
+      return emptyMessage;
     }
 
     const agent = this.buildAgent(
