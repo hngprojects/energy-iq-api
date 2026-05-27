@@ -43,7 +43,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() socket: Socket,
     @MessageBody() dto: ChatMessageDto,
   ) {
-    const response = await this.chatbotService.sendMessage(socket, dto);
+    const response = await this.chatbotService.sendMessageStream(socket, dto);
     if (response) {
       this.server.to(response.roomId).emit(response.event, response.data);
     }

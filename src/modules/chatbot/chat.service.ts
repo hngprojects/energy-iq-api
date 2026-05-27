@@ -114,6 +114,113 @@ export class ChatService {
     return { chatId, dto };
   }
 
+  async sendMessageStream(
+    socket: Socket,
+    dto: ChatMessageDto,
+  ): Promise<GatewayResponseDTO | null> {
+    /**
+     * Steps to send a message (streaming version)
+     *
+     * 1. Validate chat exists and belongs to user
+     * 2. Save user's message to DB
+     * 3. Emit TYPING action
+     * 4. Load last N messages for context
+     * 5. Call LLM in streaming mode, sending each token chunk via socket
+     * 6. After stream ends, save the full bot message to DB
+     * 7. Emit NEW_SYSTEM_MESSAGE with the complete message (so client can replace streaming buffer)
+     * 8. Return final GatewayResponseDTO (optional, could be null because we already emitted everything)
+     */
+    const chat = await this.chatModelAction.findById(dto.chatId);
+    if (!chat) {
+      socket.emit(ChatSocketEvent.ERROR, SYS_MSG.NOT_FOUND);
+      return null;
+    }
+
+    if (chat.userId !== dto.senderId) {
+      return {
+        roomId: chat.roomId,
+        event: ChatSocketEvent.ERROR,
+        data: SYS_MSG.FORBIDDEN,
+      };
+    }
+
+    // 1. Save user message
+    await this.messageModelAction.saveMessage({
+      chat,
+      content: dto.textContent,
+      contentType: dto.contentType,
+      deliveryStatus: MessageDeliveryStatus.DELIVERED,
+      isTransitioning: false,
+      senderId: dto.senderId,
+    });
+
+    // 2. Emit typing action
+    const botActionDto: BotActionDto = {
+      action: BotAction.TYPING,
+      description: `${this.chatbotCfg.chatbotName} is typing`,
+    };
+    socket.emit(ChatSocketEvent.CHAT_ACTION, botActionDto);
+
+    // 3. Get user preferred language
+    let userPreferredLanguage: string | null | undefined;
+    try {
+      userPreferredLanguage = await this.getUserPreferredLanguage(dto.senderId);
+    } catch {
+      userPreferredLanguage = undefined;
+    }
+
+    // 4. Load last N messages for context
+    const messagesInContext =
+      await this.messageModelAction.getMessagesWithCount(
+        chat.id,
+        this.chatbotCfg.chatContextLength,
+      );
+
+    // 5. Stream the AI response
+    const onToken = (chunk: string) => {
+      // Send each token chunk to the client
+      // We emit to the socket directly (not to the room) so only the sender sees the stream
+      socket.emit(ChatSocketEvent.TOKEN_CHUNK, {
+        chatId: dto.chatId,
+        content: chunk,
+      });
+    };
+
+    let botMessage: Message | null = null;
+    try {
+      const fullContent = await this.llmService.invokeWithHistoryStream(
+        messagesInContext,
+        dto.senderId,
+        onToken,
+        userPreferredLanguage ? userPreferredLanguage : undefined,
+      );
+
+      // 6. Save the complete bot message to DB
+      botMessage = await this.messageModelAction.saveMessage({
+        chat,
+        content: fullContent,
+        contentType: MessageContentType.TEXT,
+        deliveryStatus: MessageDeliveryStatus.DELIVERED,
+        isTransitioning: false,
+        senderId: SYSTEM_SENDER_ID,
+      });
+    } finally {
+      // 7. Emit stream_end so the client can finalize (e.g., remove "typing" indicator)
+      socket.emit(ChatSocketEvent.STREAM_END, {
+        chatId: dto.chatId,
+        botMessageId: botMessage?.id ?? null,
+      });
+    }
+
+    // 8. Emit the final complete message to the room
+    // This lets ALL clients in the room (if multi-device) get the final message
+    return {
+      roomId: chat.roomId,
+      event: ChatSocketEvent.NEW_SYSTEM_MESSAGE,
+      data: botMessage,
+    };
+  }
+
   async sendMessage(
     socket: Socket,
     dto: ChatMessageDto,
