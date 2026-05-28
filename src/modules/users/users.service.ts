@@ -275,4 +275,8 @@ export class UsersService {
       settingName,
     );
   }
+
+  async getUserSettings(userId: string): Promise<UserSettings | null> {
+    return await this.userSettingsModelAction.findByUserId(userId);
+  }
 }

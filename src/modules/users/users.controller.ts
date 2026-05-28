@@ -86,4 +86,13 @@ export class UsersController {
   ) {
     return this.usersService.updatePersonalSettings(user.sub, dto);
   }
+
+  @Get('settings/personal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Get a user's settings" })
+  getUserSettings(
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.usersService.getUserSettings(user.sub);
+  }
 }
