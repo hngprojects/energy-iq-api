@@ -137,7 +137,16 @@ export class AlertDispatchProcessor extends WorkerHost {
                 ? meta['timeToEmpty']
                 : undefined;
             const stats = Array.isArray(meta['stats'])
-              ? (meta['stats'] as { label: string; value: string }[])
+              ? // ? (meta['stats'] as { label: string; value: string }[])
+                // : undefined;
+                (meta['stats'] as unknown[]).filter(
+                  (s): s is { label: string; value: string } =>
+                    typeof s === 'object' &&
+                    s !== null &&
+                    typeof (s as Record<string, unknown>)['label'] ===
+                      'string' &&
+                    typeof (s as Record<string, unknown>)['value'] === 'string',
+                )
               : undefined;
             const alertTitle =
               typeof meta['alertTitle'] === 'string'
