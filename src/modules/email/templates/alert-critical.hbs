@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EnergyIQ — Battery Critically Low</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px 16px;
+        background-color: #F4F5F6;
+        font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <table border="0" cellpadding="0" cellspacing="0" width="100%"
+      style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.05);">
+
+      <!-- Logo -->
+      <tr>
+        <td style="padding:28px 40px 16px;text-align:left;">
+          <table border="0" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding-right:8px;">
+                <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778427951/logo_ej4zdv.svg"
+                  alt="EnergyIQ" height="28" style="display:block;border:0;" />
+              </td>
+              <td style="font-size:15px;font-weight:700;color:#111827;letter-spacing:0.5px;">
+                ENERGY<span style="color:#F5A623;">IQ</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- Icon -->
+      <tr>
+        <td style="padding:16px 40px 4px;text-align:center;">
+          <div style="width:60px;height:60px;border-radius:50%;background:#FEE2E2;display:inline-flex;align-items:center;justify-content:center;">
+            <!--[if !mso]><!-->
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+              stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              style="display:block;">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <!--<![endif]-->
+          </div>
+        </td>
+      </tr>
+
+      <!-- Title + badge -->
+      <tr>
+        <td style="padding:10px 40px 0;text-align:center;">
+          <h1 style="font-size:24px;font-weight:700;color:#EF4444;margin:0 0 12px;">Battery critically low</h1>
+          <span style="display:inline-block;background:#FEE2E2;color:#991B1B;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;">
+            &#9679;&nbsp;Critical — action required now
+          </span>
+        </td>
+      </tr>
+
+      <!-- Body -->
+      <tr>
+        <td style="padding:20px 40px 32px;">
+          <p style="font-size:17px;font-weight:700;color:#111827;margin:0 0 8px;">Hi {{firstName}},</p>
+          <p style="font-size:14px;color:#4B5563;line-height:1.6;margin:0 0 20px;">
+            Your battery reserve has dropped to a critically low level. Here's a snapshot of the current status:
+          </p>
+
+          <!-- Stats -->
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;">
+            <tr>
+              <td width="33%" style="padding-right:8px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="background:#F9FAFB;border-radius:8px;padding:12px 14px;">
+                      <p style="font-size:11px;color:#9CA3AF;margin:0 0 5px;">Battery SOC</p>
+                      <p style="font-size:20px;font-weight:700;color:#111827;margin:0;">{{batterySoc}}%</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td width="33%" style="padding-right:8px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="background:#F9FAFB;border-radius:8px;padding:12px 14px;">
+                      <p style="font-size:11px;color:#9CA3AF;margin:0 0 5px;">Discharge rate</p>
+                      <p style="font-size:20px;font-weight:700;color:#111827;margin:0;">{{dischargeRate}} KW</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+              <td width="33%">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="background:#F9FAFB;border-radius:8px;padding:12px 14px;">
+                      <p style="font-size:11px;color:#9CA3AF;margin:0 0 5px;">Time to 0%</p>
+                      <p style="font-size:20px;font-weight:700;color:#111827;margin:0;">{{timeToEmpty}}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Why this alert -->
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td style="background:#F9FAFB;border-radius:8px;padding:16px 18px;">
+                <p style="font-size:14px;font-weight:700;color:#111827;margin:0 0 6px;">Why this alert?</p>
+                <p style="font-size:13px;color:#4B5563;line-height:1.6;margin:0;">{{alertReason}}</p>
+              </td>
+            </tr>
+          </table>
+
+          <!-- CTA -->
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:24px;">
+            <tr>
+              <td align="center">
+                <a href="{{resolveLink}}"
+                  style="background-color:#F5A623;color:#111928;padding:14px 40px;text-decoration:none;border-radius:8px;font-weight:700;display:block;font-size:15px;text-align:center;">
+                  Resolve Now
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="font-size:13px;color:#6B7280;line-height:1.5;margin:0 0 16px;">
+            This link will expire in 24 hours. If you've already resolved this, you can safely ignore this email.
+          </p>
+          <p style="font-size:13px;font-weight:700;color:#111827;margin:0 0 4px;">Didn't expect this alert?</p>
+          <p style="font-size:13px;color:#6B7280;line-height:1.5;margin:0 0 24px;">
+            If you believe this was sent in error, review your alert settings in the EnergyIQ dashboard.
+          </p>
+          <p style="font-size:13px;color:#111827;margin:0;">Regards,</p>
+          <p style="font-size:13px;color:#111827;font-weight:700;margin:4px 0 0;">The EnergyIQ Team</p>
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding:24px 40px;background-color:#D8DBE2;text-align:center;">
+          <div style="margin-bottom:10px;">
+            <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778441114/facebook_llfkvr.svg" alt="Facebook" width="22" height="22" style="margin:0 4px;" />
+            <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778441114/in_p7abpg.svg" alt="LinkedIn" width="22" height="22" style="margin:0 4px;" />
+            <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778441115/x_wlwnww.svg" alt="X" width="22" height="22" style="margin:0 4px;" />
+            <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778441114/discord_fcivey.svg" alt="Discord" width="22" height="22" style="margin:0 4px;" />
+            <img src="https://res.cloudinary.com/ds6nd4lbj/image/upload/v1778443756/mail-small_le1rgp.svg" alt="Mail" width="22" height="22" style="margin:0 4px;" />
+          </div>
+          <p style="font-size:11px;color:#6B7280;margin:0;">© 2025 EnergyIQ. All rights reserved.</p>
+          <p style="font-size:11px;color:#9CA3AF;margin:4px 0 0;">This is an automated email, please do not reply.</p>
+        </td>
+      </tr>
+
+    </table>
+  </body>
+</html>

@@ -27,7 +27,8 @@ export class UserSettings extends AbstractBaseEntity {
   @Column({ type: 'boolean', default: false, nullable: true })
   whatsappAlerts?: boolean;
 
-  @Column({ type: 'boolean', default: false, nullable: true })
+  // Should be true by default if WhatsApp is false by default
+  @Column({ type: 'boolean', default: true, nullable: true })
   emailAlerts?: boolean;
 
   @Column({ type: 'boolean', default: false, nullable: true })

@@ -63,6 +63,9 @@ function makeProcessor() {
   const emailService = {
     sendAlert: jest.fn(),
   };
+  const appCfg = {
+    clientUrl: 'https://app.energyiq.test',
+  };
 
   const processor = new AlertDispatchProcessor(
     alertRepo as never,
@@ -70,6 +73,7 @@ function makeProcessor() {
     userSettingsRepo as never,
     whatsappService as never,
     emailService as never,
+    appCfg as never,
   );
 
   return {

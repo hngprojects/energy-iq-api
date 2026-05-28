@@ -214,6 +214,36 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         deliveryProcessingStatus: ProcessingStatus.pending,
         deliverable: !deferDelivery,
         deliveryStatus: 'pending',
+        metadata: {
+          alertReason: alertInfo.message,
+          batterySoc: depletionInput.batterySocPercent,
+          dischargeRate: depletionResult.netDischargeKw,
+          timeToEmpty:
+            depletionResult.minutesUntilDepletion !== null &&
+            depletionResult.minutesUntilDepletion > 0
+              ? `${Math.round(depletionResult.minutesUntilDepletion)} min`
+              : 'Now',
+          // WARNING template fields: battery depletion warning needs these fields
+          alertTitle: 'Battery depletion warning',
+          stats: [
+            {
+              label: 'Battery SOC',
+              value: `${depletionInput.batterySocPercent}%`,
+            },
+            {
+              label: 'Discharge rate',
+              value: `${depletionResult.netDischargeKw} kW`,
+            },
+            {
+              label: 'Time to threshold',
+              value:
+                depletionResult.minutesUntilDepletion !== null &&
+                depletionResult.minutesUntilDepletion > 0
+                  ? `${Math.round(depletionResult.minutesUntilDepletion)} min`
+                  : 'Now',
+            },
+          ],
+        },
       });
 
       const savedAlert = await this.alertRepo.save(newAlert);
