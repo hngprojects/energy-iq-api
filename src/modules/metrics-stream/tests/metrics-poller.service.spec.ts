@@ -1,4 +1,3 @@
-// Mock the config chain before any imports to prevent @t3-oss/env-core ESM parse error
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({
   appConfig: { KEY: 'app' },
@@ -20,6 +19,10 @@ import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 import { InverterBrand, InverterApiType } from '../../../common/enums';
 import { SecretManager } from '../../../common/utils/crypto.utils';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { Alert } from '../../alerts/entities/alert.entity';
+import { getQueueToken } from '@nestjs/bullmq';
+import { QUEUES } from '../../../common/constants/queue';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -206,8 +209,34 @@ describe('MetricsPollerService', () => {
           useValue: { create: mockRepoCreate, save: mockRepoSave },
         },
         {
+          provide: getRepositoryToken(UserSettings),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: getRepositoryToken(Alert),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn().mockImplementation((dto: unknown) => dto),
+            save: jest.fn().mockResolvedValue({
+              id: 'alert-id',
+              userId: 'user-id',
+              type: 'INVERTER_FAULT',
+              severity: 'CRITICAL',
+              message: 'offline',
+            }),
+          },
+        },
+        {
+          provide: getQueueToken(QUEUES.ALERT_DISPATCH),
+          useValue: { add: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
           provide: MetricsPubSubService,
           useValue: { publish: mockPublish, subscribe: mockSubscribe },
+        },
+        {
+          provide: 'app', // appConfig.KEY — satisfies @Inject(appConfig.KEY) in MetricsPollerService
+          useValue: { clientUrl: 'http://localhost:3000' },
         },
       ],
     }).compile();
@@ -549,6 +578,142 @@ describe('MetricsPollerService', () => {
       expect(mockVictronFetch).not.toHaveBeenCalled();
       expect(mockRepoSave).not.toHaveBeenCalled();
       expect(mockPublish).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── Inverter offline alert ──────────────────────────────────────────────────
+
+  describe('inverter offline alert', () => {
+    let alertRepo: {
+      findOne: jest.Mock;
+      create: jest.Mock;
+      save: jest.Mock;
+    };
+    let alertQueue: { add: jest.Mock };
+
+    beforeEach(() => {
+      // Grab the mocked repos/queue from the module so we can assert on them
+      alertRepo = {
+        findOne: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation((dto: unknown) => dto),
+        save: jest.fn().mockResolvedValue({
+          id: 'alert-id',
+          userId: 'user-uuid-1',
+          type: 'INVERTER_FAULT',
+          severity: 'CRITICAL',
+          message: 'offline',
+        }),
+      };
+      alertQueue = { add: jest.fn().mockResolvedValue(undefined) };
+
+      // Re-wire the service's private repos via the module's provider tokens
+      // We do this by replacing the mock implementations on the already-injected mocks
+      const module = service as unknown as { [key: string]: unknown };
+      (module['alertRepo'] as typeof alertRepo) = alertRepo;
+      (module['alertQueue'] as typeof alertQueue) = alertQueue;
+    });
+
+    it('fires an offline alert after 3 consecutive fetch failures (Victron)', async () => {
+      mockFindSpecificBrand.mockImplementation((brand) =>
+        brand === InverterBrand.VICTRON
+          ? Promise.resolve([makeInverter()])
+          : Promise.resolve([]),
+      );
+      mockVictronFetch.mockRejectedValue(new Error('network error'));
+
+      await service.onModuleInit();
+
+      // First two failures — below threshold, no alert
+      await service.pollVictron();
+      await service.pollVictron();
+      expect(alertRepo.save).not.toHaveBeenCalled();
+
+      // Third failure — threshold reached, alert fires
+      await service.pollVictron();
+      expect(mockMarkOffline).toHaveBeenCalledWith('inv-uuid-1');
+      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+      expect(alertQueue.add).toHaveBeenCalledTimes(1);
+
+      const savedAlert = (
+        alertRepo.save.mock.calls[0] as unknown[]
+      )[0] as Record<string, unknown>;
+      expect(savedAlert['type']).toBe('INVERTER_FAULT');
+      expect(savedAlert['severity']).toBe('CRITICAL');
+      expect(savedAlert['userId']).toBe('user-uuid-1');
+    });
+
+    it('suppresses duplicate offline alert within 60-minute cooldown', async () => {
+      // Simulate a recent alert already in the DB (within cooldown)
+      const recentAlert = {
+        id: 'existing-alert',
+        userId: 'user-uuid-1',
+        type: 'INVERTER_FAULT',
+        createdAt: new Date(), // just now — within cooldown
+      };
+      alertRepo.findOne.mockResolvedValue(recentAlert);
+
+      mockFindSpecificBrand.mockImplementation((brand) =>
+        brand === InverterBrand.VICTRON
+          ? Promise.resolve([makeInverter()])
+          : Promise.resolve([]),
+      );
+      mockVictronFetch.mockRejectedValue(new Error('network error'));
+
+      await service.onModuleInit();
+
+      // Trigger 3 failures to hit the threshold
+      await service.pollVictron();
+      await service.pollVictron();
+      await service.pollVictron();
+
+      // Alert should be suppressed — no new alert saved
+      expect(alertRepo.save).not.toHaveBeenCalled();
+      expect(alertQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('fires a new offline alert when previous alert is outside the cooldown window', async () => {
+      // Simulate an old alert (2 hours ago — outside 60-min cooldown)
+      const oldAlert = {
+        id: 'old-alert',
+        userId: 'user-uuid-1',
+        type: 'INVERTER_FAULT',
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      };
+      alertRepo.findOne.mockResolvedValue(oldAlert);
+
+      mockFindSpecificBrand.mockImplementation((brand) =>
+        brand === InverterBrand.VICTRON
+          ? Promise.resolve([makeInverter()])
+          : Promise.resolve([]),
+      );
+      mockVictronFetch.mockRejectedValue(new Error('network error'));
+
+      await service.onModuleInit();
+      await service.pollVictron();
+      await service.pollVictron();
+      await service.pollVictron();
+
+      // Old alert is outside cooldown — new alert should fire
+      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+      expect(alertQueue.add).toHaveBeenCalledTimes(1);
+    });
+
+    it('recovers gracefully if alert save throws', async () => {
+      alertRepo.save.mockRejectedValue(new Error('DB error'));
+
+      mockFindSpecificBrand.mockImplementation((brand) =>
+        brand === InverterBrand.VICTRON
+          ? Promise.resolve([makeInverter()])
+          : Promise.resolve([]),
+      );
+      mockVictronFetch.mockRejectedValue(new Error('network error'));
+
+      await service.onModuleInit();
+      await service.pollVictron();
+      await service.pollVictron();
+
+      // Should not throw even if alert save fails
+      await expect(service.pollVictron()).resolves.not.toThrow();
     });
   });
 });
