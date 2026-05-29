@@ -74,17 +74,39 @@ export interface SolarAlertInfo {
 }
 
 /**
+ * Minimum absolute output (kW) below which solar underperformance is not
+ * evaluated. Prevents false alerts during dawn/dusk ramp-up when a large
+ * array produces a tiny but non-zero output.
+ */
+const SOLAR_MIN_ABSOLUTE_KW = 0.1;
+
+/**
+ * Minimum output as a fraction of panel capacity below which solar
+ * underperformance is not evaluated. Applied as a floor alongside
+ * SOLAR_MIN_ABSOLUTE_KW — whichever is larger wins.
+ *
+ * Example: a 10 kW array requires at least max(0.1, 10 * 0.05) = 0.5 kW
+ * before the 15%/30% thresholds are checked.
+ */
+const SOLAR_MIN_FRACTION = 0.05;
+
+/**
  * Determine if solar output is underperforming relative to panel capacity.
  *
- * Only fires when panels are producing something (solarPowerKw > 0) — this
- * avoids false alerts at night or when the system is genuinely idle.
+ * Only fires when panels are producing above a meaningful floor — this
+ * avoids false alerts during dawn/dusk ramp-up when a large array produces
+ * a tiny but non-zero output.
  *
- * Thresholds:
+ * Production floor: max(SOLAR_MIN_ABSOLUTE_KW, panelCapacityKw * SOLAR_MIN_FRACTION)
+ * If solarPowerKw is below this floor, the function returns null regardless
+ * of the ratio.
+ *
+ * Thresholds (applied only above the floor):
  *   - Output < 15% of panel capacity → CRITICAL (severe underperformance,
  *     likely a hardware fault or complete shading)
  *   - Output 15–30% of panel capacity → WARNING (moderate underperformance,
  *     may be partial shading, dirty panels, or degradation)
- *   - Output > 30% or panels not producing → null (safe zone)
+ *   - Output > 30% or below production floor → null (safe zone)
  *
  * @param solarPowerKw     - Current solar output in kW (null if not available)
  * @param panelCapacityKw  - Inverter's rated panel peak capacity in kW
@@ -94,13 +116,23 @@ export function shouldFireSolarAlert(
   solarPowerKw: number | null,
   panelCapacityKw: number,
 ): SolarAlertInfo | null {
-  // No data or panels not producing — skip
+  // No data or panels not producing
   if (solarPowerKw === null || solarPowerKw <= 0) {
     return null;
   }
 
   // Panel capacity not configured or too small to be meaningful
   if (panelCapacityKw <= 0) {
+    return null;
+  }
+
+  // Require a meaningful production floor before evaluating thresholds.
+  // This prevents dawn/dusk ramp-up from triggering false alerts.
+  const productionFloor = Math.max(
+    SOLAR_MIN_ABSOLUTE_KW,
+    panelCapacityKw * SOLAR_MIN_FRACTION,
+  );
+  if (solarPowerKw < productionFloor) {
     return null;
   }
 

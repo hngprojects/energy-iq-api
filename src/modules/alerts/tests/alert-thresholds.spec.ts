@@ -160,8 +160,35 @@ describe('shouldFireSolarAlert — Test Cases', () => {
     expect(shouldFireSolarAlert(1, -5)).toBeNull();
   });
 
-  it('S5 should return CRITICAL when output is below 15% of capacity', () => {
-    // 1 kW output on a 10 kW system = 10% — CRITICAL
+  it('S4b should return null when output is below the production floor (dawn/dusk ramp-up)', () => {
+    // 10 kW array: floor = max(0.1, 10 * 0.05) = 0.5 kW
+    // 0.3 kW is below the floor — should be ignored even though ratio is 3%
+    expect(shouldFireSolarAlert(0.3, 10)).toBeNull();
+  });
+
+  it('S4c should evaluate thresholds when output is exactly at the production floor', () => {
+    // 10 kW array: floor = 0.5 kW — exactly at floor passes through (< not <=)
+    // 0.5 kW on 10 kW = 5% — CRITICAL
+    const result = shouldFireSolarAlert(0.5, 10);
+    expect(result).not.toBeNull();
+    expect(result!.severity).toBe(AlertSeverity.CRITICAL);
+  });
+
+  it('S4d should evaluate thresholds when output is just above the production floor', () => {
+    // 10 kW array: floor = 0.5 kW; 0.51 kW is above floor and is 5.1% — CRITICAL
+    const result = shouldFireSolarAlert(0.51, 10);
+    expect(result).not.toBeNull();
+    expect(result!.severity).toBe(AlertSeverity.CRITICAL);
+  });
+
+  it('S4e should use absolute floor for small arrays (floor = SOLAR_MIN_ABSOLUTE_KW)', () => {
+    // 1 kW array: floor = max(0.1, 1 * 0.05) = 0.1 kW
+    // 0.05 kW is below the absolute floor — should be ignored
+    expect(shouldFireSolarAlert(0.05, 1)).toBeNull();
+  });
+
+  it('S5 should return CRITICAL when output is below 15% of capacity (above floor)', () => {
+    // 1 kW output on a 10 kW system = 10% — above floor (0.5 kW), CRITICAL
     const result = shouldFireSolarAlert(1, 10);
 
     expect(result).not.toBeNull();
@@ -221,7 +248,7 @@ describe('shouldFireSolarAlert — Test Cases', () => {
   });
 
   it('S13 should work correctly with small panel systems (e.g. 2 kW)', () => {
-    // 0.2 kW on a 2 kW system = 10% — CRITICAL
+    // 0.2 kW on a 2 kW system = 10% — above floor (max(0.1, 0.1) = 0.1 kW), CRITICAL
     const result = shouldFireSolarAlert(0.2, 2);
 
     expect(result).not.toBeNull();
@@ -230,12 +257,18 @@ describe('shouldFireSolarAlert — Test Cases', () => {
   });
 
   it('S14 should work correctly with large panel systems (e.g. 50 kW)', () => {
-    // 10 kW on a 50 kW system = 20% — WARNING
+    // 10 kW on a 50 kW system = 20% — above floor (max(0.1, 2.5) = 2.5 kW), WARNING
     const result = shouldFireSolarAlert(10, 50);
 
     expect(result).not.toBeNull();
     expect(result!.severity).toBe(AlertSeverity.WARNING);
     expect(result!.performanceRatioPercent).toBe(20);
+  });
+
+  it('S15 should return null for large array with tiny output below fraction floor', () => {
+    // 50 kW array: floor = max(0.1, 50 * 0.05) = 2.5 kW
+    // 1 kW is below the fraction floor — dawn/dusk ramp-up, should be ignored
+    expect(shouldFireSolarAlert(1, 50)).toBeNull();
   });
 });
 

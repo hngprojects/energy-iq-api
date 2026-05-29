@@ -234,6 +234,10 @@ describe('MetricsPollerService', () => {
           provide: MetricsPubSubService,
           useValue: { publish: mockPublish, subscribe: mockSubscribe },
         },
+        {
+          provide: 'app', // appConfig.KEY — satisfies @Inject(appConfig.KEY) in MetricsPollerService
+          useValue: { clientUrl: 'http://localhost:3000' },
+        },
       ],
     }).compile();
 

@@ -194,7 +194,7 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
                 value: `${depletionResult.netDischargeKw} kW`,
               },
               {
-                label: 'Time to threshold',
+                label: 'Time to empty',
                 value:
                   emptyResult.minutesUntilDepletion !== null &&
                   emptyResult.minutesUntilDepletion > 0
@@ -380,8 +380,8 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         message: savedAlert.message,
         channel: 'whatsapp',
       });
-    } else if (settings?.quietHoursEnd && settings?.timezone) {
-      const utcEnd = convertToUTC(settings.quietHoursEnd, settings.timezone);
+    } else if (deferDelivery && settings?.quietHoursEnd) {
+      const utcEnd = convertToUTC(settings.quietHoursEnd, timezone);
       const [endH, endM] = utcEnd.split(':').map(Number);
       const quietHoursEndDate = new Date(now);
       quietHoursEndDate.setUTCHours(endH, endM, 0, 0);

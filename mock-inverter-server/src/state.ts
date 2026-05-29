@@ -181,7 +181,7 @@ export function tick(): void {
     } else if (device.mode === 'discharging') {
       // Force zero solar, push load high → net discharge
       solarPowerKw = 0;
-      acOutputPowerKw = clamp(3.2 + noise(0.3), 3.5, 4.0);
+      acOutputPowerKw = clamp(3.2 + noise(0.3), 2.5, 4.0);
     } else {
       // Normal: time-of-day solar curve
       const solarMult = solarMultiplier(hourOfDay);

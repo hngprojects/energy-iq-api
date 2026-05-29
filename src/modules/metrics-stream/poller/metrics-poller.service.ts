@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -33,6 +34,8 @@ import {
 import { Alert } from '../../alerts/entities/alert.entity';
 import { ALERT_DISPATCH_JOB } from '../../alerts/jobs/alert-dispatch.jobs';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { appConfig } from '../../../config/app.config';
+import { type ConfigType } from '@nestjs/config';
 
 const VICTRON_POLL_MS = 120_000; // 2 min
 const GROWATT_POLL_MS = 300_000; // 5 min
@@ -63,6 +66,8 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     private readonly alertRepo: Repository<Alert>,
     @InjectQueue(QUEUES.ALERT_DISPATCH)
     private readonly alertQueue: Queue,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -516,6 +521,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
         severity: savedAlert.severity,
         message: savedAlert.message,
         channel: 'whatsapp',
+        dashboardUrl: this.appCfg.clientUrl,
       });
 
       this.logger.log(
