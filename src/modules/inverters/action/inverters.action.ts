@@ -30,6 +30,14 @@ export class InverterModelAction extends AbstractModelAction<Inverter> {
     return this.repository.find({ where: { userId } });
   }
 
+  async findIdsByUserId(userId: string): Promise<string[]> {
+    const inverters = await this.repository.find({
+      where: { userId },
+      select: ['id'],
+    });
+    return inverters.map((inv) => inv.id);
+  }
+
   async findActiveByUserId(userId: string): Promise<Inverter[]> {
     return this.repository.find({ where: { userId, isActive: true } });
   }
