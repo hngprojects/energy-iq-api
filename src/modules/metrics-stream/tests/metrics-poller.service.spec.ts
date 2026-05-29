@@ -1,4 +1,3 @@
-// Mock the config chain before any imports to prevent @t3-oss/env-core ESM parse error
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({
   appConfig: { KEY: 'app' },
@@ -20,6 +19,10 @@ import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 import { InverterBrand, InverterApiType } from '../../../common/enums';
 import { SecretManager } from '../../../common/utils/crypto.utils';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { Alert } from '../../alerts/entities/alert.entity';
+import { getQueueToken } from '@nestjs/bullmq';
+import { QUEUES } from '../../../common/constants/queue';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -204,6 +207,22 @@ describe('MetricsPollerService', () => {
         {
           provide: getRepositoryToken(InvertersMetrics),
           useValue: { create: mockRepoCreate, save: mockRepoSave },
+        },
+        {
+          provide: getRepositoryToken(UserSettings),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: getRepositoryToken(Alert),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn().mockImplementation((dto: unknown) => dto),
+            save: jest.fn().mockResolvedValue({ id: 'alert-id', userId: 'user-id', type: 'INVERTER_FAULT', severity: 'CRITICAL', message: 'offline' }),
+          },
+        },
+        {
+          provide: getQueueToken(QUEUES.ALERT_DISPATCH),
+          useValue: { add: jest.fn().mockResolvedValue(undefined) },
         },
         {
           provide: MetricsPubSubService,
