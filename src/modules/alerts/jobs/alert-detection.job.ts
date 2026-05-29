@@ -17,7 +17,11 @@ import {
   calculateDepletion,
   DepletionInput,
 } from '../helpers/depletion-engine';
-import { shouldFireAlert } from '../helpers/alert-thresholds';
+import {
+  shouldFireAlert,
+  shouldFireSolarAlert,
+  shouldFireHighLoadAlert,
+} from '../helpers/alert-thresholds';
 import { isWithinQuietHours, convertToUTC } from '../helpers/quiet-hours';
 import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
 import { QUEUES } from '../../../common/constants/queue';
@@ -139,6 +143,7 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       const cooldown = settings?.alertCooldownMinutes ?? 15;
       const timezone = settings?.timezone ?? '+00:00';
 
+      // ── Battery depletion ──────────────────────────────────────────
       const depletionInput: DepletionInput = {
         batterySocPercent: metric.batterySoc ?? 0,
         loadKw: metric.acOutputPowerKw ?? 0,
@@ -152,147 +157,145 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       );
 
       const depletionResult = calculateDepletion(depletionInput, threshold);
+      // Calculate time-to-empty from 0% (for display in email)
       const emptyResult = calculateDepletion(depletionInput, 0);
 
       this.logger.log(
         `AlertDetectionJob: depletion result: minutesUntilDepletion=${depletionResult.minutesUntilDepletion}, isCharging=${depletionResult.isCharging}, netDischargeKw=${depletionResult.netDischargeKw}`,
       );
 
-      const alertInfo = shouldFireAlert(
+      const batteryAlertInfo = shouldFireAlert(
         depletionResult.minutesUntilDepletion,
         depletionResult.isCharging,
       );
 
-      if (!alertInfo) {
+      if (batteryAlertInfo) {
         this.logger.log(
-          `AlertDetectionJob: no alert needed for inverter ${inverter.id} (safe zone or charging)`,
+          `AlertDetectionJob: battery alert needed — severity=${batteryAlertInfo.severity}, minutes=${batteryAlertInfo.minutesUntilDepletion}`,
         );
-        return;
-      }
-
-      this.logger.log(
-        `AlertDetectionJob: alert needed — severity=${alertInfo.severity}, minutes=${alertInfo.minutesUntilDepletion}`,
-      );
-
-      const dupCheck = await this.duplicateSuppression.isDuplicate(
-        {
-          userId: inverter.userId,
-          type: AlertType.BATTERY_PERCENTAGE,
-          severity: alertInfo.severity,
-        },
-        cooldown,
-      );
-
-      if (dupCheck.isDuplicate) {
-        this.logger.log(
-          `Suppressed duplicate alert for user ${inverter.userId}: ${dupCheck.reason}`,
-        );
-        return;
-      }
-
-      const now = new Date();
-      let deferDelivery = false;
-
-      if (settings?.quietHoursStart && settings?.quietHoursEnd) {
-        const utcStart = convertToUTC(settings.quietHoursStart, timezone);
-        const utcEnd = convertToUTC(settings.quietHoursEnd, timezone);
-        deferDelivery = isWithinQuietHours(now, utcStart, utcEnd);
-      }
-
-      if (alertInfo.severity === AlertSeverity.CRITICAL) {
-        deferDelivery = false;
-      }
-
-      const newAlert: Alert = this.alertRepo.create({
-        userId: inverter.userId,
-        type: AlertType.BATTERY_PERCENTAGE,
-        platform: inverter.brand.toLowerCase(),
-        severity: alertInfo.severity,
-        message: alertInfo.message,
-        resolutionStatus: AlertResolutionStatus.UNRESOLVED,
-        triggeredAt: new Date(),
-        isActive: true,
-        deliveryProcessingStatus: ProcessingStatus.pending,
-        deliverable: !deferDelivery,
-        deliveryStatus: 'pending',
-        metadata: {
-          alertReason: alertInfo.message,
-          batterySoc: depletionInput.batterySocPercent,
-          dischargeRate: depletionResult.netDischargeKw,
-          timeToEmpty:
-            emptyResult.minutesUntilDepletion !== null &&
-            emptyResult.minutesUntilDepletion > 0
-              ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
-              : 'Now',
-          // WARNING template fields: battery depletion warning needs these fields
-          alertTitle: 'Battery depletion warning',
-          stats: [
-            {
-              label: 'Battery SOC',
-              value: `${depletionInput.batterySocPercent}%`,
-            },
-            {
-              label: 'Discharge rate',
-              value: `${depletionResult.netDischargeKw} kW`,
-            },
-            {
-              label: 'Time to threshold',
-              value:
-                emptyResult.minutesUntilDepletion !== null &&
-                emptyResult.minutesUntilDepletion > 0
-                  ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
-                  : 'Now',
-            },
-          ],
-        },
-      });
-
-      const savedAlert = await this.alertRepo.save(newAlert);
-
-      if (!deferDelivery) {
-        await this.alertQueue.add('alert.dispatch', {
-          alertId: savedAlert.id,
-          userId: savedAlert.userId,
-          type: savedAlert.type,
-          severity: savedAlert.severity,
-          message: savedAlert.message,
-          channel: 'whatsapp',
+        await this.saveAndDispatchAlert({
+          inverter,
+          settings,
+          timezone,
+          cooldown,
+          alertType: AlertType.BATTERY_PERCENTAGE,
+          severity: batteryAlertInfo.severity,
+          message: batteryAlertInfo.message,
+          metadata: {
+            alertReason: batteryAlertInfo.message,
+            alertTitle: 'Battery depletion warning',
+            stats: [
+              {
+                label: 'Battery SOC',
+                value: `${depletionInput.batterySocPercent}%`,
+              },
+              {
+                label: 'Discharge rate',
+                value: `${depletionResult.netDischargeKw} kW`,
+              },
+              {
+                label: 'Time to empty',
+                value:
+                  emptyResult.minutesUntilDepletion !== null &&
+                  emptyResult.minutesUntilDepletion > 0
+                    ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
+                    : 'Now',
+              },
+            ],
+          },
         });
-      } else if (settings?.quietHoursEnd && settings?.timezone) {
-        const utcEnd = convertToUTC(settings.quietHoursEnd, settings.timezone);
-        const [endH, endM] = utcEnd.split(':').map(Number);
-        const quietHoursEndDate = new Date(now);
-        quietHoursEndDate.setUTCHours(endH, endM, 0, 0);
-
-        if (quietHoursEndDate <= now) {
-          quietHoursEndDate.setUTCDate(quietHoursEndDate.getUTCDate() + 1);
-        }
-
-        const delay = quietHoursEndDate.getTime() - now.getTime();
-
-        await this.alertQueue.add(
-          ALERT_DEFERRED_DELIVERY_JOB,
-          {
-            alertId: savedAlert.id,
-            userId: savedAlert.userId,
-            scheduledFor: quietHoursEndDate.toISOString(),
-          },
-          {
-            delay,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 5000 },
-          },
-        );
-
+      } else {
         this.logger.log(
-          `Scheduled deferred delivery for alert ${savedAlert.id} at ${quietHoursEndDate.toISOString()}`,
+          `AlertDetectionJob: no battery alert needed for inverter ${inverter.id} (safe zone or charging)`,
         );
       }
 
-      this.logger.log(
-        `Alert created for user ${inverter.userId}: ${alertInfo.severity} — ${alertInfo.message}` +
-          (deferDelivery ? ' (deferred: quiet hours)' : ''),
+      // ── Solar underperformance ─────────────────────────────────────
+      const panelCapacityKw = Number(inverter.panelCapacityKw);
+      const solarAlertInfo = shouldFireSolarAlert(
+        metric.solarPowerKw,
+        panelCapacityKw,
       );
+
+      if (solarAlertInfo) {
+        this.logger.log(
+          `AlertDetectionJob: solar alert needed — severity=${solarAlertInfo.severity}, ratio=${solarAlertInfo.performanceRatioPercent}%`,
+        );
+        await this.saveAndDispatchAlert({
+          inverter,
+          settings,
+          timezone,
+          cooldown,
+          alertType: AlertType.SOLAR_GEN,
+          severity: solarAlertInfo.severity,
+          message: solarAlertInfo.message,
+          metadata: {
+            alertReason: solarAlertInfo.message,
+            alertTitle: 'Solar underperformance',
+            stats: [
+              {
+                label: 'Solar output',
+                value: `${solarAlertInfo.solarPowerKw.toFixed(2)} kW`,
+              },
+              {
+                label: 'Panel capacity',
+                value: `${solarAlertInfo.panelCapacityKw} kW`,
+              },
+              {
+                label: 'Performance',
+                value: `${solarAlertInfo.performanceRatioPercent}%`,
+              },
+            ],
+          },
+        });
+      } else {
+        this.logger.log(
+          `AlertDetectionJob: no solar alert needed for inverter ${inverter.id}`,
+        );
+      }
+
+      // ── High load spike ───────────────────────────────────────────
+      const loadAlertInfo = shouldFireHighLoadAlert(
+        metric.acOutputPowerKw,
+        panelCapacityKw,
+      );
+
+      if (loadAlertInfo) {
+        this.logger.log(
+          `AlertDetectionJob: high load alert needed — severity=${loadAlertInfo.severity}, ratio=${loadAlertInfo.loadRatioPercent}%`,
+        );
+        await this.saveAndDispatchAlert({
+          inverter,
+          settings,
+          timezone,
+          cooldown,
+          alertType: AlertType.POWER,
+          severity: loadAlertInfo.severity,
+          message: loadAlertInfo.message,
+          metadata: {
+            alertReason: loadAlertInfo.message,
+            alertTitle: 'High load spike',
+            stats: [
+              {
+                label: 'Current load',
+                value: `${loadAlertInfo.loadKw.toFixed(2)} kW`,
+              },
+              {
+                label: 'Rated capacity',
+                value: `${loadAlertInfo.ratedCapacityKw} kW`,
+              },
+              {
+                label: 'Load ratio',
+                value: `${loadAlertInfo.loadRatioPercent}%`,
+              },
+            ],
+          },
+        });
+      } else {
+        this.logger.log(
+          `AlertDetectionJob: no high load alert needed for inverter ${inverter.id}`,
+        );
+      }
     } catch (error) {
       this.logger.error(
         `Error evaluating inverter ${inverter.id}: ${(error as Error).message}`,
@@ -300,5 +303,117 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async resolveAlertType(): Promise<void> {}
+  /**
+   * Shared helper: check duplicate suppression, apply quiet hours, save the
+   * alert record, and enqueue the dispatch job (or a deferred delivery job).
+   */
+  private async saveAndDispatchAlert(params: {
+    inverter: Inverter;
+    settings: UserSettings | null;
+    timezone: string;
+    cooldown: number;
+    alertType: AlertType;
+    severity: AlertSeverity;
+    message: string;
+    metadata: Record<string, unknown>;
+  }): Promise<void> {
+    const {
+      inverter,
+      settings,
+      timezone,
+      cooldown,
+      alertType,
+      severity,
+      message,
+      metadata,
+    } = params;
+
+    const dupCheck = await this.duplicateSuppression.isDuplicate(
+      { userId: inverter.userId, type: alertType, severity },
+      cooldown,
+    );
+
+    if (dupCheck.isDuplicate) {
+      this.logger.log(
+        `Suppressed duplicate ${alertType} alert for user ${inverter.userId}: ${dupCheck.reason}`,
+      );
+      return;
+    }
+
+    const now = new Date();
+    let deferDelivery = false;
+
+    if (settings?.quietHoursStart && settings?.quietHoursEnd) {
+      const utcStart = convertToUTC(settings.quietHoursStart, timezone);
+      const utcEnd = convertToUTC(settings.quietHoursEnd, timezone);
+      deferDelivery = isWithinQuietHours(now, utcStart, utcEnd);
+    }
+
+    // CRITICAL alerts always bypass quiet hours
+    if (severity === AlertSeverity.CRITICAL) {
+      deferDelivery = false;
+    }
+
+    const savedAlert = await this.alertRepo.save(
+      this.alertRepo.create({
+        userId: inverter.userId,
+        type: alertType,
+        platform: inverter.brand.toLowerCase(),
+        severity,
+        message,
+        resolutionStatus: AlertResolutionStatus.UNRESOLVED,
+        triggeredAt: now,
+        isActive: true,
+        deliveryProcessingStatus: ProcessingStatus.pending,
+        deliverable: !deferDelivery,
+        deliveryStatus: 'pending',
+        metadata,
+      }),
+    );
+
+    if (!deferDelivery) {
+      await this.alertQueue.add('alert.dispatch', {
+        alertId: savedAlert.id,
+        userId: savedAlert.userId,
+        type: savedAlert.type,
+        severity: savedAlert.severity,
+        message: savedAlert.message,
+        channel: 'whatsapp',
+      });
+    } else if (deferDelivery && settings?.quietHoursEnd) {
+      const utcEnd = convertToUTC(settings.quietHoursEnd, timezone);
+      const [endH, endM] = utcEnd.split(':').map(Number);
+      const quietHoursEndDate = new Date(now);
+      quietHoursEndDate.setUTCHours(endH, endM, 0, 0);
+
+      if (quietHoursEndDate <= now) {
+        quietHoursEndDate.setUTCDate(quietHoursEndDate.getUTCDate() + 1);
+      }
+
+      const delay = quietHoursEndDate.getTime() - now.getTime();
+
+      await this.alertQueue.add(
+        ALERT_DEFERRED_DELIVERY_JOB,
+        {
+          alertId: savedAlert.id,
+          userId: savedAlert.userId,
+          scheduledFor: quietHoursEndDate.toISOString(),
+        },
+        {
+          delay,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+        },
+      );
+
+      this.logger.log(
+        `Scheduled deferred delivery for ${alertType} alert ${savedAlert.id} at ${quietHoursEndDate.toISOString()}`,
+      );
+    }
+
+    this.logger.log(
+      `${alertType} alert created for user ${inverter.userId}: ${severity} — ${message}` +
+        (deferDelivery ? ' (deferred: quiet hours)' : ''),
+    );
+  }
 }
