@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload Unit Test Coverage
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: unit-test-coverage
           path: coverage/
@@ -123,7 +123,7 @@ jobs:
         run: pnpm run build
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: build-dist
           path: dist/
