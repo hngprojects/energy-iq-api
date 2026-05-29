@@ -23,8 +23,7 @@ jobs:
     timeout-minutes: 25
     if: |
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'staging' &&
-      github.event.workflow_run.event == 'workflow_run'
+      github.event.workflow_run.head_branch == 'staging'
     environment: staging
     steps:
       - name: Checkout
@@ -59,7 +58,7 @@ jobs:
           --exclude='.git' \
           --exclude='node_modules' \
           --exclude='.github' \
-          --czf "${FILENAME}".tar.gz .
+          -czf "${FILENAME}" .
 
       - name: Copy Archive to Server
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
