@@ -8,9 +8,6 @@ inputs:
   pnpm-version:
     description: 'pnpm version to use'
     required: true
-  ref:
-    description: 'The commit SHA to checkout'
-    required: true
 
 runs:
   using: "composite"
