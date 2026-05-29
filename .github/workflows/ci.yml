@@ -126,6 +126,7 @@ jobs:
           path: dist/
 
       - name: E2E tests
+        id: e2e
         run: pnpm run test:e2e
 
       - name: Upload E2E reports
