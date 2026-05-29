@@ -107,7 +107,10 @@ export class MetricsReader implements AgentTool {
     );
 
     const hasData = results.some(
-      (r) => r.data !== null && r.data !== undefined,
+      (r) =>
+        r.data !== null &&
+        r.data !== undefined &&
+        !(Array.isArray(r.data) && r.data.length === 0),
     );
     if (!hasData) {
       return 'No metrics data is available for your inverter(s) yet.';
