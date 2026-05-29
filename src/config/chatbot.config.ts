@@ -6,4 +6,5 @@ export const chatbotConfig = registerAs('chatbot', () => ({
   chatContextLength: env.CHAT_CONTEXT_LENGTH,
   chatExpirationTimeoutSeconds: env.CHAT_EXP_TIMEOUT_SECONDS,
   groqApiKey: env.GROQ_API_KEY,
+  geminiApiKey: env.GEMINI_API_KEY,
 }));
