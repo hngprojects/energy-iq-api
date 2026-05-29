@@ -70,6 +70,7 @@ export const env = createEnv({
       .positive()
       .transform((v) => Number(v)),
     GROQ_API_KEY: z.string().nonoptional(),
+    GEMINI_API_KEY: z.string().nonoptional(),
     CHATBOT_NAME: z.string().default('orochimaru'),
     SECRET_MANAGER_ENCRYPTION_KEY: z.string().length(32),
 

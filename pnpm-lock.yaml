@@ -21,6 +21,9 @@ importers:
       '@langchain/core':
         specifier: ^1.1.46
         version: 1.1.48(ws@8.20.1)
+      '@langchain/google-genai':
+        specifier: ^2.1.31
+        version: 2.1.31(@langchain/core@1.1.48(ws@8.20.1))
       '@langchain/groq':
         specifier: ^1.2.0
         version: 1.2.1(@langchain/core@1.1.48(ws@8.20.1))
@@ -752,6 +755,10 @@ packages:
     resolution: {integrity: sha512-rZAP3aVgB9ds9KOeUSL+zZ21hPmo8dh6fnIFwRQj5EAZl9gzR7wxYbYXYysAM8CTqGmUGyp2S4kUdV17MnGuWQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
+  '@google/generative-ai@0.24.1':
+    resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
+    engines: {node: '>=18.0.0'}
+
   '@hng-sdk/orm@0.0.0':
     resolution: {integrity: sha512-7L70TEDJHzrgeCMhtheUTBi4DL8HhKjKu3JlXlIKKt6P5zrF763CRaqF4Lr3v/9usVnw0seDBHGNhV3lOm6xXg==}
 
@@ -1040,6 +1047,12 @@ packages:
   '@langchain/core@1.1.48':
     resolution: {integrity: sha512-fQU6Guyb1pwc2fEplmA8FPbKfOMAofjnyJzExevro0FxEiuGHE18Ov/ZHmT9trWCDTZRI9eW1VIc6aChxV8pAQ==}
     engines: {node: '>=20'}
+
+  '@langchain/google-genai@2.1.31':
+    resolution: {integrity: sha512-lHIJGtZab0jqoufKRPXyHHg1nLXrE74LXd0ftgibWEACc1SpSLu6XwtA23+dX4l7Q/YeSgb9n40YJx5k00/fqw==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@langchain/core': ^1.1.47
 
   '@langchain/groq@1.2.1':
     resolution: {integrity: sha512-K3QK3lVTUqxheA9u8upwN0cu04cySyaoKRmnN3vp5fEWQjzm08TYEv6FypyVEcEx0ZzBrHaYKsZIZKZSINN3RQ==}
@@ -5053,6 +5066,8 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
+  '@google/generative-ai@0.24.1': {}
+
   '@hng-sdk/orm@0.0.0(@nestjs/websockets@11.1.23)(class-transformer@0.5.1)(ioredis@5.10.1)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))':
     dependencies:
       '@nestjs/common': 11.1.23(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -5486,6 +5501,11 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
       - ws
+
+  '@langchain/google-genai@2.1.31(@langchain/core@1.1.48(ws@8.20.1))':
+    dependencies:
+      '@google/generative-ai': 0.24.1
+      '@langchain/core': 1.1.48(ws@8.20.1)
 
   '@langchain/groq@1.2.1(@langchain/core@1.1.48(ws@8.20.1))':
     dependencies:
