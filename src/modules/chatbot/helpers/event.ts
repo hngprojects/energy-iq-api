@@ -15,4 +15,5 @@ export enum ChatSocketEvent {
   // Streaming events
   TOKEN_CHUNK = 'token_chunk', // each token piece from the AI
   STREAM_END = 'stream_end', // signals the end of a streaming response
+  CARDS = 'cards', // structured card data emitted after stream ends (only when user has cards enabled)
 }

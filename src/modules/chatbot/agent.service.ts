@@ -7,6 +7,8 @@ import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { z } from 'zod';
+import { AgentCardResponse } from './types';
 
 @Injectable()
 export class AgentService {
@@ -175,6 +177,75 @@ export class AgentService {
           : String(response.content).trim();
       return title || null;
     } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Generates structured cards from a completed agent response.
+   *
+   * Uses structured output (function-calling mode) so the schema is enforced
+   * at the API level - not just requested in a prompt. Returns null if the
+   * response doesn't warrant cards or if the call fails.
+   *
+   * This is intentionally a separate, non-streaming call that runs after the
+   * main stream completes. It never blocks or delays the streaming response.
+   */
+  async generateCards(
+    userMessage: string,
+    agentResponse: string,
+    preferredLanguage?: string,
+  ): Promise<AgentCardResponse | null> {
+    try {
+      const cardSchema = z.object({
+        cards: z.array(
+          z.object({
+            cardType: z.enum([
+              'summary',
+              'insight',
+              'anomaly',
+              'recommendation',
+            ]),
+            title: z.string(),
+            content: z.string(),
+            severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+          }),
+        ),
+      });
+
+      const structuredModel = this.model.withStructuredOutput(cardSchema);
+
+      const languageInstruction = preferredLanguage
+        ? ` All card titles and content MUST be written in ${preferredLanguage}.`
+        : '';
+
+      const result = await structuredModel.invoke([
+        {
+          role: 'system',
+          content:
+            'You are a data formatter for an energy management assistant. ' +
+            'Given a user question and the assistant response about a solar energy system, ' +
+            'extract the key information into structured cards. ' +
+            'Use these card types:\n' +
+            '- summary: overall system status or a recap of findings\n' +
+            '- insight: a notable pattern or observation worth highlighting\n' +
+            '- anomaly: something unusual or potentially problematic (include severity)\n' +
+            '- recommendation: a concrete action the user should take\n\n' +
+            'IMPORTANT: Only produce cards when the response contains meaningful structured data ' +
+            '(alerts, system status, trends, recommendations). ' +
+            'If the response is a simple conversational reply, a greeting, or does not contain ' +
+            'actionable energy data, return an empty cards array. ' +
+            `Keep card content concise — one to three sentences maximum.${languageInstruction}`,
+        },
+        {
+          role: 'user',
+          content: `User asked: ${userMessage}\n\nAssistant responded: ${agentResponse}`,
+        },
+      ]);
+
+      return result.cards.length > 0 ? (result as AgentCardResponse) : null;
+    } catch {
+      // Card generation is best-effort — never surface errors to the caller
       return null;
     }
   }

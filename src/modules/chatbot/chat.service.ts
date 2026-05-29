@@ -211,6 +211,31 @@ export class ChatService {
         isTransitioning: false,
         senderId: SYSTEM_SENDER_ID,
       });
+
+      // 7. Fire card generation if the user has cards enabled (fire-and-forget).
+      // Runs after the stream completes so it never delays token delivery.
+      if (fullContent) {
+        void this.usersService
+          .getUserSetting(dto.senderId, 'chatCardsEnabled')
+          .then((cardsEnabled) => {
+            // Default is enabled — only skip if explicitly set to false
+            if (cardsEnabled === false) return;
+            return this.llmService
+              .generateCards(dto.textContent, fullContent, userPreferredLanguage ?? undefined)
+              .then((cardResponse) => {
+                if (cardResponse) {
+                  socket.emit(ChatSocketEvent.CARDS, {
+                    chatId: dto.chatId,
+                    cards: cardResponse.cards,
+                  });
+                }
+              });
+          })
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Card generation failed: ${msg}`);
+          });
+      }
     } finally {
       // 7. Emit stream_end so the client can finalize (e.g., remove "typing" indicator)
       socket.emit(ChatSocketEvent.STREAM_END, {
