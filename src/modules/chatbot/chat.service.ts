@@ -221,7 +221,11 @@ export class ChatService {
             // Default is enabled — only skip if explicitly set to false
             if (cardsEnabled === false) return;
             return this.llmService
-              .generateCards(dto.textContent, fullContent, userPreferredLanguage ?? undefined)
+              .generateCards(
+                dto.textContent,
+                fullContent,
+                userPreferredLanguage ?? undefined,
+              )
               .then((cardResponse) => {
                 if (cardResponse) {
                   socket.emit(ChatSocketEvent.CARDS, {

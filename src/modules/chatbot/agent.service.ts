@@ -174,7 +174,9 @@ export class AgentService {
       const title =
         typeof response.content === 'string'
           ? response.content.trim()
-          : String(response.content).trim();
+          : typeof response.content === 'object'
+            ? JSON.stringify(response.content)
+            : response.content;
       return title || null;
     } catch {
       return null;
@@ -243,7 +245,7 @@ export class AgentService {
         },
       ]);
 
-      return result.cards.length > 0 ? (result as AgentCardResponse) : null;
+      return result.cards.length > 0 ? result : null;
     } catch {
       // Card generation is best-effort — never surface errors to the caller
       return null;
