@@ -1,127 +1,138 @@
-  name: CI Quality & Security Gate
+name: CI Quality & Security Gate
 
-  on:
-    pull_request:
-      branches:
-        - dev
-    push:
-      branches:
-        - dev
-        - staging
-        - main
-    workflow_dispatch:
+on:
+  pull_request:
+    branches: [dev, staging, main]
+  push: 
+    branches: [dev, staging, main]
+  workflow_dispatch:
 
-  concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-  permissions:
-    contents: read
+permissions:
+  contents: read
 
-  env:
-    NODE_VERSION: "20"
-    PNPM_VERSION: "10"
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10"
 
-  jobs:
-    quality-gate:
-      name: Lint, Test & Build
-      runs-on: ubuntu-latest
-      timeout-minutes: 30
+jobs:
+  lint:
+    name: Lint & Style Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      steps:
-        - name: Checkout
-          uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          ref: ${{ github.sha }}
 
-        - name: Setup pnpm
-          uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
-          with:
-            version: ${{ env.PNPM_VERSION }}
+      - name: Lint
+        run: pnpm run lint
 
-        - name: Setup Node.js
-          uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
-          with:
-            node-version: ${{ env.NODE_VERSION }}
-            cache: pnpm
+      - name: Verify lint made no changes
+        run: |
+          git diff --name-only --exit-code || {
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "  Lint auto-fixed files during CI."
+            echo "  Run 'pnpm run lint' locally"
+            echo "  and commit the changes before pushing."
+            echo ""
+            echo "  Modified files:"
+            git diff --name-only | sed 's/^/    - /'
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 1;
+          }
 
-        - name: Install dependencies
-          run: pnpm install --frozen-lockfile
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-        - name: Lint
-          run: pnpm run lint
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          ref: ${{ github.sha }}
 
-        - name: Verify lint made no changes
-          run: |
-            git diff --name-only --exit-code || {
-              echo "Lint modified tracked files. Use a non-fixing lint command in CI or commit the required lint fixes.";
-              exit 1;
-            }
+      - name: Unit tests
+        run: pnpm run test:cov
 
-        - name: Unit tests
-          run: pnpm run test
+      - name: Upload Unit Test Coverage
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: unit-test-coverage
+          path: coverage/
+          retention-days: 7
 
-        - name: E2E tests
-          run: pnpm run test:e2e
+  build:
+    name: Compilation Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-        - name: Build
-          run: pnpm run build
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          ref: ${{ github.sha }}
 
-    security-scan:
-      name: Security & Vulnerability Scan
-      runs-on: ubuntu-latest
-      timeout-minutes: 15
-      permissions:
-        contents: read
-        security-events: write
+      - name: Build
+        run: pnpm run build
 
-      steps:
-        - name: Checkout
-          uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Upload build artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: build-dist-${{ github.sha }}
+          path: dist/
+          retention-days: 1
 
-        - name: Setup pnpm
-          uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
-          with:
-            version: ${{ env.PNPM_VERSION }}
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [build, lint, unit-tests]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-        - name: Setup Node.js
-          uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
-          with:
-            node-version: ${{ env.NODE_VERSION }}
-            cache: pnpm
+      - name: Setup project
+        uses: ./.github/actions/setup-project
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          ref: ${{ github.sha }}
 
-        - name: Install dependencies
-          run: pnpm install --frozen-lockfile
+      - name: Download build artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: build-dist-${{ github.sha }}
+          path: dist/
 
-        - name: Run Trivy filesystem scan
-          uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
-          with:
-            scan-type: fs
-            scan-ref: .
-            severity: CRITICAL,HIGH
-            exit-code: 1
-            format: sarif
-            output: trivy-results.sarif
+      - name: E2E tests
+        id: e2e
+        run: pnpm run test:e2e
 
-        - name: Print Trivy table summary
-          if: always()
-          uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
-          with:
-            scan-type: fs
-            scan-ref: .
-            severity: CRITICAL,HIGH
-            exit-code: 0
-            format: table
-
-        - name: Check Trivy SARIF output
-          if: always()
-          run: |
-            if [ -f trivy-results.sarif ]; then
-              echo "trivy-results.sarif found"
-            else
-              echo "trivy-results.sarif not found; skipping SARIF upload"
-            fi
-
-        - name: Upload Trivy SARIF to GitHub Security
-          if: always() && hashFiles('trivy-results.sarif') != ''
-          uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
-          with:
-            sarif_file: trivy-results.sarif
+      - name: Upload E2E reports
+        if: failure() && steps.e2e.outcome == 'failure'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: e2e-test-results
+          path: test-results/e2e/
+          retention-days: 7
