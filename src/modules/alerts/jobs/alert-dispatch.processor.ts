@@ -124,18 +124,6 @@ export class AlertDispatchProcessor extends WorkerHost {
               typeof meta['alertReason'] === 'string'
                 ? meta['alertReason']
                 : formattedMessage;
-            const batterySoc =
-              typeof meta['batterySoc'] === 'number'
-                ? meta['batterySoc']
-                : undefined;
-            const dischargeRate =
-              typeof meta['dischargeRate'] === 'number'
-                ? meta['dischargeRate']
-                : undefined;
-            const timeToEmpty =
-              typeof meta['timeToEmpty'] === 'string'
-                ? meta['timeToEmpty']
-                : undefined;
             const stats = Array.isArray(meta['stats'])
               ? // ? (meta['stats'] as { label: string; value: string }[])
                 // : undefined;
@@ -159,7 +147,7 @@ export class AlertDispatchProcessor extends WorkerHost {
               severity,
               alertReason,
               resolveLink,
-              { batterySoc, dischargeRate, timeToEmpty, stats, alertTitle },
+              { stats, alertTitle },
             );
           },
         },

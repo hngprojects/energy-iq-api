@@ -183,13 +183,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
           message: batteryAlertInfo.message,
           metadata: {
             alertReason: batteryAlertInfo.message,
-            batterySoc: depletionInput.batterySocPercent,
-            dischargeRate: depletionResult.netDischargeKw,
-            timeToEmpty:
-              emptyResult.minutesUntilDepletion !== null &&
-              emptyResult.minutesUntilDepletion > 0
-                ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
-                : 'Now',
             alertTitle: 'Battery depletion warning',
             stats: [
               {

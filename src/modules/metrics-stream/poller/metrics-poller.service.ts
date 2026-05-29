@@ -16,7 +16,12 @@ import { SandboxAdapter } from '../../inverters/adapters/sandbox.adapter';
 import { InverterModelAction } from '../../inverters/action/inverters.action';
 import { InvertersMetrics } from '../../inverters-metrics/entities/inverters-metrics.entity';
 import { MetricsPubSubService } from '../pubsub/metrics-pubsub.service';
-import { InverterBrand, AlertType, AlertSeverity, AlertResolutionStatus } from '../../../common/enums';
+import {
+  InverterBrand,
+  AlertType,
+  AlertSeverity,
+  AlertResolutionStatus,
+} from '../../../common/enums';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { SecretManager } from '../../../common/utils/crypto.utils';
@@ -25,10 +30,9 @@ import {
   InverterControlMessage,
   QUEUES,
 } from '../../../common/constants/queue';
-import { UserSettings } from '../../users/entities/user-settings.entity';
 import { Alert } from '../../alerts/entities/alert.entity';
-import { ProcessingStatus } from '../../../common/constants/processing-status';
 import { ALERT_DISPATCH_JOB } from '../../alerts/jobs/alert-dispatch.jobs';
+import { ProcessingStatus } from '../../../common/constants/processing-status';
 
 const VICTRON_POLL_MS = 120_000; // 2 min
 const GROWATT_POLL_MS = 300_000; // 5 min
@@ -55,8 +59,6 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(InvertersMetrics)
     private readonly metricsRepo: Repository<InvertersMetrics>,
     private readonly pubSubService: MetricsPubSubService,
-    // @InjectRepository(UserSettings)
-    // private readonly userSettingsRepo: Repository<UserSettings>,
     @InjectRepository(Alert)
     private readonly alertRepo: Repository<Alert>,
     @InjectQueue(QUEUES.ALERT_DISPATCH)
@@ -460,7 +462,9 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     try {
       const cooldownMinutes = 60;
       const now = new Date();
-      const cooldownCutoff = new Date(now.getTime() - cooldownMinutes * 60 * 1000);
+      const cooldownCutoff = new Date(
+        now.getTime() - cooldownMinutes * 60 * 1000,
+      );
 
       // Check for a recent unresolved offline alert for this inverter
       const recentAlert = await this.alertRepo.findOne({

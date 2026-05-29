@@ -9,14 +9,13 @@ import { MetricsPubSubModule } from './pubsub/metrics-pubsub.module';
 import { InvertersMetrics } from '../inverters-metrics/entities/inverters-metrics.entity';
 import { InvertersModule } from '../inverters/inverters.module';
 import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
-import { UserSettings } from '../users/entities/user-settings.entity';
 import { Alert } from '../alerts/entities/alert.entity';
 import { QUEUES } from '../../common/constants/queue';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([InvertersMetrics, UserSettings, Alert]),
+    TypeOrmModule.forFeature([InvertersMetrics, Alert]),
     BullModule.registerQueue({ name: QUEUES.ALERT_DISPATCH }),
     InvertersModule,
     InvertersMetricsModule,

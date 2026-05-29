@@ -107,9 +107,9 @@ export class EmailService {
     resolveLink: string,
     options: {
       /** CRITICAL: fixed battery stats */
-      batterySoc?: number;
-      dischargeRate?: number;
-      timeToEmpty?: string;
+      // batterySoc?: number;
+      // dischargeRate?: number;
+      // timeToEmpty?: string;
       /** WARNING: dynamic stat cards */
       stats?: AlertStat[];
       alertTitle?: string;
