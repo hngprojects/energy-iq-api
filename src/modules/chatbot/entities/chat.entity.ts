@@ -30,6 +30,9 @@ export class Chat extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 50, nullable: true })
   roomId: string;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  title: string | null;
+
   @Column({ type: 'uuid', nullable: false })
   userId: string;
 }

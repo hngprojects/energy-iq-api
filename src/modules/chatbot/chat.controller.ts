@@ -34,6 +34,7 @@ export class ChatController {
   }
 
   @Get('')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all chats started by a user' })
   getChatsForUser(@CurrentUser() user: AuthenticatedUser) {
     return this.chatbotService.getChatsForUser(user.sub);

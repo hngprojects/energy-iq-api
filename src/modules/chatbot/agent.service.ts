@@ -2,15 +2,15 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
 import { chatbotConfig } from '../../config/chatbot.config';
 import { createAgent, HumanMessage, ReactAgent } from 'langchain';
-import { ChatGroq } from '@langchain/groq';
 import { AlertReader } from './agent-tools/alert-reader';
 import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 
 @Injectable()
 export class AgentService {
-  private readonly model: ChatGroq;
+  private readonly model: ChatGoogleGenerativeAI;
   private readonly botName: string;
   private readonly alertReader: AlertReader;
   private readonly logger = new Logger(AgentService.name);
@@ -20,7 +20,10 @@ export class AgentService {
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
   ) {
-    this.model = new ChatGroq({ model: 'llama-3.3-70b-versatile' });
+    this.model = new ChatGoogleGenerativeAI({
+      model: 'gemini-3.5-flash',
+      apiKey: chatBotCfg.geminiApiKey,
+    });
     this.botName = chatBotCfg.chatbotName;
     this.alertReader = alertReader;
   }
@@ -72,7 +75,7 @@ export class AgentService {
    * @param messages - conversation history (must have the user's current message as last)
    * @param userId - user identifier
    * @param onToken - callback called for every text token chunk
-   * @param preferredLanguage - optional languade preference
+   * @param preferredLanguage - optional language preference
    * @returns the complete bot response as a string
    */
   async invokeWithHistoryStream(
@@ -81,7 +84,7 @@ export class AgentService {
     onToken: (chunk: string) => void,
     preferredLanguage?: string,
   ): Promise<string> {
-    const histroyLines = messages
+    const historyLines = messages
       .slice(0, -1)
       .filter((msg) => {
         const content = msg.content ?? '';
@@ -105,7 +108,7 @@ export class AgentService {
     const agent = this.buildAgent(
       userId,
       preferredLanguage,
-      histroyLines || undefined,
+      historyLines || undefined,
     );
 
     let fullContent = '';
@@ -116,10 +119,9 @@ export class AgentService {
         { recursionLimit: 10, streamMode: 'messages' },
       );
 
-      for await (const [message, _metadata] of stream) {
-        // LangChain v1 ReactAgent stream yields AIMessageChunk objects
-        // chunk.content is a string (text part) or empty if it's a tool call.
-        // Chunks can also have tool_call_chunks, we skip them.
+      for await (const [message, metadata] of stream) {
+        if (metadata?.langgraph_node !== 'model_request') continue;
+
         if (
           message.content &&
           typeof message.content === 'string' &&
@@ -128,8 +130,7 @@ export class AgentService {
           fullContent += message.content;
           onToken(message.content);
         }
-        // If the chunk contains a tool call, we simply don't send anything.
-        // The client will see a tiny pause (which is fine).
+        // Tool-call chunks from the agent node have no text content — skip them.
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -154,6 +155,30 @@ export class AgentService {
     return messages[messages.length - 1].content;
   }
 
+  /**
+   * Generates a short title (3–6 words) for a chat based on the user's first message.
+   * Returns null if generation fails — callers should handle that gracefully.
+   */
+  async generateChatTitle(firstUserMessage: string): Promise<string | null> {
+    try {
+      const titlePrompt =
+        `You are a chat title generator. Given the user's first message, produce a short title ` +
+        `of 3 to 6 words that captures the topic. Output ONLY the title — no punctuation at the ` +
+        `end, no quotes, no explanation.\n\nUser message: ${firstUserMessage}`;
+
+      const response = await this.model.invoke([
+        { role: 'user', content: titlePrompt },
+      ]);
+      const title =
+        typeof response.content === 'string'
+          ? response.content.trim()
+          : String(response.content).trim();
+      return title || null;
+    } catch {
+      return null;
+    }
+  }
+
   private buildAgent(
     userId: string,
     preferredLanguage?: string,
@@ -162,7 +187,12 @@ export class AgentService {
     let systemPrompt = SYSTEM_PROMPT;
 
     if (conversationHistory) {
-      systemPrompt += `\n\n## Conversation history\nThe following is the conversation so far. Use it for context when answering the user's latest message.\n\n${conversationHistory}`;
+      systemPrompt +=
+        `\n\n## Conversation history\n` +
+        `The following are PAST messages from earlier in this conversation. ` +
+        `Use them for context only — do NOT re-answer or re-address anything already covered. ` +
+        `Your ONLY task is to respond to the new user message that comes after this history.\n\n` +
+        conversationHistory;
     }
 
     if (preferredLanguage) {

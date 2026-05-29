@@ -57,25 +57,32 @@ export class ChatService {
     // Ensure the authenticated user exists
     await this.usersService.findOne(userId);
 
+    // Generate the title from the starting message before creating the chat
+    // so it's included in the response object right away.
+    const title =
+      (await this.llmService.generateChatTitle(dto.startingMessage)) ??
+      'New Chat';
+
     const chatPayload: Partial<Chat> = {
       contextLength: this.chatbotCfg.chatContextLength,
       expirationTimeoutSeconds: this.chatbotCfg.chatExpirationTimeoutSeconds,
       messages: [],
       roomId: randomUUID(),
+      title,
       userId,
     };
 
     const chat = await this.chatModelAction.createChat(chatPayload);
-    if (dto.startingMessage) {
-      await this.messageModelAction.saveMessage({
-        chat,
-        content: dto.startingMessage,
-        contentType: MessageContentType.TEXT,
-        deliveryStatus: MessageDeliveryStatus.DELIVERED,
-        isTransitioning: false,
-        senderId: userId,
-      });
-    }
+
+    await this.messageModelAction.saveMessage({
+      chat,
+      content: dto.startingMessage,
+      contentType: MessageContentType.TEXT,
+      deliveryStatus: MessageDeliveryStatus.DELIVERED,
+      isTransitioning: false,
+      senderId: userId,
+    });
+
     // Return the chat without the messages relation to avoid circular serialization
     chat.messages = [];
     return chat;
