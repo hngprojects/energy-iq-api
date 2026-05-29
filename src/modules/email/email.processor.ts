@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { QUEUES } from '../../common/constants/queue';
+import { AlertSeverity } from '../../common/enums';
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -267,25 +268,68 @@ export class EmailProcessor extends WorkerHost {
   private async handleInverterAlert(
     job: Job<AlertNotificationJobData>,
   ): Promise<void> {
-    const { to, firstName, message, alertType, alertSeverity, dashboardUrl } =
-      job.data;
+    const {
+      to,
+      firstName,
+      alertType,
+      alertSeverity,
+      alertReason,
+      resolveLink,
+      // batterySoc,
+      // dischargeRate,
+      // timeToEmpty,
+      stats,
+      alertTitle,
+    } = job.data;
 
     this.logger.log(
       `Sending ${alertType} ${alertSeverity} email to ${this.maskEmail(to)}`,
     );
-    const html = this.renderTemplate(EMAIL_JOBS.ALERT_ALERT, {
-      alertSeverity,
-      firstName,
-      alertType,
-      message,
-      dashboardUrl,
-    });
+
+    let templateName: string;
+    let context: Record<string, unknown>;
+
+    if (alertSeverity === AlertSeverity.CRITICAL) {
+      templateName = 'alert-critical';
+      const statList = stats ?? [];
+      context = {
+        firstName,
+        alertTitle: alertTitle ?? `Critical Alert`,
+        stats: statList,
+        statWidth:
+          statList.length > 0 ? Math.floor(100 / statList.length) : 100,
+        alertReason,
+        resolveLink,
+      };
+    } else {
+      // WARNING (and any future non-critical severity)
+      templateName = 'alert-warning';
+      const statList = stats ?? [];
+      context = {
+        firstName,
+        alertTitle: alertTitle ?? `${alertType} Alert`,
+        stats: statList,
+        // Each stat card gets an equal share of the row width.
+        // Passed as a plain number so the template can use it inline.
+        statWidth:
+          statList.length > 0 ? Math.floor(100 / statList.length) : 100,
+        alertReason,
+        resolveLink,
+      };
+    }
+
+    const html = this.renderTemplate(templateName, context);
 
     const fromAddress = this.appCfg.resendFrom;
+    const subject =
+      alertSeverity === AlertSeverity.CRITICAL
+        ? `⚠️ Critical Alert: ${alertType}`
+        : `Alert: ${alertTitle ?? alertType}`;
+
     const { error } = await this.resend.emails.send({
       from: `Energy IQ <${fromAddress}>`,
       to,
-      subject: `${alertType} Alert`,
+      subject,
       html,
     });
 

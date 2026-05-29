@@ -11,6 +11,7 @@ import {
   WelcomeJobData,
   ContactUsJobData,
   AlertNotificationJobData,
+  AlertStat,
   WaitlistJoinedJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
@@ -99,19 +100,29 @@ export class EmailService {
 
   async sendAlert(
     to: string,
-    message: string,
     firstName: string,
-    dashboardUrl: string,
     alertType: AlertType,
     alertSeverity: AlertSeverity,
+    alertReason: string,
+    resolveLink: string,
+    options: {
+      /** CRITICAL: fixed battery stats */
+      // batterySoc?: number;
+      // dischargeRate?: number;
+      // timeToEmpty?: string;
+      /** WARNING: dynamic stat cards */
+      stats?: AlertStat[];
+      alertTitle?: string;
+    } = {},
   ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.ALERT_ALERT, {
       to,
-      message,
       firstName,
-      dashboardUrl,
       alertType,
       alertSeverity,
+      alertReason,
+      resolveLink,
+      ...options,
     } satisfies AlertNotificationJobData);
   }
 

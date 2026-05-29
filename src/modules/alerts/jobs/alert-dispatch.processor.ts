@@ -3,7 +3,7 @@ import { QUEUES } from '../../../common/constants/queue';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Alert } from '../entities/alert.entity';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Logger, NotFoundException } from '@nestjs/common';
 import { Job } from 'bullmq';
 import {
   ALERT_DEFERRED_DELIVERY_JOB,
@@ -19,6 +19,8 @@ import { UserSettings } from '../../users/entities/user-settings.entity';
 import { formatAlertMessage } from '../helpers/whatsapp-helpers';
 import { deliverWithFallback } from '../fallback.service';
 import { SYS_MSG } from '../../../common/constants/sys-msg';
+import { appConfig } from '../../../config/app.config';
+import { type ConfigType } from '@nestjs/config';
 
 @Processor(QUEUES.ALERT_DISPATCH)
 export class AlertDispatchProcessor extends WorkerHost {
@@ -33,6 +35,8 @@ export class AlertDispatchProcessor extends WorkerHost {
     private readonly userSettingsRepo: Repository<UserSettings>,
     private readonly whatsappService: WhatsappService,
     private readonly emailService: EmailService,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
   ) {
     super();
   }
@@ -86,6 +90,10 @@ export class AlertDispatchProcessor extends WorkerHost {
     const whatsappEnabled = !!(user.phoneNumber && settings?.whatsappAlerts);
     const emailEnabled = settings?.emailAlerts ?? true; // default to email if no settings
 
+    this.logger.debug(
+      `Alert ${alertId} channel eligibility — whatsapp: ${whatsappEnabled} (phone=${!!user.phoneNumber}, setting=${settings?.whatsappAlerts}), email: ${emailEnabled} (setting=${settings?.emailAlerts})`,
+    );
+
     const result = await deliverWithFallback(
       {
         alertId,
@@ -106,15 +114,42 @@ export class AlertDispatchProcessor extends WorkerHost {
               .then(() => undefined),
         },
         email: {
-          send: (_details) =>
-            this.emailService.sendAlert(
+          send: (_details) => {
+            const meta = alert.metadata ?? {};
+            const resolveLink: string =
+              typeof meta['resolveLink'] === 'string'
+                ? meta['resolveLink']
+                : (dashboardUrl ?? this.appCfg.clientUrl);
+            const alertReason: string =
+              typeof meta['alertReason'] === 'string'
+                ? meta['alertReason']
+                : formattedMessage;
+            const stats = Array.isArray(meta['stats'])
+              ? // ? (meta['stats'] as { label: string; value: string }[])
+                // : undefined;
+                (meta['stats'] as unknown[]).filter(
+                  (s): s is { label: string; value: string } =>
+                    typeof s === 'object' &&
+                    s !== null &&
+                    typeof (s as Record<string, unknown>)['label'] ===
+                      'string' &&
+                    typeof (s as Record<string, unknown>)['value'] === 'string',
+                )
+              : undefined;
+            const alertTitle =
+              typeof meta['alertTitle'] === 'string'
+                ? meta['alertTitle']
+                : undefined;
+            return this.emailService.sendAlert(
               user.email,
-              formattedMessage,
               user.firstName,
-              dashboardUrl,
               type,
               severity,
-            ),
+              alertReason,
+              resolveLink,
+              { stats, alertTitle },
+            );
+          },
         },
       },
     );

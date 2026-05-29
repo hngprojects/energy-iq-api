@@ -52,13 +52,29 @@ export interface ContactUsJobData {
   message: string;
 }
 
+export interface AlertStat {
+  label: string;
+  value: string;
+}
+
 export interface AlertNotificationJobData {
   to: string;
-  message: string;
   firstName: string;
   alertType: AlertType;
   alertSeverity: AlertSeverity;
-  dashboardUrl: string;
+  // Human-readable explanation of why this alert fired.
+  alertReason: string;
+  // Link to the dashboard / alert resolution page
+  resolveLink: string;
+  /**
+   * Dynamic list of 1–N stat cards rendered with {{#each stats}}.
+   * The processor computes `statWidth` (100 / stats.length) and passes it
+   * alongside the array so the template can size columns correctly.
+   * Used by both CRITICAL and WARNING templates.
+   */
+  stats?: AlertStat[];
+  /** Title shown in the email header (e.g. "Battery depletion warning"). */
+  alertTitle?: string;
 }
 
 export interface WaitlistJoinedJobData {

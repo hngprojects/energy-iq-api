@@ -3,16 +3,17 @@ name: Deploy to Staging
 on:
   workflow_run:
     workflows:
-      - "CI Quality & Security Gate"
-    types:
-      - completed
-  workflow_dispatch:
-
+      - "Security Scans"
+    types: [completed]
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10"
+
 concurrency:
-  group: backend-deploy-staging
+  group: deploy-staging-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 jobs:
@@ -21,15 +22,55 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'staging')
-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'staging' &&
+      github.event.workflow_run.event == 'workflow_run'
+    environment: staging
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
 
-      - name: Deploy via SSH
+      - name: Setup pnpm
+        uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+      
+      - name: Create Deployment Archive
+        id: archive
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          FILENAME="${SHA:0:12}.tar.gz"
+          echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
+          tar \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='.github' \
+          --czf "${FILENAME}".tar.gz .
+
+      - name: Copy Archive to Server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "${{ steps.archive.outputs.filename }}"
+          target: /tmp/
+
+      - name: Deploy to Server
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -37,33 +78,73 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
+            ARCHIVE="${{ steps.archive.outputs.filename }}"
+            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
+            DEPLOY_DIR="$APP_DIR/releases/$ARCHIVE"
+            mkdir -p "$DEPLOY_DIR"
+            tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
+
+            cd "$DEPLOY_DIR"
             
-            cd /home/appuser/backend/staging/
-
-            git pull origin staging
-
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
             pnpm install --frozen-lockfile
+
+            ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
+            
+            cd "$APP_DIR/current"
+
             pnpm migration:run
-            pnpm build
+            
+            # Point traffic to the new release
+            ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
 
             pm2 reload be-staging --update-env || pm2 start dist/main.js --name be-staging
             pm2 save
+
+            # keep last 3 releases, clean the rest
+            ls -dt "$APP_DIR/releases"/*/  | tail -n +4 | xargs rm -rf
             
 
       - name: Health check
         run: |
           echo "Waiting for staging service to be ready..."
-          for i in $(seq 1 12); do
-            if curl --silent --fail --max-time 10 \
-                "${{ secrets.STAGING_HEALTH_URL }}"; then
-              echo "Health check passed on attempt $i."
-              exit 0
+          for i in $(seq 1 5); do
+            RESPONSE=$(curl --silent --fail --max-time 10 --write-out "\n%{http_code}" \
+                "${{ secrets.STAGING_HEALTH_URL }}")
+            STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
+            BODY=$(echo "$RESPONSE" | head -n -1)
+            if [ "$STATUS_CODE" -ne 200 ]; then
+              echo "Attempt $i/3 — HTTP $STATUS_CODE"
+              echo "$BODY"
+              sleep 15
+              continue
             fi
-            echo "Attempt $i/12 failed — retrying in 10s..."
-            sleep 10
+            if [ "$(echo "$BODY" | jq -r '.data.status')" != 'ok' ]; then
+              echo "Attempt $i/3 — app unhealthy"
+              echo "$BODY"
+              sleep 10
+              continue
+            fi
+            echo "Health check passed."
+            exit 0
           done
-          echo "Health check failed after 2 minutes."
+          
+          echo "Health check failed after 3 attempts."
           exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
+            # Get the second most recent directory
+            PREV=$(ls -dt "$APP_DIR/releases"/*/ | sed -n '2p')
+            
+            # Re-link and reload
+            ln -sfn "$PREV" "$APP_DIR/current"
+            cd "$APP_DIR/current"
+            pm2 reload be-staging --update-env
