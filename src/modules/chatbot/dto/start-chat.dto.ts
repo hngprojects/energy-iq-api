@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class StartChatDto {
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @ApiProperty({ example: 'Why did my battery drain fast last night?' })
-  startingMessage?: string;
+  startingMessage: string;
 }

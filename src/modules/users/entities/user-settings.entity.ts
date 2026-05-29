@@ -37,6 +37,9 @@ export class UserSettings extends AbstractBaseEntity {
   @Column({ type: 'varchar', nullable: true })
   AiLanguage?: string;
 
+  @Column({ type: 'boolean', default: true, nullable: true })
+  chatCardsEnabled?: boolean;
+
   @Column({ type: 'varchar', length: 5, nullable: true })
   quietHoursStart?: string;
 

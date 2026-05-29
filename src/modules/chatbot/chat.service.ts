@@ -57,25 +57,32 @@ export class ChatService {
     // Ensure the authenticated user exists
     await this.usersService.findOne(userId);
 
+    // Generate the title from the starting message before creating the chat
+    // so it's included in the response object right away.
+    const title =
+      (await this.llmService.generateChatTitle(dto.startingMessage)) ??
+      'New Chat';
+
     const chatPayload: Partial<Chat> = {
       contextLength: this.chatbotCfg.chatContextLength,
       expirationTimeoutSeconds: this.chatbotCfg.chatExpirationTimeoutSeconds,
       messages: [],
       roomId: randomUUID(),
+      title,
       userId,
     };
 
     const chat = await this.chatModelAction.createChat(chatPayload);
-    if (dto.startingMessage) {
-      await this.messageModelAction.saveMessage({
-        chat,
-        content: dto.startingMessage,
-        contentType: MessageContentType.TEXT,
-        deliveryStatus: MessageDeliveryStatus.DELIVERED,
-        isTransitioning: false,
-        senderId: userId,
-      });
-    }
+
+    await this.messageModelAction.saveMessage({
+      chat,
+      content: dto.startingMessage,
+      contentType: MessageContentType.TEXT,
+      deliveryStatus: MessageDeliveryStatus.DELIVERED,
+      isTransitioning: false,
+      senderId: userId,
+    });
+
     // Return the chat without the messages relation to avoid circular serialization
     chat.messages = [];
     return chat;
@@ -204,6 +211,35 @@ export class ChatService {
         isTransitioning: false,
         senderId: SYSTEM_SENDER_ID,
       });
+
+      // 7. Fire card generation if the user has cards enabled (fire-and-forget).
+      // Runs after the stream completes so it never delays token delivery.
+      if (fullContent) {
+        void this.usersService
+          .getUserSetting(dto.senderId, 'chatCardsEnabled')
+          .then((cardsEnabled) => {
+            // Default is enabled — only skip if explicitly set to false
+            if (cardsEnabled === false) return;
+            return this.llmService
+              .generateCards(
+                dto.textContent,
+                fullContent,
+                userPreferredLanguage ?? undefined,
+              )
+              .then((cardResponse) => {
+                if (cardResponse) {
+                  socket.emit(ChatSocketEvent.CARDS, {
+                    chatId: dto.chatId,
+                    cards: cardResponse.cards,
+                  });
+                }
+              });
+          })
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Card generation failed: ${msg}`);
+          });
+      }
     } finally {
       // 7. Emit stream_end so the client can finalize (e.g., remove "typing" indicator)
       socket.emit(ChatSocketEvent.STREAM_END, {
