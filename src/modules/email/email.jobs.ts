@@ -67,20 +67,13 @@ export interface AlertNotificationJobData {
   // Link to the dashboard / alert resolution page
   resolveLink: string;
   /**
-   * CRITICAL template only.
-   * Fixed three-stat layout: SOC, discharge rate, time to empty.
-   */
-  batterySoc?: number;
-  dischargeRate?: number;
-  timeToEmpty?: string;
-  /**
-   * WARNING template only.
    * Dynamic list of 1–N stat cards rendered with {{#each stats}}.
    * The processor computes `statWidth` (100 / stats.length) and passes it
    * alongside the array so the template can size columns correctly.
+   * Used by both CRITICAL and WARNING templates.
    */
   stats?: AlertStat[];
-  /** Title shown in the warning email header (e.g. "Battery voltage low"). */
+  /** Title shown in the email header (e.g. "Battery depletion warning"). */
   alertTitle?: string;
 }
 

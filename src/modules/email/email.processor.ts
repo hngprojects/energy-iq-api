@@ -275,9 +275,9 @@ export class EmailProcessor extends WorkerHost {
       alertSeverity,
       alertReason,
       resolveLink,
-      batterySoc,
-      dischargeRate,
-      timeToEmpty,
+      // batterySoc,
+      // dischargeRate,
+      // timeToEmpty,
       stats,
       alertTitle,
     } = job.data;
@@ -291,11 +291,13 @@ export class EmailProcessor extends WorkerHost {
 
     if (alertSeverity === AlertSeverity.CRITICAL) {
       templateName = 'alert-critical';
+      const statList = stats ?? [];
       context = {
         firstName,
-        batterySoc: batterySoc ?? '—',
-        dischargeRate: dischargeRate ?? '—',
-        timeToEmpty: timeToEmpty ?? '—',
+        alertTitle: alertTitle ?? `Critical Alert`,
+        stats: statList,
+        statWidth:
+          statList.length > 0 ? Math.floor(100 / statList.length) : 100,
         alertReason,
         resolveLink,
       };
