@@ -152,6 +152,7 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       );
 
       const depletionResult = calculateDepletion(depletionInput, threshold);
+      const emptyResult = calculateDepletion(depletionInput, 0);
 
       this.logger.log(
         `AlertDetectionJob: depletion result: minutesUntilDepletion=${depletionResult.minutesUntilDepletion}, isCharging=${depletionResult.isCharging}, netDischargeKw=${depletionResult.netDischargeKw}`,
@@ -214,6 +215,36 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         deliveryProcessingStatus: ProcessingStatus.pending,
         deliverable: !deferDelivery,
         deliveryStatus: 'pending',
+        metadata: {
+          alertReason: alertInfo.message,
+          batterySoc: depletionInput.batterySocPercent,
+          dischargeRate: depletionResult.netDischargeKw,
+          timeToEmpty:
+            emptyResult.minutesUntilDepletion !== null &&
+            emptyResult.minutesUntilDepletion > 0
+              ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
+              : 'Now',
+          // WARNING template fields: battery depletion warning needs these fields
+          alertTitle: 'Battery depletion warning',
+          stats: [
+            {
+              label: 'Battery SOC',
+              value: `${depletionInput.batterySocPercent}%`,
+            },
+            {
+              label: 'Discharge rate',
+              value: `${depletionResult.netDischargeKw} kW`,
+            },
+            {
+              label: 'Time to threshold',
+              value:
+                emptyResult.minutesUntilDepletion !== null &&
+                emptyResult.minutesUntilDepletion > 0
+                  ? `${Math.round(emptyResult.minutesUntilDepletion)} min`
+                  : 'Now',
+            },
+          ],
+        },
       });
 
       const savedAlert = await this.alertRepo.save(newAlert);
