@@ -13,7 +13,6 @@ concurrency:
 
 permissions:
   contents: read
-  security-events: write
 
 env:
   NODE_VERSION: "20"
@@ -175,6 +174,9 @@ jobs:
     name: Security & Vulnerability Scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -190,7 +192,6 @@ jobs:
           exit-code: 1
           format: sarif
           output: trivy-results.sarif
-        continue-on-error: true
 
       - name: Print Trivy table summary
         if: always()
@@ -212,7 +213,7 @@ jobs:
           fi
 
       - name: Upload Trivy SARIF to GitHub Security
-        if: always() && hashFiles('trivy-results.sarif') != ''
+        if: failure() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e
         with:
           sarif_file: trivy-results.sarif
