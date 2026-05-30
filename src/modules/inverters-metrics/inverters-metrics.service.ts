@@ -192,6 +192,50 @@ export class InvertersMetricsService {
     };
   }
 
+  /**
+   * Agent-facing query — no ownership check (the tool handles scoping by userId).
+   * mode "current"  → latest single reading for the inverter
+   * mode "history"  → aggregated energy usage for the requested period
+   */
+  async getMetricsForAgent(
+    inverterId: string,
+    mode: 'current' | 'history',
+    period?: 'hourly' | 'daily' | 'weekly' | 'monthly',
+  ) {
+    if (mode === 'current') {
+      const latest = await this.metricsRepository.findOne({
+        where: { inverterId },
+        order: { metricTimestamp: 'DESC' },
+      });
+
+      if (!latest) {
+        return { inverterId, mode, data: null };
+      }
+
+      return {
+        inverterId,
+        mode,
+        data: {
+          solarKw: Number(latest.solarGenKw),
+          batterySocPercent: Number(latest.batterySocPercent),
+          loadKw: Number(latest.loadKw),
+          gridVoltageV:
+            latest.gridVoltageV != null ? Number(latest.gridVoltageV) : null,
+          batteryVoltageV:
+            latest.batteryVoltageV != null
+              ? Number(latest.batteryVoltageV)
+              : null,
+          recordedAt: latest.metricTimestamp,
+        },
+      };
+    }
+
+    // mode === 'history'
+    const resolvedPeriod = period ?? 'daily';
+    const usage = await this.getEnergyUsage(inverterId, resolvedPeriod);
+    return { inverterId, mode, ...usage };
+  }
+
   private getPeriodConfig(
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
     tz: string,
