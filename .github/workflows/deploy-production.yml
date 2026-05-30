@@ -66,7 +66,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: "${{ steps.archive.outputs.filename }}"
-          target: /tmp/
+          target: /tmp
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
@@ -100,6 +100,10 @@ jobs:
 
             # keep last 3 releases, clean the rest
             ls -dt "$APP_DIR/releases"/*/  | tail -n +4 | xargs rm -rf
+
+            echo "==> Cleaning up..."
+            rm -f /tmp/"${ARCHIVE}"
+            echo "Production deploy complete"
             
 
       - name: Health check
@@ -145,4 +149,5 @@ jobs:
             # Re-link and reload
             ln -sfn "$PREV" "$APP_DIR/current"
             cd "$APP_DIR/current"
+            pnpm migration:run
             pm2 reload be-prod --update-env
