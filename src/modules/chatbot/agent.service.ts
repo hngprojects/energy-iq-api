@@ -3,6 +3,7 @@ import { type ConfigType } from '@nestjs/config';
 import { chatbotConfig } from '../../config/chatbot.config';
 import { createAgent, HumanMessage, ReactAgent } from 'langchain';
 import { AlertReader } from './agent-tools/alert-reader';
+import { MetricsReader } from './agent-tools/metrics-reader';
 import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
@@ -15,10 +16,12 @@ export class AgentService {
   private readonly model: ChatGoogleGenerativeAI;
   private readonly botName: string;
   private readonly alertReader: AlertReader;
+  private readonly metricsReader: MetricsReader;
   private readonly logger = new Logger(AgentService.name);
 
   constructor(
     alertReader: AlertReader,
+    metricsReader: MetricsReader,
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
   ) {
@@ -28,6 +31,7 @@ export class AgentService {
     });
     this.botName = chatBotCfg.chatbotName;
     this.alertReader = alertReader;
+    this.metricsReader = metricsReader;
   }
 
   async invokeWithHistory(
@@ -274,7 +278,10 @@ export class AgentService {
 
     return createAgent({
       model: this.model,
-      tools: [this.alertReader.create(userId)],
+      tools: [
+        this.alertReader.create(userId),
+        this.metricsReader.create(userId),
+      ],
       systemPrompt,
       name: this.botName,
     });
