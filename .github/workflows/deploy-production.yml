@@ -15,14 +15,19 @@ env:
 
 concurrency:
   group: deploy-prod-${{ github.event.workflow_run.head_branch }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy to Production Server
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: |
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
     environment: Production
     steps:
       - name: Checkout
@@ -82,16 +87,18 @@ jobs:
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
 
+            
+            # Capture previous release before any changes
+            PREV=$(readlink -f "$APP_DIR/current")
+            echo "$PREV" > "$APP_DIR/.prev_release"
+
             cd "$DEPLOY_DIR"
-            
             pnpm install --frozen-lockfile
-
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
-            
-            cd "$APP_DIR/current"
 
+            # Run migrations from new release before symlink swap
             pnpm migration:run
-            
+
             # Point traffic to the new release
             ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
 
@@ -144,10 +151,12 @@ jobs:
             set -e
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/prod
             # Get the second most recent directory
-            PREV=$(ls -dt "$APP_DIR/releases"/*/ | sed -n '2p')
-            
-            # Re-link and reload
+            PREV=$(cat "$APP_DIR/.prev_release" 2>/dev/null)
+            if [ -z "$PREV" ] || [ ! -d "$PREV" ]; then
+              echo "No valid previous release found, cannot rollback"
+              exit 1
+            fi
             ln -sfn "$PREV" "$APP_DIR/current"
             cd "$APP_DIR/current"
-            pnpm migration:run
-            pm2 reload be-prod --update-env
+            pnpm migration:revert
+            pm2 reload be-staging --update-env
