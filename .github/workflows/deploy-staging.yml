@@ -3,8 +3,10 @@ name: Deploy to Staging
 on:
   workflow_run:
     workflows:
-      - "Security Scans"
+      - "CI Quality & Security Gate"
     types: [completed]
+    branches: [staging]
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -22,14 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'staging'
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     environment: staging
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
@@ -112,13 +114,13 @@ jobs:
             STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
             BODY=$(echo "$RESPONSE" | head -n -1)
             if [ "$STATUS_CODE" -ne 200 ]; then
-              echo "Attempt $i/3 — HTTP $STATUS_CODE"
+              echo "Attempt $i/5 — HTTP $STATUS_CODE"
               echo "$BODY"
               sleep 15
               continue
             fi
             if [ "$(echo "$BODY" | jq -r '.data.status')" != 'ok' ]; then
-              echo "Attempt $i/3 — app unhealthy"
+              echo "Attempt $i/5 — app unhealthy"
               echo "$BODY"
               sleep 10
               continue
@@ -127,7 +129,7 @@ jobs:
             exit 0
           done
           
-          echo "Health check failed after 3 attempts."
+          echo "Health check failed after 5 attempts."
           exit 1
 
       - name: Rollback on failure
