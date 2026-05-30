@@ -275,4 +275,10 @@ export class UsersService {
       settingName,
     );
   }
+
+  async getUserSettings(userId: string): Promise<UserSettings> {
+    const settings = await this.userSettingsModelAction.findByUserId(userId);
+    if (!settings) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return settings;
+  }
 }
