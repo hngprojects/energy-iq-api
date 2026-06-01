@@ -3,8 +3,10 @@ name: Deploy to Staging
 on:
   workflow_run:
     workflows:
-      - "Security Scans"
+      - "CI Quality & Security Gate"
     types: [completed]
+    branches: [staging]
+  workflow_dispatch:
 permissions:
   contents: read
 
@@ -13,7 +15,7 @@ env:
   PNPM_VERSION: "10"
 
 concurrency:
-  group: deploy-staging-${{ github.event.workflow_run.head_branch }}
+  group: deploy-staging-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,14 +24,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'staging'
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
     environment: staging
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
@@ -51,7 +57,7 @@ jobs:
       - name: Create Deployment Archive
         id: archive
         run: |
-          SHA="${{ github.event.workflow_run.head_sha }}"
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           FILENAME="${SHA:0:12}.tar.gz"
           echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
           tar \
@@ -67,7 +73,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: "${{ steps.archive.outputs.filename }}"
-          target: /tmp/
+          target: /tmp
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
@@ -83,16 +89,17 @@ jobs:
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
 
+            # Capture previous release before any changes
+            PREV=$(readlink -f "$APP_DIR/current")
+            echo "$PREV" > "$APP_DIR/.prev_release"
+
             cd "$DEPLOY_DIR"
-            
             pnpm install --frozen-lockfile
-
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
-            
-            cd "$APP_DIR/current"
 
+            # Run migrations from new release before symlink swap
             pnpm migration:run
-            
+
             # Point traffic to the new release
             ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
 
@@ -101,7 +108,10 @@ jobs:
 
             # keep last 3 releases, clean the rest
             ls -dt "$APP_DIR/releases"/*/  | tail -n +4 | xargs rm -rf
-            
+
+            echo "==> Cleaning up..."
+            rm -f /tmp/"${ARCHIVE}"
+            echo "Staging deploy complete"          
 
       - name: Health check
         run: |
@@ -112,13 +122,13 @@ jobs:
             STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
             BODY=$(echo "$RESPONSE" | head -n -1)
             if [ "$STATUS_CODE" -ne 200 ]; then
-              echo "Attempt $i/3 — HTTP $STATUS_CODE"
+              echo "Attempt $i/5 — HTTP $STATUS_CODE"
               echo "$BODY"
               sleep 15
               continue
             fi
             if [ "$(echo "$BODY" | jq -r '.data.status')" != 'ok' ]; then
-              echo "Attempt $i/3 — app unhealthy"
+              echo "Attempt $i/5 — app unhealthy"
               echo "$BODY"
               sleep 10
               continue
@@ -127,7 +137,7 @@ jobs:
             exit 0
           done
           
-          echo "Health check failed after 3 attempts."
+          echo "Health check failed after 5 attempts."
           exit 1
 
       - name: Rollback on failure
@@ -140,10 +150,12 @@ jobs:
           script: |
             set -e
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
-            # Get the second most recent directory
-            PREV=$(ls -dt "$APP_DIR/releases"/*/ | sed -n '2p')
-            
-            # Re-link and reload
+            PREV=$(cat "$APP_DIR/.prev_release" 2>/dev/null)
+            if [ -z "$PREV" ] || [ ! -d "$PREV" ]; then
+              echo "No valid previous release found, cannot rollback"
+              exit 1
+            fi
             ln -sfn "$PREV" "$APP_DIR/current"
             cd "$APP_DIR/current"
+            pnpm migration:revert
             pm2 reload be-staging --update-env
