@@ -58,7 +58,7 @@ export const env = createEnv({
       .union([z.boolean(), z.enum(['true', 'false'])])
       .default(true)
       .transform((v) => v === true || v === 'true'),
-    
+
     // BetterStack / Logtail
     LOGTAIL_SOURCE_TOKEN: z.string().optional().default(''),
     LOGTAIL_INGESTING_ENDPOINT: z

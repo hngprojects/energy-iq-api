@@ -4,6 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  typeorm: 0.3.28
+  ws: 8.20.1
+  axios: 1.16.1
+  follow-redirects: 1.16.0
+  uuid: 11.1.1
+
 importers:
 
   .:
@@ -64,7 +71,7 @@ importers:
         version: 6.5.0(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(reflect-metadata@0.2.2)
       '@nestjs/typeorm':
         specifier: ^11.0.1
-        version: 11.0.1(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))
+        version: 11.0.1(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))
       '@nestjs/websockets':
         specifier: ^11.1.20
         version: 11.1.24(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(@nestjs/platform-socket.io@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -135,11 +142,11 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
       typeorm:
-        specifier: ^0.3.28
-        version: 0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
+        specifier: 0.3.28
+        version: 0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
       typeorm-naming-strategy:
         specifier: ^2.0.17
-        version: 2.0.17(typeorm@0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))
+        version: 2.0.17(typeorm@0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))
       winston:
         specifier: ^3.19.0
         version: 3.19.0
@@ -1336,7 +1343,7 @@ packages:
       '@nestjs/core': ^10.0.0 || ^11.0.0
       reflect-metadata: ^0.1.13 || ^0.2.0
       rxjs: ^7.2.0
-      typeorm: ^0.3.0 || ^1.0.0-dev
+      typeorm: 0.3.28
 
   '@nestjs/websockets@11.1.24':
     resolution: {integrity: sha512-37Z/QYzZ4nPHcGyGGjhjoKVOcpSPMhmRQj5DS1l0RKlRYgq8S0cmgaZ6kQ8PI3259PdchLx41oQibXh22iEUiA==}
@@ -1689,61 +1696,51 @@ packages:
     resolution: {integrity: sha512-zJc0H99FEPoFfSrNpa91HYfxzfAJCr502oxNK1cfdC9hlaFI43RT+JFCann9JUgZmLzzntChHyn13Sgn9ljHNg==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-arm64-musl@1.12.2':
     resolution: {integrity: sha512-KQ3Lki6l+Pz1k/eBipN41ES+YUK30beLGb9YqcB1O542cyLCNE6GaxrfcY3T6EezmGGk84wb5XyO9loTM9tkcA==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@unrs/resolver-binding-linux-loong64-gnu@1.12.2':
     resolution: {integrity: sha512-3SJGEh1DborhG6pyxvhPzCT4bbSIVihsvgJc13P1bHG7KLdNDaF9T3gsTwFc7Jw/5Y5/iWOjkEx7Zy0NvCGX3Q==}
     cpu: [loong64]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-loong64-musl@1.12.2':
     resolution: {integrity: sha512-jiuG/Obbel7uw1PwHNFfrkiKhLAF6mnyZ6aWlOAVN9WqKm8v0OFGnciJIHu8+CMvXLQ8AD51LPzAoUfT21D5Ew==}
     cpu: [loong64]
     os: [linux]
-    libc: [musl]
 
   '@unrs/resolver-binding-linux-ppc64-gnu@1.12.2':
     resolution: {integrity: sha512-q7xRvVpmcfeL+LlZg8Pbbo6QaTZwDU5BaGZbwfhkEsXJn3Was8xYfE0RBH266xZt0rM6B7i8xAYIvjthuUIWHg==}
     cpu: [ppc64]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-riscv64-gnu@1.12.2':
     resolution: {integrity: sha512-0CVdx6lcnT3Q9inOH8tsMIOJ6ImndllMjqJHg8RLVdB7Vq4SfkEXl9mCSsVNuNA4MCYycRicCUxPCabVHJRr6A==}
     cpu: [riscv64]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-riscv64-musl@1.12.2':
     resolution: {integrity: sha512-iOwlRo9vnp6R6ohHQS11n0NnfdXx/omhkocmIfaPRpQhKZ+3BDMkkdRVh53qjkFkpPddf+FETA28NwGN7l5l+w==}
     cpu: [riscv64]
     os: [linux]
-    libc: [musl]
 
   '@unrs/resolver-binding-linux-s390x-gnu@1.12.2':
     resolution: {integrity: sha512-HYJtLfXq94q8iZNFT1lknx258wlkkWhZeUXJRqzKBBUJ00CvZ+N33zgbCqimLjsyw5Va6uUxhVa12mI+kaveEw==}
     cpu: [s390x]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-x64-gnu@1.12.2':
     resolution: {integrity: sha512-mPsUhunKKDih5O96Y6enDQyHc1SqBPlY1E/SfMWDM3EdJ95Z9CArPeCVwCCqbP45ljvivdEk8Fxn+SIb1rDAJQ==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@unrs/resolver-binding-linux-x64-musl@1.12.2':
     resolution: {integrity: sha512-azrt6+5ydLd8Vt210AAFis/lZevSfPw93EJRIJG+xPu4WCJ8K0kppCTpMyLPcKT7H15M4Jnt2tMp5bOvCkRC6A==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@unrs/resolver-binding-openharmony-arm64@1.12.2':
     resolution: {integrity: sha512-YZ9hP4O0X9PQb8eO980qmLNGH4zT3I9+SZTdt0Pr0YyuGQhYKoOZkV02VzrzyOZJ5xIJ3UFIenKkUkGg8GjgWQ==}
@@ -3312,7 +3309,7 @@ packages:
       '@opentelemetry/exporter-trace-otlp-proto': '*'
       '@opentelemetry/sdk-trace-base': '*'
       openai: '*'
-      ws: '>=7'
+      ws: 8.20.1
     peerDependenciesMeta:
       '@opentelemetry/api':
         optional: true
@@ -4422,10 +4419,10 @@ packages:
     resolution: {integrity: sha512-uSzcONlBfGC9i40q9fLVcO5+Q4n7dz2OI9dIO8plSVrJb9dJq21wdc51ESuVlj11WGniND2VEv59NObgBDGc2Q==}
     engines: {node: ^12.20.0 || >=14.13.0}
     peerDependencies:
-      typeorm: ^0.3
+      typeorm: 0.3.28
 
-  typeorm@0.3.30:
-    resolution: {integrity: sha512-8T35PzjefOdqc2ZR9mwLQj0pUGp6lQhMbK2EvVMwJVJWlaoHm0v/Q6dThNOZkFchD+0yMg8gwjKM28ePiLSXSQ==}
+  typeorm@0.3.28:
+    resolution: {integrity: sha512-6GH7wXhtfq2D33ZuRXYwIsl/qM5685WZcODZb7noOOcRMteM9KF2x2ap3H0EBjnSV0VO4gNAfJT5Ukp0PkOlvg==}
     engines: {node: '>=16.13.0'}
     hasBin: true
     peerDependencies:
@@ -4552,10 +4549,6 @@ packages:
 
   uuid@11.1.1:
     resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
-    hasBin: true
-
-  uuid@14.0.0:
-    resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -5231,7 +5224,7 @@ snapshots:
       class-validator: 0.14.4
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
-      typeorm: 0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
     transitivePeerDependencies:
       - '@fastify/static'
       - '@google-cloud/spanner'
@@ -5671,7 +5664,7 @@ snapshots:
   '@langchain/langgraph-checkpoint@1.0.4(@langchain/core@1.1.48(ws@8.20.1))':
     dependencies:
       '@langchain/core': 1.1.48(ws@8.20.1)
-      uuid: 14.0.0
+      uuid: 11.1.1
 
   '@langchain/langgraph-sdk@1.9.11(@langchain/core@1.1.48(ws@8.20.1))':
     dependencies:
@@ -5680,7 +5673,7 @@ snapshots:
       '@types/json-schema': 7.0.15
       p-queue: 9.3.0
       p-retry: 7.1.1
-      uuid: 14.0.0
+      uuid: 11.1.1
 
   '@langchain/langgraph@1.3.3(@langchain/core@1.1.48(ws@8.20.1))(zod@4.4.3)':
     dependencies:
@@ -5689,7 +5682,7 @@ snapshots:
       '@langchain/langgraph-sdk': 1.9.11(@langchain/core@1.1.48(ws@8.20.1))
       '@langchain/protocol': 0.0.16
       '@standard-schema/spec': 1.1.0
-      uuid: 14.0.0
+      uuid: 11.1.1
       zod: 4.4.3
     transitivePeerDependencies:
       - react
@@ -5988,13 +5981,13 @@ snapshots:
       '@nestjs/core': 11.1.24(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.24)(@nestjs/websockets@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       reflect-metadata: 0.2.2
 
-  '@nestjs/typeorm@11.0.1(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))':
+  '@nestjs/typeorm@11.0.1(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)))':
     dependencies:
       '@nestjs/common': 11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/core': 11.1.24(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.24)(@nestjs/websockets@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
-      typeorm: 0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
 
   '@nestjs/websockets@11.1.24(@nestjs/common@11.1.24(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.24)(@nestjs/platform-socket.io@11.1.24)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:
@@ -9288,11 +9281,11 @@ snapshots:
 
   typedarray@0.0.6: {}
 
-  typeorm-naming-strategy@2.0.17(typeorm@0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))):
+  typeorm-naming-strategy@2.0.17(typeorm@0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))):
     dependencies:
-      typeorm: 0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
+      typeorm: 0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3))
 
-  typeorm@0.3.30(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)):
+  typeorm@0.3.28(ioredis@5.11.0)(pg@8.21.0)(ts-node@10.9.2(@types/node@25.9.1)(typescript@6.0.3)):
     dependencies:
       '@sqltools/formatter': 1.2.5
       ansis: 4.3.1
@@ -9395,8 +9388,6 @@ snapshots:
   utils-merge@1.0.1: {}
 
   uuid@11.1.1: {}
-
-  uuid@14.0.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 
