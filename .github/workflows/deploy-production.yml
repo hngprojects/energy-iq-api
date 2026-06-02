@@ -34,6 +34,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
@@ -54,8 +55,10 @@ jobs:
       
       - name: Create Deployment Archive
         id: archive
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          SHA="${{ github.event.workflow_run.head_sha }}"
+          SHA="${COMMIT_SHA}"
           FILENAME="${SHA:0:12}.tar.gz"
           echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
           tar \
@@ -159,4 +162,4 @@ jobs:
             ln -sfn "$PREV" "$APP_DIR/current"
             cd "$APP_DIR/current"
             pnpm migration:revert
-            pm2 reload be-staging --update-env
+            pm2 reload be-prod --update-env
