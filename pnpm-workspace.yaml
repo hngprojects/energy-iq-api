@@ -13,3 +13,4 @@ onlyBuiltDependencies:
   - unrs-resolver
 packages:
   - mock-inverter-server
+  - regression-tests

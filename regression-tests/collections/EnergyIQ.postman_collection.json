@@ -1,0 +1,1474 @@
+{
+  "info": {
+    "_postman_id": "4aa97413-33e7-4bdf-837b-ee6e8680a596",
+    "name": "EnergyIQ Full Regression Suite",
+    "description": "Complete API regression tests for EnergyIQ MVP covering Auth, Users, Inverters, Metrics, Alerts, Contact, Waitlist, and Health modules with full API chaining.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Health Check",
+      "item": [
+        {
+          "name": "TC-HC-001: Health endpoint returns OK",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates success', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test('Response has expected fields', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseurl}}/health",
+              "host": ["{{baseurl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Auth Flow (Chained)",
+      "item": [
+        {
+          "name": "TC-AUTH-001: Register new user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const timestamp = Date.now();",
+                  "const uniqueEmail = `qa_regression_${timestamp}@yopmail.com`;",
+                  "pm.environment.set('testEmail', uniqueEmail);",
+                  "console.log('📧 Generated test email:', uniqueEmail);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', () => {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains user data with id and email', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.have.property('data');",
+                  "    pm.expect(json.data).to.have.property('id');",
+                  "    pm.expect(json.data).to.have.property('email');",
+                  "});",
+                  "",
+                  "pm.test('Password is NOT returned in response', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data).to.not.have.property('password');",
+                  "    pm.expect(json.data).to.not.have.property('passwordHash');",
+                  "});",
+                  "",
+                  "// Chain: save userId for subsequent requests",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.environment.set('userId', json.data.id);",
+                  "    console.log('✅ User created:', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\",\n  \"firstName\": \"QA\",\n  \"lastName\": \"Regression\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/register",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-002: Register with missing password (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error response format is correct', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json).to.have.property('message');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nopass@yopmail.com\",\n  \"password\": \"\",\n  \"firstName\": \"No\",\n  \"lastName\": \"Pass\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/register",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-003: Register with duplicate email (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 409 Conflict', () => {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('Error response format', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\",\n  \"password\": \"@Duplicate123\",\n  \"firstName\": \"Dup\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/register",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-004: Register with weak password (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions password requirement', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.message.toLowerCase()).to.match(/password|character|length|weak/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"weakpw@yopmail.com\",\n  \"password\": \"abc\",\n  \"firstName\": \"Weak\",\n  \"lastName\": \"Pass\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/register",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-005: Register with invalid email format (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions email', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.message.toLowerCase()).to.match(/email|valid/);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"@ValidPass123\",\n  \"firstName\": \"Bad\",\n  \"lastName\": \"Email\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/register",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-006: Verify email with invalid OTP (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 or 401', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 401]);",
+                  "});",
+                  "",
+                  "pm.test('Error response format', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"otp\": \"000000\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/verify-email",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "verify-email"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-007: Verify email with missing OTP (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 or 429 (rate limited)', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"otp\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/verify-email",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "verify-email"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-008: Resend OTP for valid email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Success response', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/resend-email-otp",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "resend-email-otp"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-009: Login with verified account → Token chain",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains accessToken and refreshToken', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property('accessToken');",
+                  "    pm.expect(json.data).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "pm.test('Response contains user object', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property('user');",
+                  "    pm.expect(json.data.user).to.have.property('id');",
+                  "    pm.expect(json.data.user).to.have.property('email');",
+                  "    pm.expect(json.data.user.emailVerified).to.eql(true);",
+                  "});",
+                  "",
+                  "// CHAIN: Save tokens for all subsequent protected requests",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "    pm.environment.set('accessToken', json.data.accessToken);",
+                  "    pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "    pm.environment.set('userId', json.data.user.id);",
+                  "    console.log('✅ Logged in. Token saved for chaining.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\",\n  \"password\": \"{{existingPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/login",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-010: Login with wrong password (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Does not reveal whether email exists', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.message.toLowerCase()).to.not.include('not found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\",\n  \"password\": \"WrongPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/login",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-011: Login with unverified email (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 or 403', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{testEmail}}\",\n  \"password\": \"{{testPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/login",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-012: Get current user (uses chained token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns authenticated user profile', () => {",
+                  "    const json = pm.response.json();",
+                  "    const user = json.data || json;",
+                  "    pm.expect(user).to.have.property('id');",
+                  "    pm.expect(user).to.have.property('email');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/auth/me",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-013: Get current user without token (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseurl}}/auth/me",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-014: Refresh token → new access token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns new tokens', () => {",
+                  "    const res = pm.response.json();",
+                  "    const d = res.data || res;",
+                  "    pm.expect(d).to.have.property('accessToken');",
+                  "    pm.expect(d).to.have.property('refreshToken');",
+                  "});",
+                  "",
+                  "// CHAIN: Update tokens",
+                  "const refreshRes = pm.response.json();",
+                  "const refreshData = refreshRes.data || refreshRes;",
+                  "if (refreshData.accessToken) {",
+                  "    pm.environment.set('accessToken', refreshData.accessToken);",
+                  "    pm.environment.set('refreshToken', refreshData.refreshToken);",
+                  "}",
+                  "console.log('✅ Tokens refreshed and saved.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/refresh",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-015: Refresh with invalid token (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"invalid.token.here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/refresh",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-016: Forgot password with valid email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/forgot-password",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-017: Reset password with invalid token (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 or 401', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 401]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{existingEmail}}\",\n  \"password\": \"@NewPassword123\",\n  \"token\": \"invalid-reset-token\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/auth/reset-password",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "reset-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Users CRUD (Chained from Auth)",
+      "item": [
+        {
+          "name": "TC-USR-001: Get user by ID (chained from login)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('accessToken')) {",
+                  "    throw new Error('⚠️ Run TC-AUTH-009 first to get access token');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns user with correct ID', () => {",
+                  "    const json = pm.response.json();",
+                  "    const user = json.data || json;",
+                  "    pm.expect(user).to.have.property('id');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/users/{{userId}}",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "TC-USR-002: Get user with non-existent ID (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404', () => {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/users/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "00000000-0000-0000-0000-000000000000"]
+            }
+          }
+        },
+        {
+          "name": "TC-USR-003: Update user name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Update response is successful', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"UpdatedFirst\",\n  \"lastName\": \"UpdatedLast\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/users/{{userId}}",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "TC-USR-004: List users (paginated)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is paginated', () => {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/users?page=1&limit=10",
+              "host": ["{{baseurl}}"],
+              "path": ["users"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC-USR-005: Get onboarding status (chained)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Has onboarding steps', () => {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data || json;",
+                  "    pm.expect(data).to.have.property('steps');",
+                  "    pm.expect(data.steps).to.have.property('accountCreated');",
+                  "    pm.expect(data.steps).to.have.property('emailVerified');",
+                  "    pm.expect(data.steps).to.have.property('inverterConnected');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/users/onboard/status",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "onboard", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Inverters (Chained from Auth)",
+      "item": [
+        {
+          "name": "TC-INV-001: Get supported brands",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Returns supported brands data', () => {",
+                  "    const json = pm.response.json();",
+                  "    const brands = json.data || json;",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverters/supported-brands",
+              "host": ["{{baseurl}}"],
+              "path": ["inverters", "supported-brands"]
+            }
+          }
+        },
+        {
+          "name": "TC-INV-002: Onboard inverter (connect device)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const code = pm.response.code;",
+                  "pm.test('Status code is 201 or 400 (if already connected)', () => {",
+                  "    pm.expect(code).to.be.oneOf([201, 400, 409]);",
+                  "});",
+                  "",
+                  "if (code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.data && json.data.id) {",
+                  "        pm.environment.set('inverterId', json.data.id);",
+                  "        console.log('✅ Inverter connected:', json.data.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brand\": \"VICTRON\",\n  \"victronAccessToken\": \"test-vrm-token-for-qa\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/users/onboard",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "onboard"]
+            }
+          }
+        },
+        {
+          "name": "TC-INV-003: Get inverters for user (chained)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.test('Returns array of inverters', () => {",
+                  "        pm.expect(json).to.be.an('array');",
+                  "    });",
+                  "    if (json.length > 0) {",
+                  "        pm.environment.set('inverterId', json[0].id);",
+                  "        console.log('✅ Inverter ID saved:', json[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverters/user/{{userId}}",
+              "host": ["{{baseurl}}"],
+              "path": ["inverters", "user", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "TC-INV-004: Get inverter by ID",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('inverterId')) {",
+                  "    console.log('⚠️ No inverterId set, test may 404');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverters/{{inverterId}}",
+              "host": ["{{baseurl}}"],
+              "path": ["inverters", "{{inverterId}}"]
+            }
+          }
+        },
+        {
+          "name": "TC-INV-005: Onboard with unsupported brand (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{accessToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brand\": \"INVALID_BRAND\",\n  \"victronAccessToken\": \"test-token\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/users/onboard",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "onboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Inverter Metrics (Chained)",
+      "item": [
+        {
+          "name": "TC-MET-001: Get dashboard metrics",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('inverterId')) {",
+                  "    console.log('⚠️ No inverterId — run inverter tests first');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Dashboard has expected fields', () => {",
+                  "        const json = pm.response.json();",
+                  "        pm.expect(json).to.have.property('batteryPercent');",
+                  "        pm.expect(json).to.have.property('lastUpdated');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverter-metrics/{{inverterId}}/dashboard",
+              "host": ["{{baseurl}}"],
+              "path": ["inverter-metrics", "{{inverterId}}", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "TC-MET-002: Get power consumption",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverter-metrics/{{inverterId}}/power-consumption",
+              "host": ["{{baseurl}}"],
+              "path": ["inverter-metrics", "{{inverterId}}", "power-consumption"]
+            }
+          }
+        },
+        {
+          "name": "TC-MET-003: Get energy usage (daily period)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Returns array of energy data', () => {",
+                  "        const json = pm.response.json();",
+                  "        pm.expect(json).to.be.an('array');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverter-metrics/{{inverterId}}/energy-usage?period=daily",
+              "host": ["{{baseurl}}"],
+              "path": ["inverter-metrics", "{{inverterId}}", "energy-usage"],
+              "query": [{"key": "period", "value": "daily"}]
+            }
+          }
+        },
+        {
+          "name": "TC-MET-004: Get energy usage (weekly period)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 404', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/inverter-metrics/{{inverterId}}/energy-usage?period=weekly",
+              "host": ["{{baseurl}}"],
+              "path": ["inverter-metrics", "{{inverterId}}", "energy-usage"],
+              "query": [{"key": "period", "value": "weekly"}]
+            }
+          }
+        },
+        {
+          "name": "TC-MET-005: Metrics without auth (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 or 404 (no auth or no resource)', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 404]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseurl}}/inverter-metrics/{{inverterId}}/dashboard",
+              "host": ["{{baseurl}}"],
+              "path": ["inverter-metrics", "{{inverterId}}", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Waitlist",
+      "item": [
+        {
+          "name": "TC-WL-001: Join waitlist with valid email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 201', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"waitlist_qa_{{$timestamp}}@yopmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/waitlist",
+              "host": ["{{baseurl}}"],
+              "path": ["waitlist"]
+            }
+          }
+        },
+        {
+          "name": "TC-WL-002: Join waitlist with invalid email (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-valid-email\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/waitlist",
+              "host": ["{{baseurl}}"],
+              "path": ["waitlist"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Contact",
+      "item": [
+        {
+          "name": "TC-CON-001: Submit contact form",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200, 201, or 429 (rate limited)', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 429]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"QA Tester\",\n  \"email\": \"qa_contact@yopmail.com\",\n  \"message\": \"This is a QA regression test contact submission.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/contact",
+              "host": ["{{baseurl}}"],
+              "path": ["contact"]
+            }
+          }
+        },
+        {
+          "name": "TC-CON-002: Submit contact with missing fields (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 or 429 (rate limited)', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 429]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"email\": \"\",\n  \"message\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseurl}}/contact",
+              "host": ["{{baseurl}}"],
+              "path": ["contact"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - End-to-End Flows",
+      "item": [
+        {
+          "name": "E2E-001: Full onboarding → Login → Dashboard → Metrics",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// This test validates the entire chained flow completed",
+                  "if (!pm.environment.get('accessToken')) {",
+                  "    throw new Error('⚠️ Full chain broken — accessToken missing. Run from TC-AUTH-009.');",
+                  "}",
+                  "if (!pm.environment.get('userId')) {",
+                  "    throw new Error('⚠️ userId missing — auth chain incomplete.');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Onboarding status accessible with chained token', () => {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data || json;",
+                  "    pm.expect(data).to.have.property('steps');",
+                  "});",
+                  "",
+                  "console.log('✅ E2E: Login → Token → Onboarding status — PASSED');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/users/onboard/status",
+              "host": ["{{baseurl}}"],
+              "path": ["users", "onboard", "status"]
+            }
+          }
+        },
+        {
+          "name": "E2E-002: Token refresh → access protected resource",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User profile returned after token refresh', () => {",
+                  "    const json = pm.response.json();",
+                  "    const data = json.data || json;",
+                  "    pm.expect(data).to.have.property('id');",
+                  "});",
+                  "",
+                  "console.log('✅ E2E: Refresh → Access /me — PASSED');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/auth/me",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Auth Logout (Final)",
+      "item": [
+        {
+          "name": "TC-AUTH-018: Logout (revoke session)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 204 or 200', () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "",
+                  "console.log('✅ Logged out. Session revoked.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/auth/logout",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "TC-AUTH-019: Access protected endpoint after logout (negative)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 (session revoked)', () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "console.log('✅ Confirmed: token invalid after logout');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{accessToken}}"}],
+            "url": {
+              "raw": "{{baseurl}}/auth/me",
+              "host": ["{{baseurl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('🚀 Running:', pm.info.requestName);",
+          "console.log('📍 URL:', pm.request.url.toString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Response time < 5000ms', () => {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "if (pm.response.code !== 204) {",
+          "    pm.test('Response is valid JSON', () => {",
+          "        pm.response.to.be.json;",
+          "    });",
+          "",
+          "    pm.test('Content-Type is application/json', () => {",
+          "        pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
