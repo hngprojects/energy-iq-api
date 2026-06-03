@@ -164,3 +164,4 @@ jobs:
             cd "$APP_DIR/current"
             pnpm migration:revert
             pm2 reload be-prod --update-env
+            
