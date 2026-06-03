@@ -64,7 +64,9 @@ jobs:
           --exclude='.git' \
           --exclude='node_modules' \
           --exclude='.github' \
-          -czf "${FILENAME}" .
+          --exclude='*.tar.gz' \
+          -czf "/tmp/${FILENAME}" .
+          mv /tmp/"${FILENAME}" .
 
       - name: Copy Archive to Server
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
@@ -77,13 +79,15 @@ jobs:
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        env:
+          ARCHIVE: ${{ steps.archive.outputs.filename }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: ARCHIVE
           script: |
             set -e
-            ARCHIVE="${{ steps.archive.outputs.filename }}"
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
             DEPLOY_DIR="$APP_DIR/releases/$ARCHIVE"
             mkdir -p "$DEPLOY_DIR"
