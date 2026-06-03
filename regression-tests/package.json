@@ -1,0 +1,14 @@
+{
+  "name": "energyiq-qa-regression",
+  "version": "1.0.0",
+  "description": "EnergyIQ MVP Full Regression & Automation Suite - API Level",
+  "scripts": {
+    "test": "newman run collections/EnergyIQ.postman_collection.json -e environments/staging.postman_environment.json -r cli,htmlextra --reporter-htmlextra-export reports/report.html",
+    "test:cli": "newman run collections/EnergyIQ.postman_collection.json -e environments/staging.postman_environment.json -r cli",
+    "test:report": "newman run collections/EnergyIQ.postman_collection.json -e environments/staging.postman_environment.json -r htmlextra --reporter-htmlextra-export reports/report.html"
+  },
+  "devDependencies": {
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1"
+  }
+}
