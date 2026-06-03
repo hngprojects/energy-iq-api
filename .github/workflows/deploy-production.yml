@@ -163,4 +163,4 @@ jobs:
             ln -sfn "$PREV" "$APP_DIR/current"
             cd "$APP_DIR/current"
             pnpm migration:revert
-            pm2 reload be-staging --update-env
+            pm2 reload be-prod --update-env
