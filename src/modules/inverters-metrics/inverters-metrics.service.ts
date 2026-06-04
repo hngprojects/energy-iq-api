@@ -3,7 +3,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -290,7 +289,7 @@ export class InvertersMetricsService {
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
-      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
+      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -421,7 +420,7 @@ export class InvertersMetricsService {
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
-      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
+      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -536,7 +535,7 @@ export class InvertersMetricsService {
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
-      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
+      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
 
     if (startDate >= endDate) {
       throw new BadRequestException('startDate must be before endDate');
@@ -702,7 +701,7 @@ export class InvertersMetricsService {
         rangeStart.setHours(0, 0, 0, 0);
         rangeEnd = new Date(d);
         rangeEnd.setDate(d.getDate() + 1);
-        rangeEnd.setHours(d.getDate() + 1);
+        rangeEnd.setHours(0, 0, 0, 0);
         chartGroupExpr = `DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}')`;
         chartOrderExpr = chartGroupExpr;
         break;
