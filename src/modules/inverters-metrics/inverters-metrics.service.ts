@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -278,11 +279,12 @@ export class InvertersMetricsService {
     return { inverterId, mode, ...usage };
   }
 
-  async getPeriodSavings(inverterId: string, period: Period, date: Date) {
+  async getPeriodSavings(inverterId: string, userId: string, period: Period, date: Date) {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER)
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -407,11 +409,12 @@ export class InvertersMetricsService {
     };
   }
 
-  async getCumulativeSavings(inverterId: string) {
+  async getCumulativeSavings(inverterId: string, userId: string) {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -517,6 +520,7 @@ export class InvertersMetricsService {
 
   async getCustomRangeSavings(
     inverterId: string,
+    userId: string,
     startDate: Date,
     endDate: Date,
   ) {
@@ -524,6 +528,7 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
 
     if (startDate >= endDate) {
       throw new BadRequestException('startDate must be before endDate');
@@ -688,7 +693,8 @@ export class InvertersMetricsService {
         rangeStart = new Date(d);
         rangeStart.setHours(0, 0, 0, 0);
         rangeEnd = new Date(d);
-        rangeEnd.setHours(23, 59, 59, 999);
+        rangeEnd.setDate(d.getDate() + 1);
+        rangeEnd.setHours(d.getDate() + 1);
         chartGroupExpr = `DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}')`;
         chartOrderExpr = chartGroupExpr;
         break;
@@ -758,5 +764,13 @@ export class InvertersMetricsService {
           orderExpr: `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
         };
     }
+  }
+
+  parseDateOrThrow(value: string, field: string) {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException(`${field} must be a valid date`);
+    }
+    return d;
   }
 }

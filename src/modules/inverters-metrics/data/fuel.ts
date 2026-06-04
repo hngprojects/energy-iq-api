@@ -1,3 +1,4 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { GeneratorFuelType } from '../../../common/enums/generator';
 
 /**
@@ -33,9 +34,9 @@ export const getLatestFuelPrice = (type: GeneratorFuelType): FuelPriceEntry => {
     (a, b) => b.updatedAt - a.updatedAt, // descending — newest first
   );
   if (!entries.length) {
-    // Should never happen as long as FUEL_PRICES is populated correctly,
-    // but default to PMS price as a last resort.
-    return FUEL_PRICES[0];
+    throw new Error(
+      `No fuel price entry found for type ${type}. Ensure FUEL_PRICES includes all GeneratorFuelType values`
+    )
   }
   return entries[0];
 };
