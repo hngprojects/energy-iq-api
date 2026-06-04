@@ -1,4 +1,4 @@
-import { Column, Decimal128, Entity, JoinColumn, OneToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { User } from './user.entity';
 import { GeneratorFuelType } from '../../../common/enums/generator';
@@ -67,8 +67,8 @@ export class UserSettings extends AbstractBaseEntity {
   })
   generatorFuelType: GeneratorFuelType;
 
-  @Column({ type: 'decimal', nullable: true })
-  generatorRatedPowerKw: Decimal128;
+  @Column({ type: 'decimal', precision: 5, nullable: true })
+  generatorRatedPowerKw: number;
 
   @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })

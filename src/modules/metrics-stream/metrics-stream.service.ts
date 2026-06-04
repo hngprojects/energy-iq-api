@@ -91,10 +91,7 @@ export class MetricsStreamService {
               : null,
           pvString1PowerKw: null,
           pvString2PowerKw: null,
-          energyGeneratedTodayKwh:
-            latest.dailyEnergyKwh != null
-              ? Number(latest.dailyEnergyKwh)
-              : null,
+          energyGeneratedTodayKwh: null,
           totalEnergyGeneratedKwh: null,
           batteryChargedTodayKwh: null,
           batteryDischargedTodayKwh: null,

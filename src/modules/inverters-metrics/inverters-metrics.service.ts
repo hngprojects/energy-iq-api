@@ -301,11 +301,11 @@ export class InvertersMetricsService {
     const co2Factor = CO2_KG_PER_LITRE[fuelType];
     const tz = 'Africa/Lagos';
 
-    // ── Compute date range ────────────────────────────────────────────────────
+    // Compute date range
     const { rangeStart, rangeEnd, chartGroupExpr, chartOrderExpr } =
       this.getPeriodRange(period, date, tz);
 
-    // ── Per-day breakdown (or per-hour for daily period) ──────────────────────
+    // Per-day breakdown (or per-hour for daily period)
     const breakdownRows = await this.metricsRepository
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
@@ -434,7 +434,7 @@ export class InvertersMetricsService {
     const monthlyRows = await this.metricsRepository
       .createQueryBuilder('m')
       .select(
-        `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
+        `TO_CHAR(DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}'), 'YYYY-MM')`,
         'month',
       )
       .addSelect(
@@ -456,7 +456,7 @@ export class InvertersMetricsService {
           ? (energyKwh / ratedPowerKw) * consumptionRateLPerHr
           : 0;
       return {
-        month: r.month.slice(0, 7), // YYYY-MM
+        month: r.month, // already 'YYYY-MM' from TO_CHAR
         energyKwh: parseFloat(energyKwh.toFixed(3)),
         fuelSavedLitres: parseFloat(fuelSaved.toFixed(3)),
         savingsNgn: parseFloat(
@@ -552,20 +552,24 @@ export class InvertersMetricsService {
     );
 
     let chartGroupExpr: string;
-    let granularity: 'hour' | 'day' | 'week';
+    let granularity: 'hour' | 'day' | 'week' | 'month';
 
     if (spanDays <= 2) {
       // Up to 2 days: group by hour
       chartGroupExpr = `DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}')`;
       granularity = 'hour';
-    } else if (spanDays <= 90) {
-      // 3–90 days: group by day
+    } else if (spanDays < 21) {
+      // 3–20 days (less than 3 weeks): group by day
       chartGroupExpr = `DATE(m.metric_timestamp AT TIME ZONE '${tz}')`;
       granularity = 'day';
-    } else {
-      // Over 90 days: group by week
+    } else if (spanDays <= 90) {
+      // 3 weeks–3 months: group by week
       chartGroupExpr = `DATE_TRUNC('week', m.metric_timestamp AT TIME ZONE '${tz}')`;
       granularity = 'week';
+    } else {
+      // More than 3 months: group by month
+      chartGroupExpr = `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`;
+      granularity = 'month';
     }
 
     const breakdownRows = await this.metricsRepository
