@@ -59,6 +59,13 @@ export const env = createEnv({
       .default(true)
       .transform((v) => v === true || v === 'true'),
 
+    // BetterStack / Logtail
+    LOGTAIL_SOURCE_TOKEN: z.string().optional().default(''),
+    LOGTAIL_INGESTING_ENDPOINT: z
+      .url()
+      .optional()
+      .default('https://in.logtail.com'),
+
     CHAT_CONTEXT_LENGTH: z.coerce
       .number()
       .int()
