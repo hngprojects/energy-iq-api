@@ -22,6 +22,12 @@ import { ProcessingStatus } from '../../../common/constants/processing-status';
 import { ALERT_DEFERRED_DELIVERY_JOB } from '../jobs/alert-dispatch.jobs';
 import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { DuplicateSuppressionService } from '../helpers/duplicate-suppression';
+import { Repository } from 'typeorm';
+import { Inverter } from '../../inverters/entities/inverters.entity';
+import { UserSettings } from '../../users/entities/user-settings.entity';
+import { Alert } from '../entities/alert.entity';
+import { MetricsPubSubService } from '../../metrics-stream/pubsub/metrics-pubsub.service';
+import { Queue } from 'bullmq';
 
 // ------------------------------------------------------------------
 // Shared fixtures
@@ -117,12 +123,12 @@ function makeJob() {
   };
 
   const job = new AlertDetectionJob(
-    inverterRepo as any,
-    userSettingsRepo as any,
-    alertRepo as any,
+    inverterRepo as unknown as Repository<Inverter>,
+    userSettingsRepo as unknown as Repository<UserSettings>,
+    alertRepo as unknown as Repository<Alert>,
     duplicateSuppression as any as DuplicateSuppressionService,
-    pubSubService as any,
-    alertQueue as any,
+    pubSubService as unknown as MetricsPubSubService,
+    alertQueue as unknown as Queue<any, any, string, any, any, string>,
   );
 
   return {
