@@ -1,4 +1,10 @@
-import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -95,7 +101,7 @@ export class InvertersMetricsController {
       if (!startDate || !endDate) {
         throw new BadRequestException(
           `startDate and endDate must be provided together`,
-        )
+        );
       }
       return this.metricsService.getCustomRangeSavings(
         inverterId,
@@ -105,7 +111,9 @@ export class InvertersMetricsController {
       );
     }
     // Default date to today when not provided
-    const referenceDate = date ? this.metricsService.parseDateOrThrow(date, 'date') : new Date();
+    const referenceDate = date
+      ? this.metricsService.parseDateOrThrow(date, 'date')
+      : new Date();
     return this.metricsService.getPeriodSavings(
       inverterId,
       user.sub,
@@ -116,7 +124,10 @@ export class InvertersMetricsController {
 
   @Get(':inverterId/savings/cumulative')
   @ApiOperation({ summary: 'Get lifetime cumulative savings for an inverter' })
-  getCumulativeSavings(@Param('inverterId', ParseUUIDPipe) inverterId: string, @CurrentUser() user: AuthenticatedUser) {
+  getCumulativeSavings(
+    @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.metricsService.getCumulativeSavings(inverterId, user.sub);
   }
 }

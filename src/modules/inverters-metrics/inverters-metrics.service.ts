@@ -279,12 +279,18 @@ export class InvertersMetricsService {
     return { inverterId, mode, ...usage };
   }
 
-  async getPeriodSavings(inverterId: string, userId: string, period: Period, date: Date) {
+  async getPeriodSavings(
+    inverterId: string,
+    userId: string,
+    period: Period,
+    date: Date,
+  ) {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER)
+    if (inverter.userId !== userId)
+      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -414,7 +420,8 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
+    if (inverter.userId !== userId)
+      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -528,7 +535,8 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId) throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
+    if (inverter.userId !== userId)
+      throw new UnauthorizedException(SYS_MSG.NOT_INVERTER_OWNER);
 
     if (startDate >= endDate) {
       throw new BadRequestException('startDate must be before endDate');
