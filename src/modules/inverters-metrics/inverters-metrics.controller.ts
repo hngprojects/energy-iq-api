@@ -37,4 +37,36 @@ export class InvertersMetricsController {
   ) {
     return this.metricsService.getEnergyUsage(inverterId, period);
   }
+
+  @Get(':inverterId/savings')
+  @ApiOperation({
+    summary: 'Get period or custom-range savings for an inverter',
+  })
+  getPeriodSavings(
+    @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @Query('period')
+    period: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily',
+    @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    if (startDate && endDate) {
+      return this.metricsService.getCustomRangeSavings(
+        inverterId,
+        new Date(startDate),
+        new Date(endDate),
+      );
+    }
+    return this.metricsService.getPeriodSavings(
+      inverterId,
+      period,
+      new Date(date ?? Date.now()),
+    );
+  }
+
+  @Get(':inverterId/savings/cumulative')
+  @ApiOperation({ summary: 'Get lifetime cumulative savings for an inverter' })
+  getCumulativeSavings(@Param('inverterId', ParseUUIDPipe) inverterId: string) {
+    return this.metricsService.getCumulativeSavings(inverterId);
+  }
 }
