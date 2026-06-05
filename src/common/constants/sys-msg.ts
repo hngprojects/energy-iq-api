@@ -43,5 +43,5 @@ export const SYS_MSG = {
   INVALID_GOOGLE_TOKEN: 'Invalid Google token payload',
   ALERT_NOT_FOUND: 'Alert not found',
   NOT_INVERTER_OWNER: 'User does not own inverter',
-  NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type'
+  NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type',
 } as const;

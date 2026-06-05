@@ -35,9 +35,7 @@ export const getLatestFuelPrice = (type: GeneratorFuelType): FuelPriceEntry => {
     (a, b) => b.updatedAt - a.updatedAt, // descending — newest first
   );
   if (!entries.length) {
-    throw new UnprocessableEntityException(
-      SYS_MSG.NO_FUEL_TYPE_ENTRY
-    );
+    throw new UnprocessableEntityException(SYS_MSG.NO_FUEL_TYPE_ENTRY);
   }
   return entries[0];
 };
