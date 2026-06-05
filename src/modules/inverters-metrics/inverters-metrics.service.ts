@@ -113,7 +113,9 @@ export class InvertersMetricsService {
       : 2.5;
     const fuelEntry = getLatestFuelPrice(fuelType);
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira ?? fuelEntry.pricePerLitreNaira;
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -303,8 +305,11 @@ export class InvertersMetricsService {
       : 2.5; // sensible default for a small SME generator
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira ?? fuelEntry.pricePerLitreNaira;
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -439,7 +444,9 @@ export class InvertersMetricsService {
       meta: {
         fuelType,
         fuelPricePerLitreNgn: fuelPricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },
@@ -464,8 +471,11 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira ?? fuelEntry.pricePerLitreNaira;
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -557,7 +567,9 @@ export class InvertersMetricsService {
       meta: {
         fuelType,
         fuelPricePerLitreNgn: fuelPricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },
@@ -591,8 +603,11 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira ?? fuelEntry.pricePerLitreNaira;
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -727,7 +742,9 @@ export class InvertersMetricsService {
       meta: {
         fuelType,
         fuelPricePerLitreNgn: fuelPricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },

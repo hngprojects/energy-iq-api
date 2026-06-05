@@ -240,8 +240,13 @@ export class UsersService {
           }),
           ...(dto.generatorFuelType !== undefined &&
             this.isValidGeneratorType(dto.generatorFuelType) && {
-              generatorFuelType: dto.generatorFuelType,
+              generatorFuelType:
+                dto.generatorFuelType.toUpperCase() as GeneratorFuelType,
             }),
+          ...(dto.generatorAverageDailyRuntimeHours !== undefined && {
+            generatorAverageDailyRuntimeHours:
+              dto.generatorAverageDailyRuntimeHours,
+          }),
         },
       });
 
@@ -263,8 +268,13 @@ export class UsersService {
       }),
       ...(dto.generatorFuelType !== undefined &&
         this.isValidGeneratorType(dto.generatorFuelType) && {
-          generatorFuelType: dto.generatorFuelType,
+          generatorFuelType:
+            dto.generatorFuelType.toUpperCase() as GeneratorFuelType,
         }),
+      ...(dto.generatorAverageDailyRuntimeHours !== undefined && {
+        generatorAverageDailyRuntimeHours:
+          dto.generatorAverageDailyRuntimeHours,
+      }),
     };
 
     if (Object.keys(updatePayload).length === 0) {

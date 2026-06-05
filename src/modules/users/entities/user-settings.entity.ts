@@ -70,7 +70,7 @@ export class UserSettings extends AbstractBaseEntity {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   generatorRatedPowerKw?: number;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   customFuelPriceNaira?: number;
 
   @Column({ type: 'int', nullable: true })
