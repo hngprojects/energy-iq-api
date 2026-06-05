@@ -85,7 +85,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           envs: ARCHIVE
           script: |
-            set -e
+            set -euo pipefail
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/prod
             DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
             mkdir -p "$DEPLOY_DIR"
@@ -101,13 +101,13 @@ jobs:
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
 
             # Count migrations before applying new ones
-            BEFORE=$(pnpm migration:show 2>/dev/null | grep '^\[X\]' | wc -l)
+            BEFORE=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
 
             # Run migrations from new release before symlink swap
             pnpm migration:run
 
             # Count how many were applied, store for rollback
-            AFTER=$(pnpm migration:show 2>/dev/null | grep '^\[X\]' | wc -l)
+            AFTER=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
             APPLIED=$(( AFTER - BEFORE ))
             echo "$APPLIED" > "$APP_DIR/.migrations_applied"
 
