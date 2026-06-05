@@ -1,4 +1,10 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Param,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -84,23 +90,33 @@ export class InvertersMetricsController {
   })
   getPeriodSavings(
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('period')
     period: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily',
     @Query('date') date?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    if (startDate && endDate) {
+    if (startDate || endDate) {
+      if (!startDate || !endDate) {
+        throw new BadRequestException(
+          `startDate and endDate must be provided together`,
+        );
+      }
       return this.metricsService.getCustomRangeSavings(
         inverterId,
-        new Date(startDate),
-        new Date(endDate),
+        user.sub,
+        this.metricsService.parseDateOrThrow(startDate, 'startDate'),
+        this.metricsService.parseDateOrThrow(endDate, 'endDate'),
       );
     }
     // Default date to today when not provided
-    const referenceDate = date ? new Date(date) : new Date();
+    const referenceDate = date
+      ? this.metricsService.parseDateOrThrow(date, 'date')
+      : new Date();
     return this.metricsService.getPeriodSavings(
       inverterId,
+      user.sub,
       period,
       referenceDate,
     );
@@ -108,7 +124,10 @@ export class InvertersMetricsController {
 
   @Get(':inverterId/savings/cumulative')
   @ApiOperation({ summary: 'Get lifetime cumulative savings for an inverter' })
-  getCumulativeSavings(@Param('inverterId', ParseUUIDPipe) inverterId: string) {
-    return this.metricsService.getCumulativeSavings(inverterId);
+  getCumulativeSavings(
+    @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.metricsService.getCumulativeSavings(inverterId, user.sub);
   }
 }

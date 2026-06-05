@@ -1,4 +1,6 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { GeneratorFuelType } from '../../../common/enums/generator';
+import { SYS_MSG } from '../../../common/constants/sys-msg';
 
 /**
  * FUEL PRICES - should keep being entered until web scraper is available
@@ -33,9 +35,7 @@ export const getLatestFuelPrice = (type: GeneratorFuelType): FuelPriceEntry => {
     (a, b) => b.updatedAt - a.updatedAt, // descending — newest first
   );
   if (!entries.length) {
-    // Should never happen as long as FUEL_PRICES is populated correctly,
-    // but default to PMS price as a last resort.
-    return FUEL_PRICES[0];
+    throw new UnprocessableEntityException(SYS_MSG.NO_FUEL_TYPE_ENTRY);
   }
   return entries[0];
 };
