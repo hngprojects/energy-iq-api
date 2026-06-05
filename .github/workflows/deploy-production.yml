@@ -117,7 +117,7 @@ jobs:
             cat > "$DEPLOY_DIR/ecosystem.config.js" <<EOF
             module.exports = {
               apps: [{
-                name: 'be-staging',
+                name: 'be-prod',
                 script: '$DEPLOY_DIR/dist/main.js',
                 cwd: '$DEPLOY_DIR',
               }]
