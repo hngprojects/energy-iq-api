@@ -87,9 +87,9 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           envs: ARCHIVE
           script: |
-            set -e
+            set -euo pipefail
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
-            DEPLOY_DIR="$APP_DIR/releases/$ARCHIVE"
+            DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
 
@@ -101,8 +101,16 @@ jobs:
             pnpm install --frozen-lockfile
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
 
+            # Count migrations before applying new ones
+            BEFORE=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
+
             # Run migrations from new release before symlink swap
             pnpm migration:run
+
+            # Count how many were applied, store for rollback
+            AFTER=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
+            APPLIED=$(( AFTER - BEFORE ))
+            echo "$APPLIED" > "$APP_DIR/.migrations_applied"
 
             # Point traffic to the new release
             ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
@@ -118,10 +126,11 @@ jobs:
             echo "Staging deploy complete"          
 
       - name: Health check
+        id: healthcheck
         run: |
           echo "Waiting for staging service to be ready..."
           for i in $(seq 1 5); do
-            RESPONSE=$(curl --silent --fail --max-time 10 --write-out "\n%{http_code}" \
+            RESPONSE=$(curl --silent --max-time 10 --write-out "\n%{http_code}" \
                 "${{ secrets.STAGING_HEALTH_URL }}")
             STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
             BODY=$(echo "$RESPONSE" | head -n -1)
@@ -145,7 +154,7 @@ jobs:
           exit 1
 
       - name: Rollback on failure
-        if: failure()
+        if: ${{ failure() && steps.healthcheck.outcome == 'failure' }}
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -154,12 +163,21 @@ jobs:
           script: |
             set -e
             APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
+
+            # Revert exactly the migrations this deploy applied
+            APPLIED=$(cat "$APP_DIR/.migrations_applied" 2>/dev/null || echo 0)
+            if [ "$APPLIED" -gt 0 ]; then
+              cd "$APP_DIR/current"
+              for i in $(seq 1 "$APPLIED"); do
+                pnpm migration:revert
+              done
+            fi
+
             PREV=$(cat "$APP_DIR/.prev_release" 2>/dev/null)
             if [ -z "$PREV" ] || [ ! -d "$PREV" ]; then
               echo "No valid previous release found, cannot rollback"
               exit 1
             fi
             ln -sfn "$PREV" "$APP_DIR/current"
-            cd "$APP_DIR/current"
-            pnpm migration:revert
+            
             pm2 reload be-staging --update-env
