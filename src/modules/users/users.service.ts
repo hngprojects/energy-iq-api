@@ -232,9 +232,16 @@ export class UsersService {
           ...(dto.state !== undefined && { state: dto.state }),
           ...(dto.city !== undefined && { city: dto.city }),
           ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
-          ...(dto.customFuelPriceNaira !== undefined && { customFuelPriceNaira: dto.customFuelPriceNaira }),
-          ...(dto.generatorRatedPowerKw !== undefined && { generatorRatedPowerKw: dto.generatorRatedPowerKw }),
-          ...(dto.generatorFuelType !== undefined && this.isValidGeneratorType(dto.generatorFuelType) && { generatorFuelType: dto.generatorFuelType }),
+          ...(dto.customFuelPriceNaira !== undefined && {
+            customFuelPriceNaira: dto.customFuelPriceNaira,
+          }),
+          ...(dto.generatorRatedPowerKw !== undefined && {
+            generatorRatedPowerKw: dto.generatorRatedPowerKw,
+          }),
+          ...(dto.generatorFuelType !== undefined &&
+            this.isValidGeneratorType(dto.generatorFuelType) && {
+              generatorFuelType: dto.generatorFuelType,
+            }),
         },
       });
 
@@ -248,9 +255,16 @@ export class UsersService {
       ...(dto.state !== undefined && { state: dto.state }),
       ...(dto.city !== undefined && { city: dto.city }),
       ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
-      ...(dto.customFuelPriceNaira !== undefined && { customFuelPriceNaira: dto.customFuelPriceNaira }),
-      ...(dto.generatorRatedPowerKw !== undefined && { generatorRatedPowerKw: dto.generatorRatedPowerKw }),
-      ...(dto.generatorFuelType !== undefined && this.isValidGeneratorType(dto.generatorFuelType) && { generatorFuelType: dto.generatorFuelType }),
+      ...(dto.customFuelPriceNaira !== undefined && {
+        customFuelPriceNaira: dto.customFuelPriceNaira,
+      }),
+      ...(dto.generatorRatedPowerKw !== undefined && {
+        generatorRatedPowerKw: dto.generatorRatedPowerKw,
+      }),
+      ...(dto.generatorFuelType !== undefined &&
+        this.isValidGeneratorType(dto.generatorFuelType) && {
+          generatorFuelType: dto.generatorFuelType,
+        }),
     };
 
     if (Object.keys(updatePayload).length === 0) {
@@ -291,7 +305,10 @@ export class UsersService {
 
   private isValidGeneratorType(t: unknown): t is GeneratorFuelType {
     return (
-      typeof t === 'string' && Object.values(GeneratorFuelType).map(f => f.toLowerCase()).includes(t.toLowerCase())
+      typeof t === 'string' &&
+      Object.values(GeneratorFuelType)
+        .map((f) => f.toLowerCase())
+        .includes(t.toLowerCase())
     );
   }
 }

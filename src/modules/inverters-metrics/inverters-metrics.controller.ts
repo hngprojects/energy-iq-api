@@ -107,12 +107,15 @@ export class InvertersMetricsController {
       // Treat both dates as inclusive day boundaries.
       // new Date("YYYY-MM-DD") parses as UTC midnight, which can cause off-by-one
       // errors in Lagos time (+01:00). We normalise to local midnight explicitly.
-      const start = this.metricsService.parseDateOrThrow(startDate, 'startDate');
+      const start = this.metricsService.parseDateOrThrow(
+        startDate,
+        'startDate',
+      );
       start.setHours(0, 0, 0, 0); // start of start day (local)
 
       const end = this.metricsService.parseDateOrThrow(endDate, 'endDate');
       end.setDate(end.getDate() + 1); // advance to next calendar day
-      end.setHours(0, 0, 0, 0);       // midnight of next day = exclusive upper bound
+      end.setHours(0, 0, 0, 0); // midnight of next day = exclusive upper bound
 
       return this.metricsService.getCustomRangeSavings(
         inverterId,
