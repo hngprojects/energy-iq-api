@@ -6,10 +6,11 @@ import { InvertersMetrics } from './entities/inverters-metrics.entity';
 import { DailyMetrics } from './entities/daily-metrics.entity';
 import { InvertersModule } from '../inverters/inverters.module';
 import { InverterMetricsModelAction } from './actions/inverter-metrics.action';
+import { UserSettings } from '../users/entities/user-settings.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InvertersMetrics, DailyMetrics]),
+    TypeOrmModule.forFeature([InvertersMetrics, DailyMetrics, UserSettings]),
     InvertersModule,
   ],
   controllers: [InvertersMetricsController],

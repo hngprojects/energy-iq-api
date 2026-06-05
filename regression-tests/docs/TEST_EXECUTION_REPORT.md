@@ -21,7 +21,7 @@
 
 ## Root Cause Analysis
 
-The primary chain-breaker is **TC-AUTH-009** (Login returns 403 because `joshuakaleb@yopmail.com` has unverified email status in staging). This cascades: no access token → all protected endpoints fail
+The primary chain-breaker is **TC-AUTH-009** (Login returns 403 because `joshuakaleb@yopmail.com` has unverified email status in staging). This cascades: no access token → all protected endpoints fa
 
 **Independently passing modules** (no token dependency):
 - Health Check: ✅ 100%

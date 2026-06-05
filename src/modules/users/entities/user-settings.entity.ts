@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { User } from './user.entity';
+import { GeneratorFuelType } from '../../../common/enums/generator';
 
 @Entity('user_settings')
 export class UserSettings extends AbstractBaseEntity {
@@ -57,6 +58,17 @@ export class UserSettings extends AbstractBaseEntity {
 
   @Column({ type: 'jsonb', nullable: true })
   channelQuietHours?: Record<string, { start: string; end: string }>;
+
+  // Costs and Savings Settings
+  @Column({
+    type: 'enum',
+    enum: GeneratorFuelType,
+    default: GeneratorFuelType.PMS,
+  })
+  generatorFuelType: GeneratorFuelType;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  generatorRatedPowerKw: number;
 
   @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
