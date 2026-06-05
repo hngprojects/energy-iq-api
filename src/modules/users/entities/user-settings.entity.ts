@@ -67,7 +67,7 @@ export class UserSettings extends AbstractBaseEntity {
   })
   generatorFuelType: GeneratorFuelType;
 
-  @Column({ type: 'decimal', precision: 5, nullable: true })
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   generatorRatedPowerKw: number;
 
   @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
