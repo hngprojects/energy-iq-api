@@ -101,13 +101,13 @@ jobs:
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
 
             # Count migrations before applying new ones
-            BEFORE=$(pnpm migration:show 2>/dev/null | grep -c '^\[X\]' || echo 0)
+            BEFORE=$(pnpm migration:show 2>/dev/null | grep '^\[X\]' | wc -l)
 
             # Run migrations from new release before symlink swap
             pnpm migration:run
 
             # Count how many were applied, store for rollback
-            AFTER=$(pnpm migration:show 2>/dev/null | grep -c '^\[X\]' || echo 0)
+            AFTER=$(pnpm migration:show 2>/dev/null | grep '^\[X\]' | wc -l)
             APPLIED=$(( AFTER - BEFORE ))
             echo "$APPLIED" > "$APP_DIR/.migrations_applied"
 
@@ -154,7 +154,7 @@ jobs:
           exit 1
 
       - name: Rollback on failure
-        if: steps.healthcheck.outcome == 'failure'
+        if: ${{ failure() && steps.healthcheck.outcome == 'failure' }}
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.PROD_SERVER_IP }}
