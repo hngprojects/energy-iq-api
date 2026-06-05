@@ -19,6 +19,7 @@ import { GoogleOAuthDto } from '../auth/dto/google-oauth.dto';
 import { UserSettingsModelAction } from './actions/user-settings.action';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 import { UserSettings } from './entities/user-settings.entity';
+import { GeneratorFuelType } from '../../common/enums/generator';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -231,6 +232,9 @@ export class UsersService {
           ...(dto.state !== undefined && { state: dto.state }),
           ...(dto.city !== undefined && { city: dto.city }),
           ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
+          ...(dto.customFuelPriceNaira !== undefined && { customFuelPriceNaira: dto.customFuelPriceNaira }),
+          ...(dto.generatorRatedPowerKw !== undefined && { generatorRatedPowerKw: dto.generatorRatedPowerKw }),
+          ...(dto.generatorFuelType !== undefined && this.isValidGeneratorType(dto.generatorFuelType) && { generatorFuelType: dto.generatorFuelType }),
         },
       });
 
@@ -244,6 +248,9 @@ export class UsersService {
       ...(dto.state !== undefined && { state: dto.state }),
       ...(dto.city !== undefined && { city: dto.city }),
       ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
+      ...(dto.customFuelPriceNaira !== undefined && { customFuelPriceNaira: dto.customFuelPriceNaira }),
+      ...(dto.generatorRatedPowerKw !== undefined && { generatorRatedPowerKw: dto.generatorRatedPowerKw }),
+      ...(dto.generatorFuelType !== undefined && this.isValidGeneratorType(dto.generatorFuelType) && { generatorFuelType: dto.generatorFuelType }),
     };
 
     if (Object.keys(updatePayload).length === 0) {
@@ -280,5 +287,11 @@ export class UsersService {
     const settings = await this.userSettingsModelAction.findByUserId(userId);
     if (!settings) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     return settings;
+  }
+
+  private isValidGeneratorType(t: unknown): t is GeneratorFuelType {
+    return (
+      typeof t === 'string' && Object.values(GeneratorFuelType).map(f => f.toLowerCase()).includes(t.toLowerCase())
+    );
   }
 }

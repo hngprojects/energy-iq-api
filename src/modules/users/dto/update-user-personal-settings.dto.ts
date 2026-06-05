@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { GeneratorFuelType } from '../../../common/enums/generator';
 
 export class UpdateUserPersonalSettingsDto {
   @ApiProperty({ example: 'John' })
@@ -56,4 +57,23 @@ export class UpdateUserPersonalSettingsDto {
   @MaxLength(25)
   @IsOptional()
   aiLanguage?: string;
+
+  @ApiProperty({ example: 1700 })
+  @IsNumber()
+  @IsOptional()
+  customFuelPriceNaira?: number;
+
+  @ApiProperty({ example: 1500 })
+  @IsNumber()
+  @IsOptional()
+  generatorRatedPowerKw?: number;
+
+  @ApiProperty({ example: 'PMS' })
+  @IsEnum(GeneratorFuelType)
+  generatorFuelType?: string;
+
+  @ApiProperty({ example: 1500 })
+  @IsNumber()
+  @IsOptional()
+  generatorAverageDailyRuntimeHours?: number;
 }
