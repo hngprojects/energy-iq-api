@@ -67,7 +67,10 @@ export class SystemInsightsReader implements AgentTool {
       const result = await this.metricsService.getSystemInsights(inverterId);
       return JSON.stringify(result);
     } catch (err) {
-      this.logger.error('Failed to compute system insights', err instanceof Error ? err.stack : String(err))
+      this.logger.error(
+        'Failed to compute system insights',
+        err instanceof Error ? err.stack : String(err),
+      );
       return 'Unable to compute system insights at this time. Please try again.';
     }
   }

@@ -125,8 +125,11 @@ export class SavingsReader implements AgentTool {
         },
       );
       return JSON.stringify(result);
-    } catch(error) {
-      this.logger.error('Failed to retrieve savings data: ', error instanceof Error ? error.stack : String(error))
+    } catch (error) {
+      this.logger.error(
+        'Failed to retrieve savings data: ',
+        error instanceof Error ? error.stack : String(error),
+      );
       return 'Unable to retrieve savings data at this time. Please try again.';
     }
   }
