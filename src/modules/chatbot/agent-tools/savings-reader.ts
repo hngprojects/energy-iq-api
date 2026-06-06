@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { AgentTool } from '../helpers/agent-tool';
@@ -7,6 +7,7 @@ import { InverterModelAction } from '../../inverters/action/inverters.action';
 
 @Injectable()
 export class SavingsReader implements AgentTool {
+  private readonly logger = new Logger(SavingsReader.name);
   constructor(
     private readonly metricsService: InvertersMetricsService,
     private readonly inverterAction: InverterModelAction,
@@ -124,7 +125,8 @@ export class SavingsReader implements AgentTool {
         },
       );
       return JSON.stringify(result);
-    } catch {
+    } catch(error) {
+      this.logger.error('Failed to retrieve savings data: ', error instanceof Error ? error.stack : String(error))
       return 'Unable to retrieve savings data at this time. Please try again.';
     }
   }

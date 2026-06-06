@@ -305,7 +305,7 @@ export class InvertersMetricsService {
       // Fetch lifetime totals and today's savings in parallel
       const todayStr = new Date().toISOString().split('T')[0];
       const [cumulative, today] = await Promise.all([
-        this._getPeriodSavingsInternal(inverterId, 'monthly', new Date()),
+        this._getCumulativeSavingsInternal(inverterId),
         this._getPeriodSavingsInternal(inverterId, 'daily', new Date()),
       ]);
       // Return cumulative totals with today's snapshot attached
@@ -343,6 +343,122 @@ export class InvertersMetricsService {
   }
 
   /**
+   * Internal cumulative savings — mirrors getCumulativeSavings exactly but
+   * without the ownership check. Queries ALL months since the inverter was
+   * connected, not just the current calendar month.
+   */
+  private async _getCumulativeSavingsInternal(inverterId: string) {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    const settings = inverter
+      ? await this.userSettingsRepository.findOne({
+          where: { user: { id: inverter.userId } },
+        })
+      : null;
+
+    const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
+    const ratedPowerKw = settings?.generatorRatedPowerKw
+      ? Number(settings.generatorRatedPowerKw)
+      : 2.5;
+    const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
+    const consumptionRateLPerHr = estimateFuelConsumptionRate(
+      fuelType,
+      ratedPowerKw,
+    );
+    const co2Factor = CO2_KG_PER_LITRE[fuelType];
+    const tz = 'Africa/Lagos';
+
+    // All months since the inverter was first connected — no date cap
+    const monthlyRows = await this.metricsRepository
+      .createQueryBuilder('m')
+      .select(
+        `TO_CHAR(DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}'), 'YYYY-MM')`,
+        'month',
+      )
+      .addSelect(
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        'energyKwh',
+      )
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        'solarKwh',
+      )
+      .where('m.inverter_id = :inverterId', { inverterId })
+      .groupBy(`DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`)
+      .orderBy(
+        `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
+        'ASC',
+      )
+      .getRawMany<{ month: string; energyKwh: string; solarKwh: string }>();
+
+    const monthlyData = monthlyRows.map((r) => {
+      const energyKwh = parseFloat(r.energyKwh);
+      const solarKwh = parseFloat(r.solarKwh);
+      const fuelSaved =
+        ratedPowerKw > 0
+          ? (energyKwh / ratedPowerKw) * consumptionRateLPerHr
+          : 0;
+      return {
+        month: r.month,
+        energyKwh: parseFloat(energyKwh.toFixed(3)),
+        solarKwh: parseFloat(solarKwh.toFixed(3)),
+        fuelSavedLitres: parseFloat(fuelSaved.toFixed(3)),
+        savingsNgn: parseFloat((fuelSaved * fuelPricePerLitreNaira).toFixed(2)),
+      };
+    });
+
+    const lifetimeEnergyKwh = monthlyData.reduce((s, r) => s + r.energyKwh, 0);
+    const lifetimeSolarKwh = monthlyData.reduce((s, r) => s + r.solarKwh, 0);
+    const lifetimeFuelSavedLitres = monthlyData.reduce(
+      (s, r) => s + r.fuelSavedLitres,
+      0,
+    );
+    const lifetimeSavingsNgn = monthlyData.reduce(
+      (s, r) => s + r.savingsNgn,
+      0,
+    );
+    const lifetimeCo2AvoidedKg = lifetimeFuelSavedLitres * co2Factor;
+    const generatorHoursAvoided =
+      ratedPowerKw > 0
+        ? parseFloat((lifetimeEnergyKwh / ratedPowerKw).toFixed(1))
+        : 0;
+    const monthsActive = monthlyData.length || 1;
+    const averageMonthlySavingsNgn = parseFloat(
+      (lifetimeSavingsNgn / monthsActive).toFixed(2),
+    );
+
+    return {
+      lifetimeSavingsNgn: parseFloat(lifetimeSavingsNgn.toFixed(2)),
+      lifetimeEnergyConsumedKwh: parseFloat(lifetimeEnergyKwh.toFixed(3)),
+      lifetimeEnergyGeneratedKwh: parseFloat(lifetimeSolarKwh.toFixed(3)),
+      lifetimeFuelSavedLitres: parseFloat(lifetimeFuelSavedLitres.toFixed(3)),
+      co2AvoidedKg: parseFloat(lifetimeCo2AvoidedKg.toFixed(3)),
+      generatorHoursAvoided,
+      totalSavingsToDateNgn: parseFloat(lifetimeSavingsNgn.toFixed(2)),
+      averageMonthlySavingsNgn,
+      chart: monthlyData.map((m) => ({
+        month: m.month,
+        savingsNgn: m.savingsNgn,
+      })),
+      meta: {
+        fuelType,
+        fuelPricePerLitreNgn: fuelPricePerLitreNaira,
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
+        assumedGeneratorRatedPowerKw: ratedPowerKw,
+        assumedConsumptionRateLPerHr: consumptionRateLPerHr,
+      },
+    };
+  }
+
+  /**
    * Internal period savings — identical logic to getPeriodSavings but without
    * the ownership check (caller is responsible for scoping to the right user).
    */
@@ -365,7 +481,7 @@ export class InvertersMetricsService {
       ? Number(settings.generatorRatedPowerKw)
       : 2.5;
     const fuelEntry = getLatestFuelPrice(fuelType);
-    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
     const fuelPricePerLitreNaira =
       settings?.customFuelPriceNaira !== null
         ? Number(settings?.customFuelPriceNaira)
@@ -503,7 +619,7 @@ export class InvertersMetricsService {
       ? Number(settings.generatorRatedPowerKw)
       : 2.5;
     const fuelEntry = getLatestFuelPrice(fuelType);
-    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
     const fuelPricePerLitreNaira =
       settings?.customFuelPriceNaira !== null
         ? Number(settings?.customFuelPriceNaira)
@@ -648,7 +764,7 @@ export class InvertersMetricsService {
       : 2.5; // sensible default for a small SME generator
 
     const fuelEntry = getLatestFuelPrice(fuelType);
-    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
     const fuelPricePerLitreNaira =
       settings?.customFuelPriceNaira !== null
         ? Number(settings?.customFuelPriceNaira)
@@ -814,7 +930,7 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
-    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
     const fuelPricePerLitreNaira =
       settings?.customFuelPriceNaira !== null
         ? Number(settings?.customFuelPriceNaira)
@@ -946,7 +1062,7 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
-    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira != null;
     const fuelPricePerLitreNaira =
       settings?.customFuelPriceNaira !== null
         ? Number(settings?.customFuelPriceNaira)
@@ -1273,11 +1389,13 @@ export class InvertersMetricsService {
       ratedPowerKw,
     );
 
-    // Savings per hour at current load = what it would cost to run the
-    // generator at the same load for one hour
+    // Savings per hour = generator fuel cost the battery-backed shortfall
+    // displaces. Only the net discharge portion (loadKw - solarKw) is actually
+    // being supplied by the battery; solar already covers the rest.
+    const effectiveDischargeKw = Math.max(netDischargeKw, 0);
     const savingsPerHour =
-      ratedPowerKw > 0
-        ? (loadKw / ratedPowerKw) *
+      ratedPowerKw > 0 && effectiveDischargeKw > 0
+        ? (effectiveDischargeKw / ratedPowerKw) *
           consumptionRateLPerHr *
           fuelPricePerLitreNaira
         : 0;
@@ -1288,24 +1406,36 @@ export class InvertersMetricsService {
         : null;
 
     // ── Load reduction scenario ───────────────────────────────────────────
-    // How much load needs to be shed to bring net discharge to zero
-    // (i.e., solar exactly covers load)?
+    // How much load to shed to reach solar balance (net discharge → 0)?
     const excessLoadKw = Math.max(netDischargeKw, 0);
     const reducedLoadKw = Math.max(loadKw - excessLoadKw, 0);
 
-    // If the user sheds that load, how much longer does the battery last?
-    // With net discharge = 0 the battery technically never depletes (infinite),
-    // so we compute the extension in time versus current trajectory instead.
-    const extensionHours =
-      depletionHours !== null && depletionHours < 24
-        ? // Extra time gained = energy that would have been consumed by excess
-          // load over the original depletion window / current net discharge rate
-          excessLoadKw > 0
-          ? parseFloat(
-              ((excessLoadKw * depletionHours) / netDischargeKw).toFixed(1),
-            )
-          : null
-        : null;
+    // If the user fully sheds excessLoadKw, net discharge becomes 0 and the
+    // battery sustains indefinitely — there is no finite extension to compute.
+    // We signal this with steadyState: true and extensionHours: null.
+    // additionalSavingsNgn is still meaningful: it's what the shed load saves
+    // over the original depletion window (fuel the generator would have burnt).
+    let extensionHours: number | null = null;
+    let shedReachesSteadyState = false;
+    let additionalSavingsNgn: number | null = null;
+
+    if (depletionHours !== null && excessLoadKw > 0) {
+      // Shedding exactly excessLoadKw drives net discharge to 0 → steady state
+      shedReachesSteadyState = true;
+      extensionHours = null; // indefinite — battery no longer depletes
+
+      // Fuel cost of running the generator for the shed kW over the depletion
+      // window = what the user additionally saves by acting now
+      const shedSavingsPerHour =
+        ratedPowerKw > 0
+          ? (excessLoadKw / ratedPowerKw) *
+            consumptionRateLPerHr *
+            fuelPricePerLitreNaira
+          : 0;
+      additionalSavingsNgn = parseFloat(
+        (shedSavingsPerHour * depletionHours).toFixed(2),
+      );
+    }
 
     // ── Contextual flags ──────────────────────────────────────────────────
     const isCharging = netDischargeKw < 0;
@@ -1338,19 +1468,19 @@ export class InvertersMetricsService {
       savingsAtRisk: {
         // What the user stands to lose if battery dies at current rate
         ngnAtRisk: savingsAtRiskNgn,
+        // ₦/hr the battery shortfall displaces (excludes solar-covered load)
         savingsPerHourNgn: parseFloat(savingsPerHour.toFixed(2)),
       },
       loadReduction: {
         // How much to shed to reach solar-balanced state
         excessLoadToShedKw: parseFloat(excessLoadKw.toFixed(3)),
         targetLoadKw: parseFloat(reducedLoadKw.toFixed(3)),
-        // Extra runtime gained if the user sheds to target load
+        // null when shedding fully eliminates discharge (steady state)
         extensionHoursIfShed: extensionHours,
-        // Money saved if they shed load and extend battery life
-        additionalSavingsNgn:
-          extensionHours !== null
-            ? parseFloat((savingsPerHour * extensionHours).toFixed(2))
-            : null,
+        // true means shedding excessLoadKw brings net discharge to zero
+        shedReachesSteadyState,
+        // Additional ₦ the user saves by shedding over the original depletion window
+        additionalSavingsNgn,
       },
       flags: {
         isCharging,

@@ -82,13 +82,16 @@ export class MetricsReader implements AgentTool {
     },
     userId: string,
   ): Promise<string> {
-    let inverterId: string;
+    const firstId = await this.inverterAction.findFirstIdByUserId(userId);
+    if (!firstId) {
+      return 'No inverters found for your account.';
+    }
 
+    let inverterId: string;
     if (input.inverterId) {
       // Validate ownership — the requested inverter must belong to this user
-      const firstId = await this.inverterAction.findFirstIdByUserId(userId);
-      if (!firstId || firstId !== input.inverterId) {
-        return 'The requested inverter was not found or does not belong to your account.';
+      if (firstId !== input.inverterId) {
+        return 'Only your primary inverter can be queried.';
       }
       inverterId = input.inverterId;
     } else {
@@ -106,14 +109,10 @@ export class MetricsReader implements AgentTool {
       input.period,
     );
 
-    const hasData =
-      result.data !== null &&
-      result.data !== undefined &&
-      !(Array.isArray(result.data) && result.data.length === 0);
-
-    if (!hasData) {
+    if (input.mode === 'current' && !result.data) {
       return 'No metrics data is available for your inverter yet.';
     }
+    // History mode should always return data
 
     return JSON.stringify(result);
   }

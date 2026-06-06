@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { AgentTool } from '../helpers/agent-tool';
@@ -7,6 +7,7 @@ import { InverterModelAction } from '../../inverters/action/inverters.action';
 
 @Injectable()
 export class SystemInsightsReader implements AgentTool {
+  private readonly logger = new Logger(SystemInsightsReader.name);
   constructor(
     private readonly metricsService: InvertersMetricsService,
     private readonly inverterAction: InverterModelAction,
@@ -65,7 +66,8 @@ export class SystemInsightsReader implements AgentTool {
     try {
       const result = await this.metricsService.getSystemInsights(inverterId);
       return JSON.stringify(result);
-    } catch {
+    } catch (err) {
+      this.logger.error('Failed to compute system insights', err instanceof Error ? err.stack : String(err))
       return 'Unable to compute system insights at this time. Please try again.';
     }
   }
