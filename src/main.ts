@@ -1,4 +1,4 @@
-import { Logger, VersioningType } from '@nestjs/common';
+import { VersioningType } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { ClassSerializerInterceptor } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -9,10 +9,42 @@ import { env } from './config/env';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import type { Express } from 'express';
+import { Logtail } from '@logtail/node';
+import * as winston from 'winston';
+import { LogtailTransport } from '@logtail/winston';
+import { WinstonModule } from 'nest-winston';
 
 async function bootstrap() {
+  // create logtail client
+  const logtail = env.LOGTAIL_SOURCE_TOKEN
+    ? new Logtail(env.LOGTAIL_SOURCE_TOKEN, {
+        endpoint: env.LOGTAIL_INGESTING_ENDPOINT,
+      })
+    : null;
+
+  // configure winston logger
+  const winstonTransports: winston.transport[] = [
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json(),
+      ),
+    }),
+  ];
+
+  // if logtail is configured, add it as a transport
+  if (logtail) {
+    winstonTransports.push(new LogtailTransport(logtail));
+  }
+
+  const winstonLogger = WinstonModule.createLogger({
+    transports: winstonTransports,
+    level: env.NODE_ENV === 'production' ? 'info' : 'debug',
+  });
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    logger: winstonLogger,
   });
 
   const expressApp = app.getHttpAdapter().getInstance() as Express;
@@ -65,7 +97,7 @@ async function bootstrap() {
 
   await app.listen(env.PORT, env.HOST);
 
-  const logger = new Logger('Bootstrap');
+  const logger = winstonLogger;
   logger.log({
     message: 'Energy IQ API is running on http://localhost:' + env.PORT,
     port: env.PORT,

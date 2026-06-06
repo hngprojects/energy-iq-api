@@ -16,6 +16,10 @@ import { InvertersService } from '../inverters/inverters.service';
 import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
 import { Inverter } from '../inverters/entities/inverters.entity';
 import { GoogleOAuthDto } from '../auth/dto/google-oauth.dto';
+import { UserSettingsModelAction } from './actions/user-settings.action';
+import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
+import { UserSettings } from './entities/user-settings.entity';
+import { GeneratorFuelType } from '../../common/enums/generator';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -23,6 +27,7 @@ const BCRYPT_ROUNDS = 10;
 export class UsersService {
   constructor(
     private readonly userModelAction: UserModelAction,
+    private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
   ) {}
 
@@ -148,10 +153,7 @@ export class UsersService {
     dto: InverterConnectorDto,
     userId: string,
   ): Promise<{ inverter: Inverter; created: boolean }> {
-    const result = await this.invertersService.connectInverterWithMeta(
-      dto,
-      userId,
-    );
+    const result = await this.invertersService.connectInverter(dto, userId);
 
     await this.userModelAction.update({
       ...noTransaction(),
@@ -178,5 +180,145 @@ export class UsersService {
         inverterConnected: user.onboardingComplete,
       },
     };
+  }
+
+  /**
+   * METHODS FOR UPDATING A USER'S SETTING
+   */
+
+  // Personal/business settings
+  async updatePersonalSettings(
+    userId: string,
+    dto: UpdateUserPersonalSettingsDto,
+  ): Promise<UserSettings> {
+    // update user-level fields
+    if (dto.firstName !== undefined || dto.lastName !== undefined) {
+      const userUpdatePayload: Partial<User> = {};
+      if (dto.firstName !== undefined)
+        userUpdatePayload.firstName = dto.firstName;
+      if (dto.lastName !== undefined) userUpdatePayload.lastName = dto.lastName;
+
+      const updatedUser = await this.userModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: userId },
+        updatePayload: userUpdatePayload,
+      });
+
+      if (!updatedUser) {
+        throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+      }
+    }
+
+    // update settings-level fields
+    let settings = await this.userSettingsModelAction.findByUserId(userId);
+
+    const user = await this.findOne(userId);
+
+    if (!settings) {
+      // Auto-create settings if they dont exist yet
+      settings = await this.userSettingsModelAction.create({
+        ...noTransaction(),
+        createPayload: {
+          user,
+          ...(dto.profileUrl !== undefined && {
+            profileUrl: dto.profileUrl,
+          }),
+          ...(dto.businessName !== undefined && {
+            businessName: dto.businessName,
+          }),
+          ...(dto.businessType !== undefined && {
+            businessType: dto.businessType,
+          }),
+          ...(dto.state !== undefined && { state: dto.state }),
+          ...(dto.city !== undefined && { city: dto.city }),
+          ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
+          ...(dto.customFuelPriceNaira !== undefined && {
+            customFuelPriceNaira: dto.customFuelPriceNaira,
+          }),
+          ...(dto.generatorRatedPowerKw !== undefined && {
+            generatorRatedPowerKw: dto.generatorRatedPowerKw,
+          }),
+          ...(dto.generatorFuelType !== undefined &&
+            this.isValidGeneratorType(dto.generatorFuelType) && {
+              generatorFuelType:
+                dto.generatorFuelType.toUpperCase() as GeneratorFuelType,
+            }),
+          ...(dto.generatorAverageDailyRuntimeHours !== undefined && {
+            generatorAverageDailyRuntimeHours:
+              dto.generatorAverageDailyRuntimeHours,
+          }),
+        },
+      });
+
+      return settings;
+    }
+
+    const updatePayload: Partial<UserSettings> = {
+      ...(dto.profileUrl !== undefined && { profileUrl: dto.profileUrl }),
+      ...(dto.businessName !== undefined && { businessName: dto.businessName }),
+      ...(dto.businessType !== undefined && { businessType: dto.businessType }),
+      ...(dto.state !== undefined && { state: dto.state }),
+      ...(dto.city !== undefined && { city: dto.city }),
+      ...(dto.aiLanguage !== undefined && { AiLanguage: dto.aiLanguage }),
+      ...(dto.customFuelPriceNaira !== undefined && {
+        customFuelPriceNaira: dto.customFuelPriceNaira,
+      }),
+      ...(dto.generatorRatedPowerKw !== undefined && {
+        generatorRatedPowerKw: dto.generatorRatedPowerKw,
+      }),
+      ...(dto.generatorFuelType !== undefined &&
+        this.isValidGeneratorType(dto.generatorFuelType) && {
+          generatorFuelType:
+            dto.generatorFuelType.toUpperCase() as GeneratorFuelType,
+        }),
+      ...(dto.generatorAverageDailyRuntimeHours !== undefined && {
+        generatorAverageDailyRuntimeHours:
+          dto.generatorAverageDailyRuntimeHours,
+      }),
+    };
+
+    if (Object.keys(updatePayload).length === 0) {
+      return settings;
+    }
+
+    const updated = await this.userSettingsModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: settings.id },
+      updatePayload,
+    });
+
+    if (!updated) {
+      throw new InternalServerErrorException(SYS_MSG.INTERNAL_SERVER_ERROR);
+    }
+
+    return {
+      ...updated,
+      user: user,
+    };
+  }
+
+  async getUserSetting<K extends keyof UserSettings>(
+    userId: string,
+    settingName: K,
+  ): Promise<UserSettings[K] | null> {
+    return await this.userSettingsModelAction.getSettingValue(
+      userId,
+      settingName,
+    );
+  }
+
+  async getUserSettings(userId: string): Promise<UserSettings> {
+    const settings = await this.userSettingsModelAction.findByUserId(userId);
+    if (!settings) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    return settings;
+  }
+
+  private isValidGeneratorType(t: unknown): t is GeneratorFuelType {
+    return (
+      typeof t === 'string' &&
+      Object.values(GeneratorFuelType)
+        .map((f) => f.toLowerCase())
+        .includes(t.toLowerCase())
+    );
   }
 }

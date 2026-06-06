@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -7,6 +8,8 @@ import {
 import { Interval } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { VictronAdapter } from '../../inverters/adapters/victron.adapters';
 import { GrowattAdapter } from '../../inverters/adapters/growatt.adapter';
 import { SunsynkAdapter } from '../../inverters/adapters/sunsynk.adapter';
@@ -14,10 +17,25 @@ import { SandboxAdapter } from '../../inverters/adapters/sandbox.adapter';
 import { InverterModelAction } from '../../inverters/action/inverters.action';
 import { InvertersMetrics } from '../../inverters-metrics/entities/inverters-metrics.entity';
 import { MetricsPubSubService } from '../pubsub/metrics-pubsub.service';
-import { InverterBrand } from '../../../common/enums';
+import {
+  InverterBrand,
+  AlertType,
+  AlertSeverity,
+  AlertResolutionStatus,
+} from '../../../common/enums';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 import { NormalisedMetric } from '../../inverters/types/shared.types';
 import { SecretManager } from '../../../common/utils/crypto.utils';
+import {
+  INVERTER_CONTROL_CHANNEL,
+  InverterControlMessage,
+  QUEUES,
+} from '../../../common/constants/queue';
+import { Alert } from '../../alerts/entities/alert.entity';
+import { ALERT_DISPATCH_JOB } from '../../alerts/jobs/alert-dispatch.jobs';
+import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { appConfig } from '../../../config/app.config';
+import { type ConfigType } from '@nestjs/config';
 
 const VICTRON_POLL_MS = 120_000; // 2 min
 const GROWATT_POLL_MS = 300_000; // 5 min
@@ -44,14 +62,134 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(InvertersMetrics)
     private readonly metricsRepo: Repository<InvertersMetrics>,
     private readonly pubSubService: MetricsPubSubService,
+    @InjectRepository(Alert)
+    private readonly alertRepo: Repository<Alert>,
+    @InjectQueue(QUEUES.ALERT_DISPATCH)
+    private readonly alertQueue: Queue,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
   ) {}
 
   async onModuleInit(): Promise<void> {
     await this.loadInverters();
+    await this.subscribeToControlChannel();
   }
 
   onModuleDestroy(): void {
     this.logger.log('MetricsPollerService: shutting down');
+  }
+
+  // Dynamic registration
+
+  private async subscribeToControlChannel(): Promise<void> {
+    await this.pubSubService.subscribe(
+      INVERTER_CONTROL_CHANNEL,
+      (raw: string) => {
+        let msg: unknown;
+        try {
+          msg = JSON.parse(raw);
+        } catch {
+          this.logger.warn(
+            `MetricsPollerService: malformed control message: ${raw}`,
+          );
+          return;
+        }
+
+        if (!this.isValidControlMessage(msg)) {
+          this.logger.warn(
+            `MetricsPollerService: invalid control message shape`,
+          );
+          return;
+        }
+
+        if (msg.event === 'registered') {
+          void this.handleInverterRegistered(msg.inverterId);
+        } else if (msg.event === 'deregistered') {
+          this.handleInverterDeregistered(msg.inverterId);
+        } else {
+          // Exhaustive guard — unknown event from a future version of the publisher
+          this.logger.warn(
+            'MetricsPollerService: unknown control event received',
+          );
+        }
+      },
+    );
+    this.logger.log(
+      `MetricsPollerService: subscribed to ${INVERTER_CONTROL_CHANNEL}`,
+    );
+  }
+
+  private isValidControlMessage(msg: unknown): msg is InverterControlMessage {
+    if (!msg || typeof msg !== 'object') return false;
+    const m = msg as Partial<InverterControlMessage>;
+    return (
+      (m.event === 'registered' || m.event === 'deregistered') &&
+      typeof m.inverterId === 'string' &&
+      m.inverterId.length > 0 &&
+      typeof m.brand === 'string'
+    );
+  }
+
+  async handleInverterRegistered(inverterId: string): Promise<void> {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+
+    if (!inverter) {
+      this.logger.warn(
+        `MetricsPollerService: received registered event for unknown inverter ${inverterId}`,
+      );
+      return;
+    }
+
+    // Guard against duplicate registration (e.g. multiple API instances)
+    const alreadyTracked = this.getArrayForBrand(inverter.brand).some(
+      (i) => i.id === inverterId,
+    );
+    if (alreadyTracked) {
+      this.logger.debug(
+        `MetricsPollerService: inverter ${inverterId} already tracked — skipping`,
+      );
+      return;
+    }
+
+    this.getArrayForBrand(inverter.brand).push(inverter);
+    this.logger.log(
+      `MetricsPollerService: dynamically registered inverter ${inverterId} (${inverter.brand})`,
+    );
+  }
+
+  handleInverterDeregistered(inverterId: string): void {
+    for (const brand of Object.values(InverterBrand)) {
+      const arr = this.getArrayForBrand(brand);
+      const idx = arr.findIndex((i) => i.id === inverterId);
+      if (idx !== -1) {
+        arr.splice(idx, 1);
+        this.failureCounts.delete(inverterId);
+        this.logger.log(
+          `MetricsPollerService: deregistered inverter ${inverterId} (${brand})`,
+        );
+        return;
+      }
+    }
+    this.logger.debug(
+      `MetricsPollerService: deregister called for untracked inverter ${inverterId}`,
+    );
+  }
+
+  private getArrayForBrand(brand: InverterBrand): Inverter[] {
+    switch (brand) {
+      case InverterBrand.VICTRON:
+        return this.victronInverters;
+      case InverterBrand.GROWATT:
+        return this.growattInverters;
+      case InverterBrand.SUNSYNK:
+        return this.sunsynkInverters;
+      case InverterBrand.SANDBOX:
+        return this.sandboxInverters;
+      default:
+        return [];
+    }
   }
 
   @Interval(VICTRON_POLL_MS)
@@ -137,6 +275,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
 
       if (fetchInverterFailures >= 2) {
         await this.inverterModelAction.markOffline(inverter.id);
+        void this.fireInverterOfflineAlert(inverter);
       }
       return;
     }
@@ -175,6 +314,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
 
       if (fetchInverterFailures >= 2) {
         await this.inverterModelAction.markOffline(inverter.id);
+        void this.fireInverterOfflineAlert(inverter);
       }
       return;
     }
@@ -194,8 +334,8 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // brandDeviceId stores the device_sn for Growatt
-    const deviceSn = inverter.installationId!;
+    // serialNumber stores the device_sn for Growatt; installationId is the plant_id
+    const deviceSn = inverter.serialNumber;
 
     let metric: NormalisedMetric;
     try {
@@ -213,6 +353,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
 
       if (fetchInverterFailures >= 2) {
         await this.inverterModelAction.markOffline(inverter.id);
+        void this.fireInverterOfflineAlert(inverter);
       }
       return;
     }
@@ -259,6 +400,7 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
 
       if (fetchInverterFailures >= 2) {
         await this.inverterModelAction.markOffline(inverter.id);
+        void this.fireInverterOfflineAlert(inverter);
       }
       return;
     }
@@ -304,6 +446,90 @@ export class MetricsPollerService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.error(
         `Redis publish failed for inverter ${inverterId}`,
+        (err as Error).message,
+      );
+    }
+  }
+
+  /**
+   * Fire a CRITICAL inverter offline alert.
+   *
+   * Called directly from each brand's poll failure path when the failure
+   * count reaches the threshold. The detection job cannot handle this case
+   * because there is no metric message when the inverter is offline.
+   *
+   * Duplicate suppression is handled by checking for an existing unresolved
+   * INVERTER_FAULT alert for this user within the cooldown window. We use a
+   * long cooldown (60 min) since an offline state tends to persist — we don't
+   * want to spam the user on every poll cycle.
+   */
+  private async fireInverterOfflineAlert(inverter: Inverter): Promise<void> {
+    try {
+      const cooldownMinutes = 60;
+      const now = new Date();
+      const cooldownCutoff = new Date(
+        now.getTime() - cooldownMinutes * 60 * 1000,
+      );
+
+      // Check for a recent unresolved offline alert for this inverter
+      const recentAlert = await this.alertRepo.findOne({
+        where: {
+          userId: inverter.userId,
+          type: AlertType.INVERTER_FAULT,
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (recentAlert && recentAlert.createdAt > cooldownCutoff) {
+        this.logger.log(
+          `MetricsPollerService: suppressed duplicate offline alert for inverter ${inverter.id} (within ${cooldownMinutes}min cooldown)`,
+        );
+        return;
+      }
+
+      const message = `Your ${inverter.brand} inverter (${inverter.model}) has gone offline after 3 consecutive failed data fetches. Check your inverter's network connection and power status.`;
+
+      const savedAlert = await this.alertRepo.save(
+        this.alertRepo.create({
+          userId: inverter.userId,
+          type: AlertType.INVERTER_FAULT,
+          platform: inverter.brand.toLowerCase(),
+          severity: AlertSeverity.CRITICAL,
+          message,
+          resolutionStatus: AlertResolutionStatus.UNRESOLVED,
+          triggeredAt: now,
+          isActive: true,
+          deliveryProcessingStatus: ProcessingStatus.pending,
+          deliverable: true, // CRITICAL always bypasses quiet hours
+          deliveryStatus: 'pending',
+          metadata: {
+            alertReason: message,
+            alertTitle: 'Inverter offline',
+            stats: [
+              { label: 'Inverter', value: inverter.model },
+              { label: 'Brand', value: inverter.brand },
+              { label: 'Status', value: 'Offline' },
+            ],
+          },
+        }),
+      );
+
+      await this.alertQueue.add(ALERT_DISPATCH_JOB, {
+        alertId: savedAlert.id,
+        userId: savedAlert.userId,
+        type: savedAlert.type,
+        severity: savedAlert.severity,
+        message: savedAlert.message,
+        channel: 'whatsapp',
+        dashboardUrl: this.appCfg.clientUrl,
+      });
+
+      this.logger.log(
+        `MetricsPollerService: CRITICAL offline alert created for inverter ${inverter.id} (user ${inverter.userId})`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `MetricsPollerService: failed to fire offline alert for inverter ${inverter.id}`,
         (err as Error).message,
       );
     }

@@ -44,4 +44,12 @@ export class ChatModelAction extends AbstractModelAction<Chat> {
     });
     return result.payload;
   }
+
+  async updateChat(id: string, data: Partial<Chat>): Promise<void> {
+    await this.update({
+      updatePayload: data,
+      identifierOptions: { id },
+      transactionOptions: { useTransaction: false },
+    });
+  }
 }

@@ -30,6 +30,29 @@ export class InverterModelAction extends AbstractModelAction<Inverter> {
     return this.repository.find({ where: { userId } });
   }
 
+  async findIdsByUserId(userId: string): Promise<string[]> {
+    const inverters = await this.repository.find({
+      where: { userId },
+      select: ['id'],
+    });
+    return inverters.map((inv) => inv.id);
+  }
+
+  /**
+   * Returns the ID of the first (oldest) inverter registered for a user.
+   * By design each user should have exactly one inverter, but this guards
+   * against any case where multiple exist — agents should only act on the
+   * first one to avoid ambiguous results.
+   */
+  async findFirstIdByUserId(userId: string): Promise<string | null> {
+    const inverter = await this.repository.findOne({
+      where: { userId },
+      select: ['id'],
+      order: { createdAt: 'ASC' },
+    });
+    return inverter?.id ?? null;
+  }
+
   async findActiveByUserId(userId: string): Promise<Inverter[]> {
     return this.repository.find({ where: { userId, isActive: true } });
   }

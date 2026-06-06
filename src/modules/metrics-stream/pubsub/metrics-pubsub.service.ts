@@ -45,9 +45,16 @@ export class MetricsPubSubService
     this.subscriber.on(
       'pmessage',
       (pattern: string, channel: string, message: string) => {
+        this.logger.log(
+          `MetricsPubSubService: pmessage received — pattern=${pattern}, channel=${channel}`,
+        );
         const callbacks = this.patternSubscriptions.get(pattern);
         if (callbacks) {
           callbacks.forEach((cb) => cb(message, channel));
+        } else {
+          this.logger.warn(
+            `MetricsPubSubService: no callbacks registered for pattern ${pattern}`,
+          );
         }
       },
     );

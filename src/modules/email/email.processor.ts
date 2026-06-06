@@ -12,11 +12,14 @@ import {
   VerifyEmailJobData,
   WelcomeJobData,
   ContactUsJobData,
+  AlertNotificationJobData,
+  WaitlistJoinedJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { QUEUES } from '../../common/constants/queue';
+import { AlertSeverity } from '../../common/enums';
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -51,6 +54,10 @@ export class EmailProcessor extends WorkerHost {
         return this.handleLinkExpire(job as Job<LinkExpiredJobData>);
       case EMAIL_JOBS.CONTACT_US:
         return this.handleContactUs(job as Job<ContactUsJobData>);
+      case EMAIL_JOBS.ALERT_ALERT:
+        return this.handleInverterAlert(job as Job<AlertNotificationJobData>);
+      case EMAIL_JOBS.WAITLIST_JOINED:
+        return this.handleWaitlistJoined(job as Job<WaitlistJoinedJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -255,6 +262,123 @@ export class EmailProcessor extends WorkerHost {
 
     this.logger.log(
       `Contact us email sent successfully for ${this.maskEmail(email)}`,
+    );
+  }
+
+  private async handleInverterAlert(
+    job: Job<AlertNotificationJobData>,
+  ): Promise<void> {
+    const {
+      to,
+      firstName,
+      alertType,
+      alertSeverity,
+      alertReason,
+      resolveLink,
+      // batterySoc,
+      // dischargeRate,
+      // timeToEmpty,
+      stats,
+      alertTitle,
+    } = job.data;
+
+    this.logger.log(
+      `Sending ${alertType} ${alertSeverity} email to ${this.maskEmail(to)}`,
+    );
+
+    let templateName: string;
+    let context: Record<string, unknown>;
+
+    if (alertSeverity === AlertSeverity.CRITICAL) {
+      templateName = 'alert-critical';
+      const statList = stats ?? [];
+      context = {
+        firstName,
+        alertTitle: alertTitle ?? `Critical Alert`,
+        stats: statList,
+        statWidth:
+          statList.length > 0 ? Math.floor(100 / statList.length) : 100,
+        alertReason,
+        resolveLink,
+      };
+    } else {
+      // WARNING (and any future non-critical severity)
+      templateName = 'alert-warning';
+      const statList = stats ?? [];
+      context = {
+        firstName,
+        alertTitle: alertTitle ?? `${alertType} Alert`,
+        stats: statList,
+        // Each stat card gets an equal share of the row width.
+        // Passed as a plain number so the template can use it inline.
+        statWidth:
+          statList.length > 0 ? Math.floor(100 / statList.length) : 100,
+        alertReason,
+        resolveLink,
+      };
+    }
+
+    const html = this.renderTemplate(templateName, context);
+
+    const fromAddress = this.appCfg.resendFrom;
+    const subject =
+      alertSeverity === AlertSeverity.CRITICAL
+        ? `⚠️ Critical Alert: ${alertType}`
+        : `Alert: ${alertTitle ?? alertType}`;
+
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `${alertType} ${alertSeverity} email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `${alertType} ${alertSeverity} email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
+
+  private async handleWaitlistJoined(
+    job: Job<WaitlistJoinedJobData>,
+  ): Promise<void> {
+    const { to, year } = job.data;
+
+    this.logger.log(`Sending waitlist joined email to ${this.maskEmail(to)}`);
+    const html = this.renderTemplate(EMAIL_JOBS.WAITLIST_JOINED, {
+      email: to,
+      year,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `You have joined the waitlist`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `waitlist joined email delivery failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Waitlist joined email sent successfully to ${this.maskEmail(to)}`,
     );
   }
 

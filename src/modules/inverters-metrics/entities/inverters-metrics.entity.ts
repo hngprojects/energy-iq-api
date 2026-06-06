@@ -4,6 +4,7 @@ import { Inverter } from '../../inverters/entities/inverters.entity';
 
 @Entity('inverter_metrics')
 @Index(['inverterId', 'createdAt'])
+@Index(['inverterId', 'metricTimestamp'])
 export class InvertersMetrics extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   inverterId: string;
@@ -28,15 +29,6 @@ export class InvertersMetrics extends AbstractBaseEntity {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   gridVoltageV?: number;
-
-  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
-  nairaSavedNgn: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  dailyEnergyKwh?: number;
-
-  @Column({ type: 'jsonb', nullable: true })
-  rawData?: Record<string, unknown>;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   inverterStatus?: string;

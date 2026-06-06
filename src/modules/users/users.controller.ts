@@ -20,6 +20,7 @@ import type { AuthenticatedUser } from '../../common/decorators/current-user.dec
 import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
 import { PaginationDto } from '../../common/dto/pagination.do';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -71,5 +72,25 @@ export class UsersController {
   @ApiOperation({ summary: 'Delete a user' })
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
+  }
+
+  /**
+   * USER SETTINGS
+   */
+
+  @Patch('settings/personal')
+  @ApiOperation({ summary: 'Update personal / business settings and name' })
+  updatePersonalSettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateUserPersonalSettingsDto,
+  ) {
+    return this.usersService.updatePersonalSettings(user.sub, dto);
+  }
+
+  @Get('settings/personal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Get a user's settings" })
+  getUserSettings(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getUserSettings(user.sub);
   }
 }

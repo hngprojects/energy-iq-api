@@ -59,6 +59,13 @@ export const env = createEnv({
       .default(true)
       .transform((v) => v === true || v === 'true'),
 
+    // BetterStack / Logtail
+    LOGTAIL_SOURCE_TOKEN: z.string().optional().default(''),
+    LOGTAIL_INGESTING_ENDPOINT: z
+      .url()
+      .optional()
+      .default('https://in.logtail.com'),
+
     CHAT_CONTEXT_LENGTH: z.coerce
       .number()
       .int()
@@ -70,17 +77,21 @@ export const env = createEnv({
       .positive()
       .transform((v) => Number(v)),
     GROQ_API_KEY: z.string().nonoptional(),
+    GEMINI_API_KEY: z.string().nonoptional(),
     CHATBOT_NAME: z.string().default('orochimaru'),
     SECRET_MANAGER_ENCRYPTION_KEY: z.string().length(32),
 
     VICTRON_API_BASE_URL: z
       .url()
       .default('https://vrmapi.victronenergy.com/v2'),
-    GROWATT_API_BASE_URL: z.url().default(''),
+    GROWATT_API_BASE_URL: z.url().default('https://openapi.growatt.com'),
     SUNSYNK_API_BASE_URL: z.url().default('https://globalapi.solarmanpv.com'),
     SANDBOX_API_BASE_URL: z.url().default('http://localhost:3002'),
     SOLARMAN_APP_ID: z.string().min(1),
     SOLARMAN_APP_SECRET: z.string().min(1),
+    ALLOWED_SANDBOX_TOKENS: z
+      .string()
+      .default('mock-token-a,mock-token-b,mock-token-c'),
 
     TWILIO_ACCOUNT_SID: z.string().min(1),
     TWILIO_AUTH_TOKEN: z.string().min(1),

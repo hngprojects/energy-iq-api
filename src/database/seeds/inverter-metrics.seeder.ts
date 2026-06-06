@@ -35,8 +35,6 @@ export const inverterMetricsSeeder: Seeder = {
         batteryVoltageV: Math.abs(Math.round(i / 3)),
         batteryCurrentA: i,
         gridVoltageV: Math.abs(Math.round(i / 3)),
-        nairaSavedNgn: i * 10000,
-        dailyEnergyKwh: Math.floor(Math.random() * i),
         inverterStatus: 'active',
         batteryTemperatureC: i,
         batteryTimeToGoMin: i * 10,

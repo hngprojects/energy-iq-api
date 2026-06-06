@@ -8,6 +8,8 @@
  * Devices are identified by their installationId (Victron site ID).
  */
 
+export type DeviceMode = 'normal' | 'charging' | 'discharging';
+
 export interface DeviceState {
   installationId: string;
   name: string;
@@ -26,6 +28,9 @@ export interface DeviceState {
   inverterStatus: string;
   panelCapacityKw: number; // rated panel capacity
   batteryCapacityKwh: number; // rated battery capacity
+  // Manual override fields — reset to 'normal' on server restart
+  mode: DeviceMode;
+  modeExpiresAt: number | null; // ms timestamp; null when mode is 'normal'
 }
 
 // Seeded devices 
@@ -59,6 +64,8 @@ const DEVICES: DeviceState[] = [
     inverterStatus: 'normal',
     panelCapacityKw: 5.0,
     batteryCapacityKwh: 10.0,
+    mode: 'normal',
+    modeExpiresAt: null,
   },
   {
     installationId: '100002',
@@ -78,6 +85,8 @@ const DEVICES: DeviceState[] = [
     inverterStatus: 'normal',
     panelCapacityKw: 3.0,
     batteryCapacityKwh: 7.5,
+    mode: 'normal',
+    modeExpiresAt: null,
   },
   {
     // Low SOC device — useful for testing RED health status
@@ -85,19 +94,21 @@ const DEVICES: DeviceState[] = [
     name: 'EnergyIQ Test Site C (Low Battery)',
     identifier: 'MOCK-VIC-003',
     victronUserId: 9003,
-    batterySoc: 15,
+    batterySoc: 18,
     batteryVoltageV: 45.2,
-    batteryCurrentA: -5.0,
+    batteryCurrentA: -10.0,
     batteryTemperatureC: 35,
-    batteryTimeToGoMin: 20,
-    solarPowerKw: 0.0,
-    acOutputPowerKw: 1.5,
+    batteryTimeToGoMin: 25,
+    solarPowerKw: 0.0,       // no solar — forces net discharge every tick
+    acOutputPowerKw: 2.5,    // load > solar → depletion engine fires
     gridVoltageV: 231,
     gridFrequencyHz: 50,
     inverterTemperatureC: 40,
     inverterStatus: 'normal',
     panelCapacityKw: 4.0,
     batteryCapacityKwh: 5.0,
+    mode: 'normal',
+    modeExpiresAt: null,
   },
 ];
 
@@ -147,22 +158,39 @@ const TICK_DURATION_MINUTES = 0.5; // 30 seconds expressed in minutes
 
 export function tick(): void {
   const now = new Date();
+  const nowMs = now.getTime();
   const lagosHour = (now.getUTCHours() + 1) % 24; // UTC+1
   const lagosMinute = now.getUTCMinutes();
   const hourOfDay = lagosHour + lagosMinute / 60;
 
   for (const device of DEVICES) {
-    const solarMult = solarMultiplier(hourOfDay);
+    // Auto-revert expired overrides back to normal behaviour
+    if (device.mode !== 'normal' && device.modeExpiresAt !== null && nowMs >= device.modeExpiresAt) {
+      device.mode = 'normal';
+      device.modeExpiresAt = null;
+      console.log(`[mock] Installation ${device.installationId} override expired — reverted to normal`);
+    }
 
-    // Solar output: rated capacity × curve × noise
-    device.solarPowerKw = clamp(
-      device.panelCapacityKw * solarMult + noise(0.15),
-      0,
-      device.panelCapacityKw,
-    );
+    let solarPowerKw: number;
+    let acOutputPowerKw: number;
 
-    // Load: base 1.5 kW with noise
-    device.acOutputPowerKw = clamp(1.5 + noise(0.4), 0.3, 4.0);
+    if (device.mode === 'charging') {
+      // Force peak solar (full panel capacity), keep load low → net charge
+      solarPowerKw = clamp(device.panelCapacityKw * 0.95 + noise(0.1), 0, device.panelCapacityKw);
+      acOutputPowerKw = clamp(0.8 + noise(0.15), 0.3, 1.2);
+    } else if (device.mode === 'discharging') {
+      // Force zero solar, push load high → net discharge
+      solarPowerKw = 0;
+      acOutputPowerKw = clamp(3.2 + noise(0.3), 2.5, 4.0);
+    } else {
+      // Normal: time-of-day solar curve
+      const solarMult = solarMultiplier(hourOfDay);
+      solarPowerKw = clamp(device.panelCapacityKw * solarMult + noise(0.15), 0, device.panelCapacityKw);
+      acOutputPowerKw = clamp(1.5 + noise(0.4), 0.3, 4.0);
+    }
+
+    device.solarPowerKw = solarPowerKw;
+    device.acOutputPowerKw = acOutputPowerKw;
 
     // Net power: positive = charging battery, negative = draining
     const netKw = device.solarPowerKw - device.acOutputPowerKw;
@@ -207,4 +235,38 @@ export function getDeviceByInstallationId(id: string): DeviceState | undefined {
 
 export function getDeviceByVictronUserId(userId: number): DeviceState | undefined {
   return DEVICES.find((d) => d.victronUserId === userId);
+}
+
+// Manual override
+
+const DEFAULT_OVERRIDE_DURATION_MINUTES = 60;
+const MAX_OVERRIDE_DURATION_MINUTES = 480;
+
+/**
+ * Force a device into a specific mode for a given duration.
+ * Passing mode 'normal' clears any active override immediately (no timer set).
+ *
+ * @param installationId  The site ID (e.g. '100001')
+ * @param mode            'charging' | 'discharging' | 'normal'
+ * @param durationMinutes How long to hold the override (ignored for 'normal')
+ * @returns The updated device, or undefined if not found
+ */
+export function setDeviceMode(
+  installationId: string,
+  mode: DeviceMode,
+  durationMinutes: number = DEFAULT_OVERRIDE_DURATION_MINUTES,
+): DeviceState | undefined {
+  const device = getDeviceByInstallationId(installationId);
+  if (!device) return undefined;
+
+  if (mode === 'normal') {
+    device.mode = 'normal';
+    device.modeExpiresAt = null;
+  } else {
+    const safeDuration = Number.isFinite(durationMinutes) && durationMinutes > 0 ? Math.min(durationMinutes, MAX_OVERRIDE_DURATION_MINUTES) : DEFAULT_OVERRIDE_DURATION_MINUTES;
+    device.mode = mode;
+    device.modeExpiresAt = Date.now() + safeDuration * 60_000;
+  }
+
+  return device;
 }

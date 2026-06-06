@@ -4,15 +4,18 @@ on:
   workflow_run:
     workflows:
       - "CI Quality & Security Gate"
-    types:
-      - completed
+    types: [completed]
+    branches: [staging]
   workflow_dispatch:
-
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10"
+
 concurrency:
-  group: backend-deploy-staging
+  group: deploy-staging-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,14 +25,115 @@ jobs:
     timeout-minutes: 25
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'staging')
-
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    environment: staging
     steps:
       - name: Checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Deploy via SSH
+      - name: Setup pnpm
+        uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Create Deployment Archive
+        id: archive
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          FILENAME="${SHA:0:12}.tar.gz"
+          echo "filename=${FILENAME}" >> "$GITHUB_OUTPUT"
+          tar \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='.github' \
+          --exclude='*.tar.gz' \
+          -czf "/tmp/${FILENAME}" .
+          mv /tmp/"${FILENAME}" .
+
+      - name: Copy Archive to Server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "${{ steps.archive.outputs.filename }}"
+          target: /tmp
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        env:
+          ARCHIVE: ${{ steps.archive.outputs.filename }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: ARCHIVE
+          script: |
+            set -e
+            echo "==> Connected as: $(whoami)"
+            echo "==> Home: $HOME"
+            echo "==> ARCHIVE: $ARCHIVE"
+            APP_DIR=/home/appuser/backend/staging
+            echo "==> APP_DIR: $APP_DIR"
+            DEPLOY_DIR="$APP_DIR/releases/$ARCHIVE"
+            mkdir -p "$DEPLOY_DIR"
+            tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
+
+            # Capture previous release before any changes
+            PREV=$(readlink -f "$APP_DIR/current" 2>/dev/null || echo "")
+            echo "$PREV" > "$APP_DIR/.prev_release"
+
+            cd "$DEPLOY_DIR"
+            pnpm install --frozen-lockfile
+            ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
+
+            # Run migrations from new release before symlink swap
+            pnpm migration:run
+
+            # Point traffic to the new release
+            ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
+
+            cat > "$DEPLOY_DIR/ecosystem.config.js" <<EOF
+            module.exports = {
+              apps: [{
+                name: 'be-staging',
+                script: '$DEPLOY_DIR/dist/main.js',
+                cwd: '$DEPLOY_DIR',
+              }]
+            }
+            EOF
+
+            pm2 reload "$DEPLOY_DIR/ecosystem.config.js" --update-env \
+              || pm2 start "$DEPLOY_DIR/ecosystem.config.js"
+            pm2 save
+
+            # keep last 3 releases, clean the rest
+            ls -dt "$APP_DIR/releases"/*/ | tail -n +4 | xargs rm -rf
+
+            echo "==> Cleaning up..."
+            rm -f /tmp/"${ARCHIVE}"
+            echo "Staging deploy complete"
+
+      - name: Rollback on failure
+        if: failure()
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -37,33 +141,13 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
-            
-            cd /home/appuser/backend/staging/
-
-            git pull origin staging
-
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-            pnpm install --frozen-lockfile
-            pnpm migration:run
-            pnpm build
-
-            pm2 reload be-staging --update-env || pm2 start dist/main.js --name be-staging
-            pm2 save
-            
-
-      - name: Health check
-        run: |
-          echo "Waiting for staging service to be ready..."
-          for i in $(seq 1 12); do
-            if curl --silent --fail --max-time 10 \
-                "${{ secrets.STAGING_HEALTH_URL }}"; then
-              echo "Health check passed on attempt $i."
-              exit 0
+            APP_DIR=/home/appuser/backend/staging
+            PREV=$(cat "$APP_DIR/.prev_release" 2>/dev/null)
+            if [ -z "$PREV" ] || [ ! -d "$PREV" ]; then
+              echo "No valid previous release found, cannot rollback"
+              exit 1
             fi
-            echo "Attempt $i/12 failed — retrying in 10s..."
-            sleep 10
-          done
-          echo "Health check failed after 2 minutes."
-          exit 1
+            ln -sfn "$PREV" "$APP_DIR/current"
+            cd "$APP_DIR/current"
+            pnpm migration:revert
+            pm2 reload be-staging --update-env

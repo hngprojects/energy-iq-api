@@ -38,12 +38,19 @@
     "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
     "mock:install": "cd mock-inverter-server && pnpm install",
     "mock:start": "cd mock-inverter-server && pnpm start",
-    "mock:dev": "pnpm --prefix mock-inverter-server run dev"
+    "mock:dev": "pnpm --prefix mock-inverter-server run dev",
+    "regression:install": "cd regression-tests && pnpm install",
+    "regression:test": "pnpm --prefix regression-tests run test",
+    "regression:test:cli": "pnpm --prefix regression-tests run test:cli",
+    "regression:test:report": "pnpm --prefix regression-tests run test:report"
   },
   "dependencies": {
     "@hng-sdk/orm": "^0.0.0",
     "@langchain/core": "^1.1.46",
+    "@langchain/google-genai": "^2.1.31",
     "@langchain/groq": "^1.2.0",
+    "@logtail/node": "^0.5.8",
+    "@logtail/winston": "^0.5.8",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
@@ -70,6 +77,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
     "langchain": "^1.4.0",
+    "nest-winston": "^1.10.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
@@ -81,6 +89,7 @@
     "twilio": "^6.0.2",
     "typeorm": "^0.3.28",
     "typeorm-naming-strategy": "^2.0.17",
+    "winston": "^3.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -130,8 +139,9 @@
     "overrides": {
       "typeorm": "0.3.28",
       "ws": "8.20.1",
-      "axios": "1.15.2",
-      "follow-redirects": "1.16.0"
+      "axios": "1.16.1",
+      "follow-redirects": "1.16.0",
+      "uuid": "11.1.1"
     }
   },
   "jest": {

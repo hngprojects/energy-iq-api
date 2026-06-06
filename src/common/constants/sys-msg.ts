@@ -21,6 +21,7 @@ export const SYS_MSG = {
   EMAIL_NOT_VERIFIED: 'This user email is not verified',
   OTP_NOT_EXPIRED: 'Your verification code has not expired yet',
   USER_NOT_FOUND: 'No user found with the provided email address',
+  INVALID_OAUTH_STATE: 'Invalid Oauth State',
   UNVERIFIED_GOOGLE_ACCOUNT_EMAIL: 'Google account email is not verified',
   MISSING_GOOGLE_PROFILE_INFO:
     'Google account did not provide required profile information',
@@ -31,6 +32,8 @@ export const SYS_MSG = {
   FORBIDDEN_REDIRECT_URL: 'Redirected URL origin not permitted',
   UNVERIFIED_USER: 'The user email is not verified',
   INVALID_TOKEN: 'The token is invalid',
+  SANDBOX_CONNECTION_FAILED:
+    'Could not connect to your Sandbox Inverter. Check your access token',
   INVERTER_DEACTIVATED: 'Inverter deactivated successfully',
   INVERTER_ALREADY_INACTIVE: 'This inverter is already deactivated',
   EMPTY_WHATSAPP_MESSAGE: 'Either contentSid or a non-empty body is required',
@@ -39,4 +42,6 @@ export const SYS_MSG = {
   GOOGLE_MOBILE_AUTH_FAILED: 'Google authentication failed',
   INVALID_GOOGLE_TOKEN: 'Invalid Google token payload',
   ALERT_NOT_FOUND: 'Alert not found',
+  NOT_INVERTER_OWNER: 'User does not own inverter',
+  NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type',
 } as const;

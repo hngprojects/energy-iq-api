@@ -11,7 +11,10 @@ import {
   WelcomeJobData,
   ContactUsJobData,
   AlertNotificationJobData,
+  AlertStat,
+  WaitlistJoinedJobData,
 } from './email.jobs';
+import { AlertSeverity, AlertType } from '../../common/enums';
 
 @Injectable()
 export class EmailService {
@@ -95,10 +98,38 @@ export class EmailService {
     } satisfies ContactUsJobData);
   }
 
-  async sendAlert(to: string, message: string): Promise<void> {
+  async sendAlert(
+    to: string,
+    firstName: string,
+    alertType: AlertType,
+    alertSeverity: AlertSeverity,
+    alertReason: string,
+    resolveLink: string,
+    options: {
+      /** CRITICAL: fixed battery stats */
+      // batterySoc?: number;
+      // dischargeRate?: number;
+      // timeToEmpty?: string;
+      /** WARNING: dynamic stat cards */
+      stats?: AlertStat[];
+      alertTitle?: string;
+    } = {},
+  ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.ALERT_ALERT, {
       to,
-      message,
+      firstName,
+      alertType,
+      alertSeverity,
+      alertReason,
+      resolveLink,
+      ...options,
     } satisfies AlertNotificationJobData);
+  }
+
+  async sendWaitlistJoinedEmail(toEmail: string, year: number): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.WAITLIST_JOINED, {
+      to: toEmail,
+      year: year.toString(),
+    } satisfies WaitlistJoinedJobData);
   }
 }
