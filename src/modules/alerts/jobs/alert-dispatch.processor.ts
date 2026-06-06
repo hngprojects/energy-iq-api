@@ -42,8 +42,6 @@ export class AlertDispatchProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<any> {
-    this.logger.log(`Processing alert dispatch job ${job.id}`);
-
     switch (job.name) {
       case ALERT_DISPATCH_JOB:
         return this.handleDispatch(job as Job<AlertDispatchJobData>);
@@ -89,10 +87,6 @@ export class AlertDispatchProcessor extends WorkerHost {
 
     const whatsappEnabled = !!(user.phoneNumber && settings?.whatsappAlerts);
     const emailEnabled = settings?.emailAlerts ?? true; // default to email if no settings
-
-    this.logger.debug(
-      `Alert ${alertId} channel eligibility — whatsapp: ${whatsappEnabled} (phone=${!!user.phoneNumber}, setting=${settings?.whatsappAlerts}), email: ${emailEnabled} (setting=${settings?.emailAlerts})`,
-    );
 
     const result = await deliverWithFallback(
       {
@@ -179,9 +173,6 @@ export class AlertDispatchProcessor extends WorkerHost {
   ): Promise<void> {
     const { alertId, userId } = job.data;
 
-    this.logger.log(
-      `Processing deferred delivery for alert ${alertId} (user ${userId})`,
-    );
     const alert = await this.alertRepo.findOne({ where: { id: alertId } });
     if (!alert) {
       throw new NotFoundException(SYS_MSG.ALERT_NOT_FOUND);

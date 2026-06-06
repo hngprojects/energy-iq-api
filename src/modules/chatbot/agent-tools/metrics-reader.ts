@@ -82,40 +82,39 @@ export class MetricsReader implements AgentTool {
     },
     userId: string,
   ): Promise<string> {
-    // Resolve the list of inverter IDs to query
-    let inverterIds: string[];
+    let inverterId: string;
 
     if (input.inverterId) {
       // Validate ownership — the requested inverter must belong to this user
-      const userIds = await this.inverterAction.findIdsByUserId(userId);
-      if (!userIds.includes(input.inverterId)) {
+      const firstId = await this.inverterAction.findFirstIdByUserId(userId);
+      if (!firstId || firstId !== input.inverterId) {
         return 'The requested inverter was not found or does not belong to your account.';
       }
-      inverterIds = [input.inverterId];
+      inverterId = input.inverterId;
     } else {
-      inverterIds = await this.inverterAction.findIdsByUserId(userId);
-      if (inverterIds.length === 0) {
+      // By design each user has one inverter — always use the first registered one
+      const firstId = await this.inverterAction.findFirstIdByUserId(userId);
+      if (!firstId) {
         return 'No inverters found for your account.';
       }
+      inverterId = firstId;
     }
 
-    // Fetch metrics for each inverter in parallel
-    const results = await Promise.all(
-      inverterIds.map((id) =>
-        this.metricsService.getMetricsForAgent(id, input.mode, input.period),
-      ),
+    const result = await this.metricsService.getMetricsForAgent(
+      inverterId,
+      input.mode,
+      input.period,
     );
 
-    const hasData = results.some(
-      (r) =>
-        r.data !== null &&
-        r.data !== undefined &&
-        !(Array.isArray(r.data) && r.data.length === 0),
-    );
+    const hasData =
+      result.data !== null &&
+      result.data !== undefined &&
+      !(Array.isArray(result.data) && result.data.length === 0);
+
     if (!hasData) {
-      return 'No metrics data is available for your inverter(s) yet.';
+      return 'No metrics data is available for your inverter yet.';
     }
 
-    return JSON.stringify(results);
+    return JSON.stringify(result);
   }
 }
