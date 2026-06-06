@@ -1,7 +1,6 @@
 import {
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -20,8 +19,6 @@ import { appConfig } from '../../config/app.config';
 
 @Injectable()
 export class AlertsService {
-  private readonly logger = new Logger(AlertsService.name);
-
   constructor(
     private readonly alertAction: AlertModelAction,
     @Inject(appConfig.KEY)
@@ -77,28 +74,22 @@ export class AlertsService {
   }
 
   async getAlertDetails(dto: GetAlertDetailsDto) {
-    this.logger.log(`Fetching alert details`);
     const alert = await this.alertAction.findById(dto.alertId);
     if (!alert) {
-      this.logger.warn(`Alert not found`);
       throw new NotFoundException(SYS_MSG.NOT_FOUND);
     }
     if (alert.userId !== dto.userId) {
-      this.logger.warn(`Unauthorized alert access attempt`);
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
     }
     return alert;
   }
 
   async resolveAlert(dto: ResolveAlertDetailsDto) {
-    this.logger.log(`Resolving alert`);
     const alert = await this.alertAction.findById(dto.alertId);
     if (!alert) {
-      this.logger.warn(`Alert not found for resolution`);
       throw new NotFoundException(SYS_MSG.NOT_FOUND);
     }
     if (alert.userId !== dto.userId) {
-      this.logger.warn(`Unauthorized alert resolution attempt`);
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
     }
     return this.alertAction.markAsResolved(dto.alertId);
