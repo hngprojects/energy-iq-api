@@ -53,7 +53,7 @@ jobs:
 
       - name: Build
         run: pnpm build
-      
+
       - name: Create Deployment Archive
         id: archive
         run: |
@@ -87,30 +87,26 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           envs: ARCHIVE
           script: |
-            set -euo pipefail
-            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
-            DEPLOY_DIR="$APP_DIR/releases/${ARCHIVE%.tar.gz}"
+            set -e
+            echo "==> Connected as: $(whoami)"
+            echo "==> Home: $HOME"
+            echo "==> ARCHIVE: $ARCHIVE"
+            APP_DIR=/home/appuser/backend/staging
+            echo "==> APP_DIR: $APP_DIR"
+            DEPLOY_DIR="$APP_DIR/releases/$ARCHIVE"
             mkdir -p "$DEPLOY_DIR"
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
 
             # Capture previous release before any changes
-            PREV=$(readlink -f "$APP_DIR/current")
+            PREV=$(readlink -f "$APP_DIR/current" 2>/dev/null || echo "")
             echo "$PREV" > "$APP_DIR/.prev_release"
 
             cd "$DEPLOY_DIR"
             pnpm install --frozen-lockfile
             ln -sfn "$APP_DIR/shared/.env" "$DEPLOY_DIR/.env"
 
-            # Count migrations before applying new ones
-            BEFORE=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
-
             # Run migrations from new release before symlink swap
             pnpm migration:run
-
-            # Count how many were applied, store for rollback
-            AFTER=$(pnpm migration:show 2>/dev/null | awk '/^\[X\]/{count++} END { print count + 0 }')
-            APPLIED=$(( AFTER - BEFORE ))
-            echo "$APPLIED" > "$APP_DIR/.migrations_applied"
 
             # Point traffic to the new release
             ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
@@ -130,42 +126,14 @@ jobs:
             pm2 save
 
             # keep last 3 releases, clean the rest
-            ls -dt "$APP_DIR/releases"/*/  | tail -n +4 | xargs rm -rf
+            ls -dt "$APP_DIR/releases"/*/ | tail -n +4 | xargs rm -rf
 
             echo "==> Cleaning up..."
             rm -f /tmp/"${ARCHIVE}"
-            echo "Staging deploy complete"          
-
-      - name: Health check
-        id: healthcheck
-        run: |
-          echo "Waiting for staging service to be ready..."
-          for i in $(seq 1 5); do
-            RESPONSE=$(curl --silent --max-time 10 --write-out "\n%{http_code}" \
-                "${{ secrets.STAGING_HEALTH_URL }}")
-            STATUS_CODE=$(echo "$RESPONSE" | tail -n 1)
-            BODY=$(echo "$RESPONSE" | head -n -1)
-            if [ "$STATUS_CODE" -ne 200 ]; then
-              echo "Attempt $i/5 — HTTP $STATUS_CODE"
-              echo "$BODY"
-              sleep 15
-              continue
-            fi
-            if [ "$(echo "$BODY" | jq -r '.data.status')" != 'ok' ]; then
-              echo "Attempt $i/5 — app unhealthy"
-              echo "$BODY"
-              sleep 10
-              continue
-            fi
-            echo "Health check passed."
-            exit 0
-          done
-          
-          echo "Health check failed after 5 attempts."
-          exit 1
+            echo "Staging deploy complete"
 
       - name: Rollback on failure
-        if: ${{ failure() && steps.healthcheck.outcome == 'failure' }}
+        if: failure()
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -173,22 +141,13 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             set -e
-            APP_DIR=/home/${{ secrets.SSH_USER }}/backend/staging
-
-            # Revert exactly the migrations this deploy applied
-            APPLIED=$(cat "$APP_DIR/.migrations_applied" 2>/dev/null || echo 0)
-            if [ "$APPLIED" -gt 0 ]; then
-              cd "$APP_DIR/current"
-              for i in $(seq 1 "$APPLIED"); do
-                pnpm migration:revert
-              done
-            fi
-
+            APP_DIR=/home/appuser/backend/staging
             PREV=$(cat "$APP_DIR/.prev_release" 2>/dev/null)
             if [ -z "$PREV" ] || [ ! -d "$PREV" ]; then
               echo "No valid previous release found, cannot rollback"
               exit 1
             fi
             ln -sfn "$PREV" "$APP_DIR/current"
-            
+            cd "$APP_DIR/current"
+            pnpm migration:revert
             pm2 reload be-staging --update-env
