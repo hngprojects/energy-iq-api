@@ -4,6 +4,8 @@ import { chatbotConfig } from '../../config/chatbot.config';
 import { createAgent, HumanMessage, ReactAgent } from 'langchain';
 import { AlertReader } from './agent-tools/alert-reader';
 import { MetricsReader } from './agent-tools/metrics-reader';
+import { SavingsReader } from './agent-tools/savings-reader';
+import { SystemInsightsReader } from './agent-tools/system-insights-reader';
 import { SYSTEM_PROMPT } from './helpers/prompts';
 import { Message } from './entities/message.entity';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
@@ -17,11 +19,15 @@ export class AgentService {
   private readonly botName: string;
   private readonly alertReader: AlertReader;
   private readonly metricsReader: MetricsReader;
+  private readonly savingsReader: SavingsReader;
+  private readonly systemInsightsReader: SystemInsightsReader;
   private readonly logger = new Logger(AgentService.name);
 
   constructor(
     alertReader: AlertReader,
     metricsReader: MetricsReader,
+    savingsReader: SavingsReader,
+    systemInsightsReader: SystemInsightsReader,
     @Inject(chatbotConfig.KEY)
     chatBotCfg: ConfigType<typeof chatbotConfig>,
   ) {
@@ -32,6 +38,8 @@ export class AgentService {
     this.botName = chatBotCfg.chatbotName;
     this.alertReader = alertReader;
     this.metricsReader = metricsReader;
+    this.savingsReader = savingsReader;
+    this.systemInsightsReader = systemInsightsReader;
   }
 
   async invokeWithHistory(
@@ -281,6 +289,8 @@ export class AgentService {
       tools: [
         this.alertReader.create(userId),
         this.metricsReader.create(userId),
+        this.savingsReader.create(userId),
+        this.systemInsightsReader.create(userId),
       ],
       systemPrompt,
       name: this.botName,

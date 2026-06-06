@@ -11,6 +11,8 @@ import { Message } from './entities/message.entity';
 import { AgentService } from './agent.service';
 import { AlertReader } from './agent-tools/alert-reader';
 import { MetricsReader } from './agent-tools/metrics-reader';
+import { SavingsReader } from './agent-tools/savings-reader';
+import { SystemInsightsReader } from './agent-tools/system-insights-reader';
 import { AlertsModule } from '../alerts/alerts.module';
 import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
 import { InvertersModule } from '../inverters/inverters.module';
@@ -20,6 +22,8 @@ import { InvertersModule } from '../inverters/inverters.module';
     AgentService,
     AlertReader,
     MetricsReader,
+    SavingsReader,
+    SystemInsightsReader,
     ChatGateway,
     ChatService,
     ChatModelAction,

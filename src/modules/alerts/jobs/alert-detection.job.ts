@@ -91,16 +91,10 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.logger.log(
-      `AlertDetectionJob: parsed metric for inverter ${metric.inverterId}, SOC=${metric.batterySoc}`,
-    );
     void this.evaluateFromMetric(metric);
   }
 
   private async evaluateFromMetric(metric: NormalisedMetric): Promise<void> {
-    this.logger.log(
-      `AlertDetectionJob: evaluating inverter ${metric.inverterId}`,
-    );
     const inverter = await this.inverterRepo.findOne({
       where: { id: metric.inverterId },
     });
@@ -112,14 +106,7 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.logger.log(
-      `AlertDetectionJob: inverter ${inverter.id} found, isActive=${inverter.isActive}`,
-    );
-
     if (!inverter.isActive) {
-      this.logger.log(
-        `AlertDetectionJob: inverter ${inverter.id} is inactive, skipping`,
-      );
       return;
     }
 
@@ -135,10 +122,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         where: { user: { id: inverter.userId } },
       });
 
-      this.logger.log(
-        `AlertDetectionJob: settings for user ${inverter.userId}: ${settings ? `found (threshold=${settings.depletionThreshold}, cooldown=${settings.alertCooldownMinutes})` : 'not found, using defaults'}`,
-      );
-
       const threshold = settings?.depletionThreshold ?? 10;
       const cooldown = settings?.alertCooldownMinutes ?? 15;
       const timezone = settings?.timezone ?? '+00:00';
@@ -152,17 +135,9 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
         inverterRatedPowerKw: Number(inverter.panelCapacityKw),
       };
 
-      this.logger.log(
-        `AlertDetectionJob: depletion input: SOC=${depletionInput.batterySocPercent}%, load=${depletionInput.loadKw}kW, solar=${depletionInput.solarGenKw}kW, capacity=${depletionInput.batteryCapacityKwh}kWh, threshold=${threshold}%`,
-      );
-
       const depletionResult = calculateDepletion(depletionInput, threshold);
       // Calculate time-to-empty from 0% (for display in email)
       const emptyResult = calculateDepletion(depletionInput, 0);
-
-      this.logger.log(
-        `AlertDetectionJob: depletion result: minutesUntilDepletion=${depletionResult.minutesUntilDepletion}, isCharging=${depletionResult.isCharging}, netDischargeKw=${depletionResult.netDischargeKw}`,
-      );
 
       const batteryAlertInfo = shouldFireAlert(
         depletionResult.minutesUntilDepletion,
@@ -170,9 +145,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       );
 
       if (batteryAlertInfo) {
-        this.logger.log(
-          `AlertDetectionJob: battery alert needed — severity=${batteryAlertInfo.severity}, minutes=${batteryAlertInfo.minutesUntilDepletion}`,
-        );
         await this.saveAndDispatchAlert({
           inverter,
           settings,
@@ -204,10 +176,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
             ],
           },
         });
-      } else {
-        this.logger.log(
-          `AlertDetectionJob: no battery alert needed for inverter ${inverter.id} (safe zone or charging)`,
-        );
       }
 
       // ── Solar underperformance ─────────────────────────────────────
@@ -218,9 +186,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       );
 
       if (solarAlertInfo) {
-        this.logger.log(
-          `AlertDetectionJob: solar alert needed — severity=${solarAlertInfo.severity}, ratio=${solarAlertInfo.performanceRatioPercent}%`,
-        );
         await this.saveAndDispatchAlert({
           inverter,
           settings,
@@ -248,10 +213,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
             ],
           },
         });
-      } else {
-        this.logger.log(
-          `AlertDetectionJob: no solar alert needed for inverter ${inverter.id}`,
-        );
       }
 
       // ── High load spike ───────────────────────────────────────────
@@ -261,9 +222,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
       );
 
       if (loadAlertInfo) {
-        this.logger.log(
-          `AlertDetectionJob: high load alert needed — severity=${loadAlertInfo.severity}, ratio=${loadAlertInfo.loadRatioPercent}%`,
-        );
         await this.saveAndDispatchAlert({
           inverter,
           settings,
@@ -291,10 +249,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
             ],
           },
         });
-      } else {
-        this.logger.log(
-          `AlertDetectionJob: no high load alert needed for inverter ${inverter.id}`,
-        );
       }
     } catch (error) {
       this.logger.error(
@@ -334,9 +288,6 @@ export class AlertDetectionJob implements OnModuleInit, OnModuleDestroy {
     );
 
     if (dupCheck.isDuplicate) {
-      this.logger.log(
-        `Suppressed duplicate ${alertType} alert for user ${inverter.userId}: ${dupCheck.reason}`,
-      );
       return;
     }
 
