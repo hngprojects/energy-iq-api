@@ -112,6 +112,10 @@ export class InvertersMetricsService {
       ? Number(settings.generatorRatedPowerKw)
       : 2.5;
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -130,7 +134,7 @@ export class InvertersMetricsService {
         ? (todayEnergyKwh / ratedPowerKw) * consumptionRateLPerHr
         : 0;
     const nairaSavedToday = parseFloat(
-      (todayFuelSaved * fuelEntry.pricePerLitreNaira).toFixed(2),
+      (todayFuelSaved * fuelPricePerLitreNaira).toFixed(2),
     );
 
     const monthStart = new Date();
@@ -150,7 +154,7 @@ export class InvertersMetricsService {
         ? (monthEnergyKwh / ratedPowerKw) * consumptionRateLPerHr
         : 0;
     const nairaSavedThisMonth = parseFloat(
-      (monthFuelSaved * fuelEntry.pricePerLitreNaira).toFixed(2),
+      (monthFuelSaved * fuelPricePerLitreNaira).toFixed(2),
     );
 
     return {
@@ -301,6 +305,11 @@ export class InvertersMetricsService {
       : 2.5; // sensible default for a small SME generator
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -321,6 +330,10 @@ export class InvertersMetricsService {
         'energyKwh',
       )
       .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        'solarKwh',
+      )
+      .addSelect(
         `COUNT(DISTINCT DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}'))`,
         'activeHours',
       )
@@ -329,13 +342,34 @@ export class InvertersMetricsService {
       .andWhere('m.metric_timestamp < :rangeEnd', { rangeEnd })
       .groupBy(chartGroupExpr)
       .orderBy(chartOrderExpr, 'ASC')
-      .getRawMany<{ bucket: string; energyKwh: string; activeHours: string }>();
+      .getRawMany<{
+        bucket: string;
+        energyKwh: string;
+        solarKwh: string;
+        activeHours: string;
+      }>();
 
     // Totals for the entire period
-    const totalEnergyKwh = breakdownRows.reduce(
+    const totalEnergyConsumedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.energyKwh),
       0,
     );
+
+    const totalSolarGeneratedKwh = breakdownRows.reduce(
+      (sum, r) => sum + parseFloat(r.solarKwh),
+      0,
+    );
+
+    const solarCoveragePercent =
+      totalEnergyConsumedKwh > 0
+        ? parseFloat(
+            Math.min(
+              (totalSolarGeneratedKwh / totalEnergyConsumedKwh) * 100,
+              100,
+            ).toFixed(1),
+          )
+        : null;
+
     const totalActiveHours = breakdownRows.reduce(
       (sum, r) => sum + parseInt(r.activeHours, 10),
       0,
@@ -347,11 +381,10 @@ export class InvertersMetricsService {
     //   litres_needed = energyKwh / ratedPowerKw × consumptionRateLPerHr
     const fuelSavedLitres =
       ratedPowerKw > 0
-        ? (totalEnergyKwh / ratedPowerKw) * consumptionRateLPerHr
+        ? (totalEnergyConsumedKwh / ratedPowerKw) * consumptionRateLPerHr
         : 0;
 
-    const generatorCostAvoidedNgn =
-      fuelSavedLitres * fuelEntry.pricePerLitreNaira;
+    const generatorCostAvoidedNgn = fuelSavedLitres * fuelPricePerLitreNaira;
     const co2AvoidedKg = fuelSavedLitres * co2Factor;
 
     // Days with any data in the period (used for daily average)
@@ -368,8 +401,9 @@ export class InvertersMetricsService {
         bucket: r.bucket,
         activeHours: parseInt(r.activeHours, 10),
         energyKwh: parseFloat(dayEnergyKwh.toFixed(3)),
+        solarKwh: parseFloat(parseFloat(r.solarKwh).toFixed(3)),
         generatorCostSavedNgn: parseFloat(
-          (dayFuelSaved * fuelEntry.pricePerLitreNaira).toFixed(2),
+          (dayFuelSaved * fuelPricePerLitreNaira).toFixed(2),
         ),
         fuelSavedLitres: parseFloat(dayFuelSaved.toFixed(3)),
       };
@@ -390,10 +424,13 @@ export class InvertersMetricsService {
 
       // Summary
       summary: {
+        totalCostSavedNgn: parseFloat(generatorCostAvoidedNgn.toFixed(2)),
         averageCostSavedNgn: parseFloat(
           (generatorCostAvoidedNgn / daysWithData).toFixed(2),
         ),
-        totalEnergyConsumedKwh: parseFloat(totalEnergyKwh.toFixed(3)),
+        totalEnergyConsumedKwh: parseFloat(totalEnergyConsumedKwh.toFixed(3)),
+        totalEnergyGeneratedKwh: parseFloat(totalSolarGeneratedKwh.toFixed(3)),
+        solarCoveragePercent,
         totalActiveHours,
       },
 
@@ -406,8 +443,10 @@ export class InvertersMetricsService {
       // Meta — so the frontend can show "based on X fuel at ₦Y/L"
       meta: {
         fuelType,
-        fuelPricePerLitreNgn: fuelEntry.pricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        fuelPricePerLitreNgn: fuelPricePerLitreNaira,
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },
@@ -432,6 +471,11 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -450,16 +494,21 @@ export class InvertersMetricsService {
         `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
         'energyKwh',
       )
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        'solarKwh',
+      )
       .where('m.inverter_id = :inverterId', { inverterId })
       .groupBy(`DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`)
       .orderBy(
         `DATE_TRUNC('month', m.metric_timestamp AT TIME ZONE '${tz}')`,
         'ASC',
       )
-      .getRawMany<{ month: string; energyKwh: string }>();
+      .getRawMany<{ month: string; energyKwh: string; solarKwh: string }>();
 
     const monthlyData = monthlyRows.map((r) => {
       const energyKwh = parseFloat(r.energyKwh);
+      const solarKwh = parseFloat(r.solarKwh);
       const fuelSaved =
         ratedPowerKw > 0
           ? (energyKwh / ratedPowerKw) * consumptionRateLPerHr
@@ -467,15 +516,15 @@ export class InvertersMetricsService {
       return {
         month: r.month, // already 'YYYY-MM' from TO_CHAR
         energyKwh: parseFloat(energyKwh.toFixed(3)),
+        solarKwh: parseFloat(solarKwh.toFixed(3)),
         fuelSavedLitres: parseFloat(fuelSaved.toFixed(3)),
-        savingsNgn: parseFloat(
-          (fuelSaved * fuelEntry.pricePerLitreNaira).toFixed(2),
-        ),
+        savingsNgn: parseFloat((fuelSaved * fuelPricePerLitreNaira).toFixed(2)),
       };
     });
 
     // ── Lifetime totals ───────────────────────────────────────────────────────
     const lifetimeEnergyKwh = monthlyData.reduce((s, r) => s + r.energyKwh, 0);
+    const lifetimeSolarKwh = monthlyData.reduce((s, r) => s + r.solarKwh, 0);
     const lifetimeFuelSavedLitres = monthlyData.reduce(
       (s, r) => s + r.fuelSavedLitres,
       0,
@@ -500,7 +549,8 @@ export class InvertersMetricsService {
     return {
       // Cumulative totals
       lifetimeSavingsNgn: parseFloat(lifetimeSavingsNgn.toFixed(2)),
-      lifetimeEnergyKwh: parseFloat(lifetimeEnergyKwh.toFixed(3)),
+      lifetimeEnergyConsumedKwh: parseFloat(lifetimeEnergyKwh.toFixed(3)),
+      lifetimeEnergyGeneratedKwh: parseFloat(lifetimeSolarKwh.toFixed(3)),
       lifetimeFuelSavedLitres: parseFloat(lifetimeFuelSavedLitres.toFixed(3)),
       co2AvoidedKg: parseFloat(lifetimeCo2AvoidedKg.toFixed(3)),
       generatorHoursAvoided,
@@ -516,8 +566,10 @@ export class InvertersMetricsService {
       // Meta
       meta: {
         fuelType,
-        fuelPricePerLitreNgn: fuelEntry.pricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        fuelPricePerLitreNgn: fuelPricePerLitreNaira,
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },
@@ -551,6 +603,11 @@ export class InvertersMetricsService {
       : 2.5;
 
     const fuelEntry = getLatestFuelPrice(fuelType);
+    const hasCustomFuelPrice = settings?.customFuelPriceNaira !== null;
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
       fuelType,
       ratedPowerKw,
@@ -592,6 +649,10 @@ export class InvertersMetricsService {
         'energyKwh',
       )
       .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        'solarKwh',
+      )
+      .addSelect(
         `COUNT(DISTINCT DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}'))`,
         'activeHours',
       )
@@ -600,10 +661,19 @@ export class InvertersMetricsService {
       .andWhere('m.metric_timestamp < :endDate', { endDate })
       .groupBy(chartGroupExpr)
       .orderBy(chartGroupExpr, 'ASC')
-      .getRawMany<{ bucket: string; energyKwh: string; activeHours: string }>();
+      .getRawMany<{
+        bucket: string;
+        energyKwh: string;
+        activeHours: string;
+        solarKwh: string;
+      }>();
 
     const totalEnergyKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.energyKwh),
+      0,
+    );
+    const totalSolarKwh = breakdownRows.reduce(
+      (s, r) => s + parseFloat(r.solarKwh),
       0,
     );
     const totalActiveHours = breakdownRows.reduce(
@@ -615,8 +685,7 @@ export class InvertersMetricsService {
       ratedPowerKw > 0
         ? (totalEnergyKwh / ratedPowerKw) * consumptionRateLPerHr
         : 0;
-    const generatorCostAvoidedNgn =
-      fuelSavedLitres * fuelEntry.pricePerLitreNaira;
+    const generatorCostAvoidedNgn = fuelSavedLitres * fuelPricePerLitreNaira;
     const co2AvoidedKg = fuelSavedLitres * co2Factor;
 
     const bucketsWithData =
@@ -624,6 +693,7 @@ export class InvertersMetricsService {
 
     const breakdown = breakdownRows.map((r) => {
       const bucketEnergyKwh = parseFloat(r.energyKwh);
+      const bucketSolarKwh = parseFloat(r.solarKwh);
       const bucketFuelSaved =
         ratedPowerKw > 0
           ? (bucketEnergyKwh / ratedPowerKw) * consumptionRateLPerHr
@@ -632,8 +702,9 @@ export class InvertersMetricsService {
         bucket: r.bucket,
         activeHours: parseInt(r.activeHours, 10),
         energyKwh: parseFloat(bucketEnergyKwh.toFixed(3)),
+        solarKwh: parseFloat(bucketSolarKwh.toFixed(3)),
         generatorCostSavedNgn: parseFloat(
-          (bucketFuelSaved * fuelEntry.pricePerLitreNaira).toFixed(2),
+          (bucketFuelSaved * fuelPricePerLitreNaira).toFixed(2),
         ),
         fuelSavedLitres: parseFloat(bucketFuelSaved.toFixed(3)),
       };
@@ -654,10 +725,12 @@ export class InvertersMetricsService {
       },
 
       summary: {
+        totalCostSavedNgn: parseFloat(generatorCostAvoidedNgn.toFixed(2)),
         averageCostSavedPerBucketNgn: parseFloat(
           (generatorCostAvoidedNgn / bucketsWithData).toFixed(2),
         ),
         totalEnergyConsumedKwh: parseFloat(totalEnergyKwh.toFixed(3)),
+        totalEnergyGeneratedKwh: parseFloat(totalSolarKwh.toFixed(3)),
         totalActiveHours,
       },
 
@@ -668,8 +741,10 @@ export class InvertersMetricsService {
 
       meta: {
         fuelType,
-        fuelPricePerLitreNgn: fuelEntry.pricePerLitreNaira,
-        fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        fuelPricePerLitreNgn: fuelPricePerLitreNaira,
+        ...(!hasCustomFuelPrice && {
+          fuelPriceLastUpdated: new Date(fuelEntry.updatedAt).toISOString(),
+        }),
         assumedGeneratorRatedPowerKw: ratedPowerKw,
         assumedConsumptionRateLPerHr: consumptionRateLPerHr,
       },
