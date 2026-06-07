@@ -43,7 +43,7 @@ export class InvertersMetricsService {
   /**
    * Returns the polling interval scaled to basePoints units.
    * basePoints = 600 (i.e., 10× a 60-minute hour), so:
-   *   SANDBOX   = 5 min  → 5  × 10 = 50
+   *   SANDBOX   = 0.5 min  → 0.5  × 10 = 5
    *   VICTRON   = 2 min  → 2  × 10 = 20
    *   others    = 5 min  → 5  × 10 = 50
    *
@@ -51,7 +51,11 @@ export class InvertersMetricsService {
    * which is the correct hourly fraction for kWh conversion.
    */
   private getPollingInterval(brand: InverterBrand): number {
-    return brand === InverterBrand.VICTRON ? 20 : 50;
+    return brand === InverterBrand.VICTRON
+      ? 20
+      : brand === InverterBrand.SANDBOX
+        ? 5
+        : 50;
   }
 
   // ENDPOINT 1 — Dashboard Metrics
