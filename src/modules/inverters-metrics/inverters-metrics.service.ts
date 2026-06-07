@@ -75,7 +75,10 @@ export class InvertersMetricsService {
       this.metricsRepository
         .createQueryBuilder('m')
         .select(`DATE(m.metric_timestamp AT TIME ZONE '${tz}')`, 'date')
-        .addSelect(`SUM(m.solar_gen_kw) * (5.0 / 600)`, 'solarKwh')
+        .addSelect(
+          `SUM(m.solar_gen_kw) * (5.0 / ${this.basePoints})`,
+          'solarKwh',
+        )
         .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
         .addSelect('AVG(m.load_kw)', 'avgLoadKw')
         .where('m.inverter_id = :inverterId', { inverterId })
@@ -138,7 +141,7 @@ export class InvertersMetricsService {
 
     const todayEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / 600)`, 'energyKwh')
+      .select(`SUM(m.load_kw) * (5.0 / ${this.basePoints})`, 'energyKwh')
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :todayStart', { todayStart })
       .getRawOne<{ energyKwh: string }>();
@@ -158,7 +161,7 @@ export class InvertersMetricsService {
 
     const monthEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / 600)`, 'energyKwh')
+      .select(`SUM(m.load_kw) * (5.0 / ${this.basePoints})`, 'energyKwh')
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :monthStart', { monthStart })
       .getRawOne<{ energyKwh: string }>();
@@ -228,7 +231,7 @@ export class InvertersMetricsService {
     const rows = await this.metricsRepository
       .createQueryBuilder('m')
       .select(groupExpr, 'bucket')
-      .addSelect('SUM(m.solar_gen_kw) * (5.0 / 600)', 'solarKwh')
+      .addSelect('SUM(m.solar_gen_kw) * (5.0 / ${this.basePoints})', 'solarKwh')
       .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
       .addSelect('AVG(m.load_kw)', 'avgLoadKw')
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -407,11 +410,11 @@ export class InvertersMetricsService {
         'month',
       )
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -528,11 +531,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -687,11 +690,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -821,11 +824,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -989,11 +992,11 @@ export class InvertersMetricsService {
         'month',
       )
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -1147,11 +1150,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 600)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
