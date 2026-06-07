@@ -18,14 +18,20 @@ import {
   estimateFuelConsumptionRate,
   getLatestFuelPrice,
 } from './data/fuel';
+import { InverterBrand } from '../../common/enums';
 
 type Period = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
-// Polling interval in minutes — used to convert kW snapshots to kWh
-const POLL_INTERVAL_MINUTES = 5;
-
 @Injectable()
 export class InvertersMetricsService {
+  /**
+   * 60 mins to convert to an hour, but we use 600
+   * For 5 mins, 5/60 => 50/600
+   * For 2 mins, 2/60 => 20/600
+   * For 30 seconds, instead of 0.5/60 => 5/600
+   */
+  private basePoints: number = 600;
+
   constructor(
     @InjectRepository(InvertersMetrics)
     private readonly metricsRepository: Repository<InvertersMetrics>,
@@ -33,6 +39,24 @@ export class InvertersMetricsService {
     private readonly userSettingsRepository: Repository<UserSettings>,
     private readonly inverterModelAction: InverterModelAction,
   ) {}
+
+  /**
+   * Returns the polling interval scaled to basePoints units.
+   * basePoints = 600 (i.e., 10× a 60-minute hour), so:
+   *   SANDBOX   = 0.5 min  → 0.5  × 10 = 5
+   *   VICTRON   = 2 min  → 2  × 10 = 20
+   *   others    = 5 min  → 5  × 10 = 50
+   *
+   * Using scaled values means (pollingInterval / basePoints) = (minutes / 60),
+   * which is the correct hourly fraction for kWh conversion.
+   */
+  private getPollingInterval(brand: InverterBrand): number {
+    return brand === InverterBrand.VICTRON
+      ? 20
+      : brand === InverterBrand.SANDBOX
+        ? 5
+        : 50;
+  }
 
   // ENDPOINT 1 — Dashboard Metrics
   async getDashboardMetrics(inverterId: string, requestingUserId: string) {
@@ -51,6 +75,9 @@ export class InvertersMetricsService {
 
     const tz = 'Africa/Lagos';
 
+    // Derive the correct kWh fraction for this inverter's polling cadence
+    const pollInterval = this.getPollingInterval(inverter.brand);
+
     // Run the latest-reading query and the 7-day daily aggregate in parallel
     const [latest, sevenDayRows] = await Promise.all([
       this.metricsRepository.findOne({
@@ -60,7 +87,10 @@ export class InvertersMetricsService {
       this.metricsRepository
         .createQueryBuilder('m')
         .select(`DATE(m.metric_timestamp AT TIME ZONE '${tz}')`, 'date')
-        .addSelect(`SUM(m.solar_gen_kw) * (5.0 / 60)`, 'solarKwh')
+        .addSelect(
+          `SUM(m.solar_gen_kw) * (${pollInterval} / ${this.basePoints})`,
+          'solarKwh',
+        )
         .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
         .addSelect('AVG(m.load_kw)', 'avgLoadKw')
         .where('m.inverter_id = :inverterId', { inverterId })
@@ -123,7 +153,10 @@ export class InvertersMetricsService {
 
     const todayEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / 60)`, 'energyKwh')
+      .select(
+        `SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`,
+        'energyKwh',
+      )
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :todayStart', { todayStart })
       .getRawOne<{ energyKwh: string }>();
@@ -143,7 +176,10 @@ export class InvertersMetricsService {
 
     const monthEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / 60)`, 'energyKwh')
+      .select(
+        `SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`,
+        'energyKwh',
+      )
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :monthStart', { monthStart })
       .getRawOne<{ energyKwh: string }>();
@@ -210,10 +246,20 @@ export class InvertersMetricsService {
     const tz = 'Africa/Lagos';
     const { interval, groupExpr, orderExpr } = this.getPeriodConfig(period, tz);
 
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    const pollInterval = inverter
+      ? this.getPollingInterval(inverter.brand)
+      : 50; // default to 5-min cadence if inverter not found
+
     const rows = await this.metricsRepository
       .createQueryBuilder('m')
       .select(groupExpr, 'bucket')
-      .addSelect('SUM(m.solar_gen_kw) * (5.0 / 60)', 'solarKwh')
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${pollInterval} / ${this.basePoints})`,
+        'solarKwh',
+      )
       .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
       .addSelect('AVG(m.load_kw)', 'avgLoadKw')
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -312,19 +358,25 @@ export class InvertersMetricsService {
       return {
         mode: 'cumulative',
         cumulative,
-        today: {
-          date: todayStr,
-          totalCostSavedNgn: today.results.totalCostSavedNgn,
-          fuelSavedLitres: today.results.fuelSavedLitres,
-          co2AvoidedKg: today.results.co2AvoidedKg,
-        },
+        today: today
+          ? {
+              date: todayStr,
+              totalCostSavedNgn: today.results.totalCostSavedNgn,
+              fuelSavedLitres: today.results.fuelSavedLitres,
+              co2AvoidedKg: today.results.co2AvoidedKg,
+            }
+          : null,
       };
     }
 
     if (mode === 'period') {
       const period: Period = options.period ?? 'daily';
       const date = options.date ? new Date(options.date) : new Date();
-      return this._getPeriodSavingsInternal(inverterId, period, date);
+      return (
+        (await this._getPeriodSavingsInternal(inverterId, period, date)) ?? {
+          error: 'Inverter not found.',
+        }
+      );
     }
 
     // mode === 'custom'
@@ -351,11 +403,13 @@ export class InvertersMetricsService {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
-    const settings = inverter
-      ? await this.userSettingsRepository.findOne({
-          where: { user: { id: inverter.userId } },
-        })
-      : null;
+    if (!inverter) {
+      return null;
+    }
+    const settings = await this.userSettingsRepository.findOne({
+      where: { user: { id: inverter.userId } },
+    });
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(inverter.brand);
 
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
@@ -382,11 +436,11 @@ export class InvertersMetricsService {
         'month',
       )
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -470,12 +524,15 @@ export class InvertersMetricsService {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
-    const settings = inverter
-      ? await this.userSettingsRepository.findOne({
-          where: { user: { id: inverter.userId } },
-        })
-      : null;
+    if (!inverter) {
+      return null;
+    }
 
+    const settings = await this.userSettingsRepository.findOne({
+      where: { user: { id: inverter.userId } },
+    });
+
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(inverter.brand);
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
       ? Number(settings.generatorRatedPowerKw)
@@ -500,11 +557,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -614,6 +671,10 @@ export class InvertersMetricsService {
         })
       : null;
 
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
+
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
       ? Number(settings.generatorRatedPowerKw)
@@ -655,11 +716,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -758,6 +819,10 @@ export class InvertersMetricsService {
       where: { user: { id: inverter.userId } },
     });
 
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
+
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
       ? Number(settings.generatorRatedPowerKw)
@@ -785,11 +850,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
@@ -924,6 +989,9 @@ export class InvertersMetricsService {
       where: { user: { id: inverter.userId } },
     });
 
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
       ? Number(settings.generatorRatedPowerKw)
@@ -950,11 +1018,11 @@ export class InvertersMetricsService {
         'month',
       )
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -1056,6 +1124,10 @@ export class InvertersMetricsService {
       where: { user: { id: inverter.userId } },
     });
 
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
+
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
     const ratedPowerKw = settings?.generatorRatedPowerKw
       ? Number(settings.generatorRatedPowerKw)
@@ -1104,11 +1176,11 @@ export class InvertersMetricsService {
       .createQueryBuilder('m')
       .select(chartGroupExpr, 'bucket')
       .addSelect(
-        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'energyKwh',
       )
       .addSelect(
-        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / 60)`,
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
         'solarKwh',
       )
       .addSelect(
