@@ -149,7 +149,10 @@ export class InvertersMetricsService {
 
     const todayEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`, 'energyKwh')
+      .select(
+        `SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`,
+        'energyKwh',
+      )
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :todayStart', { todayStart })
       .getRawOne<{ energyKwh: string }>();
@@ -169,7 +172,10 @@ export class InvertersMetricsService {
 
     const monthEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`, 'energyKwh')
+      .select(
+        `SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`,
+        'energyKwh',
+      )
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :monthStart', { monthStart })
       .getRawOne<{ energyKwh: string }>();
