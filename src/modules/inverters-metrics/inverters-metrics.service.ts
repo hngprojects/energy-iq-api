@@ -40,13 +40,18 @@ export class InvertersMetricsService {
     private readonly inverterModelAction: InverterModelAction,
   ) {}
 
-  // Polling interval in minutes — used to convert kW snapshots to kWh
-  private getPollingInterval(brand: InverterBrand) {
-    return brand === InverterBrand.SANDBOX
-      ? 5
-      : brand === InverterBrand.VICTRON
-        ? 20
-        : 50;
+  /**
+   * Returns the polling interval scaled to basePoints units.
+   * basePoints = 600 (i.e., 10× a 60-minute hour), so:
+   *   SANDBOX   = 5 min  → 5  × 10 = 50
+   *   VICTRON   = 2 min  → 2  × 10 = 20
+   *   others    = 5 min  → 5  × 10 = 50
+   *
+   * Using scaled values means (pollingInterval / basePoints) = (minutes / 60),
+   * which is the correct hourly fraction for kWh conversion.
+   */
+  private getPollingInterval(brand: InverterBrand): number {
+    return brand === InverterBrand.VICTRON ? 20 : 50;
   }
 
   // ENDPOINT 1 — Dashboard Metrics
@@ -66,6 +71,9 @@ export class InvertersMetricsService {
 
     const tz = 'Africa/Lagos';
 
+    // Derive the correct kWh fraction for this inverter's polling cadence
+    const pollInterval = this.getPollingInterval(inverter.brand);
+
     // Run the latest-reading query and the 7-day daily aggregate in parallel
     const [latest, sevenDayRows] = await Promise.all([
       this.metricsRepository.findOne({
@@ -76,7 +84,7 @@ export class InvertersMetricsService {
         .createQueryBuilder('m')
         .select(`DATE(m.metric_timestamp AT TIME ZONE '${tz}')`, 'date')
         .addSelect(
-          `SUM(m.solar_gen_kw) * (5.0 / ${this.basePoints})`,
+          `SUM(m.solar_gen_kw) * (${pollInterval} / ${this.basePoints})`,
           'solarKwh',
         )
         .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
@@ -141,7 +149,7 @@ export class InvertersMetricsService {
 
     const todayEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / ${this.basePoints})`, 'energyKwh')
+      .select(`SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`, 'energyKwh')
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :todayStart', { todayStart })
       .getRawOne<{ energyKwh: string }>();
@@ -161,7 +169,7 @@ export class InvertersMetricsService {
 
     const monthEnergyRow = await this.metricsRepository
       .createQueryBuilder('m')
-      .select(`SUM(m.load_kw) * (5.0 / ${this.basePoints})`, 'energyKwh')
+      .select(`SUM(m.load_kw) * (${pollInterval} / ${this.basePoints})`, 'energyKwh')
       .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :monthStart', { monthStart })
       .getRawOne<{ energyKwh: string }>();
@@ -228,10 +236,20 @@ export class InvertersMetricsService {
     const tz = 'Africa/Lagos';
     const { interval, groupExpr, orderExpr } = this.getPeriodConfig(period, tz);
 
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    const pollInterval = inverter
+      ? this.getPollingInterval(inverter.brand)
+      : 50; // default to 5-min cadence if inverter not found
+
     const rows = await this.metricsRepository
       .createQueryBuilder('m')
       .select(groupExpr, 'bucket')
-      .addSelect('SUM(m.solar_gen_kw) * (5.0 / ${this.basePoints})', 'solarKwh')
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${pollInterval} / ${this.basePoints})`,
+        'solarKwh',
+      )
       .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
       .addSelect('AVG(m.load_kw)', 'avgLoadKw')
       .where('m.inverter_id = :inverterId', { inverterId })
@@ -376,13 +394,11 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) {
-      return;
+      return null;
     }
-    const settings = inverter
-      ? await this.userSettingsRepository.findOne({
-          where: { user: { id: inverter.userId } },
-        })
-      : null;
+    const settings = await this.userSettingsRepository.findOne({
+      where: { user: { id: inverter.userId } },
+    });
     const POLL_INTERVAL_MINUTES = this.getPollingInterval(inverter.brand);
 
     const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
