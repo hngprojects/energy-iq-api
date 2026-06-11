@@ -1,6 +1,6 @@
 import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiOptions } from 'cloudinary';
 import { FileUploadStatus } from '../../common/enums';
 import { CloudinaryUploadResDto } from './dto/cloudinary-res.dto';
 import { UploadedImage } from './entities/uploaded-img.entity';
@@ -44,7 +44,7 @@ export class CloudinaryService implements OnApplicationBootstrap {
   async signedUploadFileFromMetadata(
     data: UploadedImage,
   ): Promise<UploadedImage> {
-    const options = {
+    const options: UploadApiOptions = {
       folder: 'user_images',
       public_id: data.filename!.replace(/\.[^/.]+$/, ''),
       use_filename: true,
@@ -53,7 +53,10 @@ export class CloudinaryService implements OnApplicationBootstrap {
       resource_type: 'auto',
     };
 
-    const result = (await cloudinary.uploader.upload(data.filepath, options)) as unknown as CloudinaryUploadResDto;
+    const result = (await cloudinary.uploader.upload(
+      data.filepath!,
+      options,
+    )) as unknown as CloudinaryUploadResDto;
 
     return {
       ...data,
