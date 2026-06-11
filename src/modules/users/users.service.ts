@@ -20,12 +20,21 @@ import { UserSettingsModelAction } from './actions/user-settings.action';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 import { UserSettings } from './entities/user-settings.entity';
 import { GeneratorFuelType } from '../../common/enums/generator';
+import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
+import { UploadedImage } from './entities/uploaded-img.entity';
+import { CloudinaryService } from './cloudinary.service';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { FileUploadStatus } from '../../common/enums';
+import { UploadedImgModelAction } from './actions/uploaded-img.action';
 
 const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class UsersService {
   constructor(
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly uploadedImageAction: UploadedImgModelAction,
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
@@ -182,6 +191,25 @@ export class UsersService {
     };
   }
 
+  async uploadProfileImage(dto: UploadProfileImgDto) {
+    let fileMeta: UploadedImage = {
+      file_extname: path.extname(dto.file.originalname).toLowerCase(),
+      filename: dto.file.filename,
+      filepath: dto.file.path,
+      filesize_bytes: dto.file.size,
+      upload_status: FileUploadStatus.PENDING,
+      uploaded_by_email: dto.userEmail,
+    } as UploadedImage;
+    const { id } = await this.uploadedImageAction.saveImg(fileMeta);
+    fileMeta.id = id;
+
+    fileMeta =
+      await this.cloudinaryService.signedUploadFileFromMetadata(fileMeta);
+
+    await this.deleteFile(dto.file.path);
+    return fileMeta;
+  }
+
   /**
    * METHODS FOR UPDATING A USER'S SETTING
    */
@@ -320,5 +348,9 @@ export class UsersService {
         .map((f) => f.toLowerCase())
         .includes(t.toLowerCase())
     );
+  }
+
+  async deleteFile(path: string) {
+    return await fs.unlink(path);
   }
 }

@@ -7,11 +7,17 @@ import { UsersService } from './users.service';
 import { InvertersModule } from '../inverters/inverters.module';
 import { UserSettings } from './entities/user-settings.entity';
 import { UserSettingsModelAction } from './actions/user-settings.action';
+import { CloudinaryService } from './cloudinary.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, UserSettings]), InvertersModule],
   controllers: [UsersController],
-  providers: [UserModelAction, UserSettingsModelAction, UsersService],
+  providers: [
+    CloudinaryService,
+    UserModelAction,
+    UserSettingsModelAction,
+    UsersService,
+  ],
   exports: [UsersService, UserModelAction],
 })
 export class UsersModule {}
