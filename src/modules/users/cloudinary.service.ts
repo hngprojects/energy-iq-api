@@ -1,13 +1,22 @@
-import { Inject, Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
-import { v2 as cloudinary, UploadApiOptions } from 'cloudinary';
+import {
+  v2 as cloudinary,
+  UploadApiOptions,
+  UploadApiResponse,
+} from 'cloudinary';
 import { FileUploadStatus } from '../../common/enums';
-import { CloudinaryUploadResDto } from './dto/cloudinary-res.dto';
 import { UploadedImage } from './entities/uploaded-img.entity';
 import { cloudinaryConfig } from '../../config/cloudinary.config';
 
 @Injectable()
 export class CloudinaryService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(CloudinaryService.name);
   constructor(
     @Inject(cloudinaryConfig.KEY)
     private readonly cfg: ConfigType<typeof cloudinaryConfig>,
@@ -21,29 +30,27 @@ export class CloudinaryService implements OnApplicationBootstrap {
     });
   }
 
-  generateThumbnailUrl(res: CloudinaryUploadResDto): string {
+  generateThumbnailUrl(res: UploadApiResponse): string {
     const cloudName = this.cfg.cloudName;
     const resourceUrl = this.cfg.resourceURL;
     return `${resourceUrl}/${cloudName}/image/upload/c_thumb,w_200,h_200/${res.public_id}.jpg`;
   }
 
-  generateAdditionalProperties(
-    res: CloudinaryUploadResDto,
-  ): Partial<UploadedImage> {
+  generateAdditionalProperties(res: UploadApiResponse): Partial<UploadedImage> {
     const props: Partial<UploadedImage> = {
-      upload_status: FileUploadStatus.COMPLETE,
-      upload_url: res.url,
+      uploadStatus: FileUploadStatus.COMPLETE,
+      uploadUrl: res.secure_url,
       thumbnail: this.generateThumbnailUrl(res),
+      publicId: res.public_id,
     };
-    if (res.format.toLowerCase() === 'pdf') {
-      props.page_count = String(res.pages ?? 0);
-    }
+
     return props;
   }
 
   async signedUploadFileFromMetadata(
     data: UploadedImage,
-  ): Promise<UploadedImage> {
+    buffer: Buffer,
+  ): Promise<UploadedImage | null> {
     const options: UploadApiOptions = {
       folder: 'user_images',
       public_id: data.filename!.replace(/\.[^/.]+$/, ''),
@@ -53,16 +60,38 @@ export class CloudinaryService implements OnApplicationBootstrap {
       resource_type: 'auto',
     };
 
-    const result = (await cloudinary.uploader.upload(
-      data.filepath!,
-      options,
-    )) as unknown as CloudinaryUploadResDto;
+    try {
+      const result = await cloudinary.uploader.upload(
+        `data:image/jpeg;base64,${buffer.toString('base64')}`,
+        options,
+      );
 
-    return {
-      ...data,
-      filename: undefined,
-      filepath: undefined,
-      ...this.generateAdditionalProperties(result),
-    };
+      const additionalProperties = this.generateAdditionalProperties(result);
+
+      const uploadedImage: UploadedImage = {
+        ...data,
+        ...additionalProperties,
+      };
+
+      return uploadedImage;
+    } catch (err) {
+      const errorMessage = 'An error occured uploading image';
+      const errorStack =
+        err instanceof Error ? err.stack : JSON.stringify(err, null, 2);
+
+      this.logger.error(errorMessage, errorStack);
+      return null;
+    }
+  }
+
+  // in CloudinaryService
+  async deleteByPublicId(publicId: string): Promise<boolean> {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+      return true;
+    } catch (err) {
+      this.logger.error(`Error deleting ${publicId}`, err);
+      return false;
+    }
   }
 }

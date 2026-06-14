@@ -2,7 +2,9 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -30,8 +32,14 @@ import { UploadedImgModelAction } from './actions/uploaded-img.action';
 
 const BCRYPT_ROUNDS = 10;
 
+export type IntermediateUploadedImg = Omit<
+  UploadedImage,
+  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
+>;
+
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(
     private readonly cloudinaryService: CloudinaryService,
     private readonly uploadedImageAction: UploadedImgModelAction,
@@ -191,23 +199,72 @@ export class UsersService {
     };
   }
 
-  async uploadProfileImage(dto: UploadProfileImgDto) {
-    let fileMeta: UploadedImage = {
-      file_extname: path.extname(dto.file.originalname).toLowerCase(),
-      filename: dto.file.filename,
-      filepath: dto.file.path,
-      filesize_bytes: dto.file.size,
-      upload_status: FileUploadStatus.PENDING,
-      uploaded_by_email: dto.userEmail,
+  async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
+    const user = await this.findOne(userId);
+
+    const fileMeta: UploadedImage = {
+      user,
+      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+      filename: dto.file.originalname.toLowerCase(),
+      filesizeBytes: dto.file.size,
+      uploadStatus: FileUploadStatus.PENDING,
+      uploadedByEmail: dto.userEmail,
     } as UploadedImage;
-    const { id } = await this.uploadedImageAction.saveImg(fileMeta);
-    fileMeta.id = id;
 
-    fileMeta =
-      await this.cloudinaryService.signedUploadFileFromMetadata(fileMeta);
+    try {
+      const uploadRes =
+        await this.cloudinaryService.signedUploadFileFromMetadata(
+          fileMeta,
+          dto.file.buffer,
+        );
 
-    await this.deleteFile(dto.file.path);
-    return fileMeta;
+      if (!uploadRes) {
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+      }
+
+      const { uploadUrl, thumbnail, publicId } = uploadRes;
+
+      // Delete previous images
+      const existing = await this.uploadedImageAction.findByUserId(userId);
+
+      let returnValue: UploadedImage;
+      if (existing) {
+        await this.cloudinaryService.deleteByPublicId(existing.publicId);
+        const updated = await this.uploadedImageAction.update({
+          ...noTransaction(),
+          identifierOptions: { id: existing.id },
+          updatePayload: {
+            ...fileMeta,
+            uploadUrl,
+            thumbnail,
+            publicId,
+            uploadStatus: FileUploadStatus.COMPLETE,
+          },
+        });
+
+        if (!updated) {
+          throw new ServiceUnavailableException(SYS_MSG.UPDATE_IMAGE_ERROR);
+        }
+        returnValue = updated;
+      } else {
+        returnValue = await this.uploadedImageAction.create({
+          ...noTransaction(),
+          createPayload: {
+            ...fileMeta,
+            uploadUrl,
+            thumbnail,
+            publicId,
+            uploadStatus: FileUploadStatus.COMPLETE,
+          },
+        });
+      }
+
+      return returnValue;
+    } finally {
+      if (dto.file.path) {
+        await this.deleteFile(dto.file.path);
+      }
+    }
   }
 
   /**

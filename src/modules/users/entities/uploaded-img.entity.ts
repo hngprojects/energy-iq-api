@@ -1,33 +1,39 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, JoinColumn, OneToOne } from 'typeorm';
 import { FileUploadStatus } from '../../../common/enums';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
+import { User } from './user.entity';
 
 @Entity('uploaded-images')
 export class UploadedImage extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 10 })
-  file_extname: string;
+  fileExtname: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   filename?: string;
 
-  @Column({ type: 'text', nullable: true })
-  filepath?: string;
-
   @Column({ type: 'bigint' })
-  filesize_bytes: number;
+  filesizeBytes: number;
 
   @Column({ type: 'varchar', length: 255 })
-  page_count?: string;
+  publicId: string;
 
-  @Column({ type: 'varchar', length: 50 })
-  upload_status: FileUploadStatus;
+  @Column({
+    type: 'enum',
+    enum: FileUploadStatus,
+    default: FileUploadStatus.PENDING,
+  })
+  uploadStatus: FileUploadStatus;
 
   @Column({ type: 'text' })
-  upload_url?: string;
+  uploadUrl?: string;
 
   @Column({ type: 'varchar', length: 255 })
-  uploaded_by_email: string;
+  uploadedByEmail: string;
 
   @Column({ type: 'text' })
   thumbnail?: string;
+
+  @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 }

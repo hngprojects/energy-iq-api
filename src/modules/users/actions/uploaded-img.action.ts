@@ -1,14 +1,20 @@
 import { AbstractModelAction } from '@hng-sdk/orm';
 import { Injectable } from '@nestjs/common';
 import { UploadedImage } from '../entities/uploaded-img.entity';
-import { noTransaction } from '../../../common/constants/transaction-options';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
-  async saveImg(img: Partial<UploadedImage>) {
-    return this.create({
-      createPayload: img,
-      ...noTransaction(),
+  constructor(
+    @InjectRepository(UploadedImage) repository: Repository<UploadedImage>,
+  ) {
+    super(repository, UploadedImage);
+  }
+
+  async findByUserId(userId: string): Promise<UploadedImage | null> {
+    return this.repository.findOne({
+      where: { user: { id: userId } },
     });
   }
 }

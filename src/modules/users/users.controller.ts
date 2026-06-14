@@ -109,17 +109,20 @@ export class UsersController {
       new ParseFilePipe({
         validators: [
           new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5 MB
-          new FileTypeValidator({ fileType: '/^image\/(jpeg|png|jpg|webp)$/' }),
+          new FileTypeValidator({ fileType: /^image\/(jpeg|png|jpg|webp)$/ }),
         ],
       }),
     )
     file: Express.Multer.File,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.usersService.uploadProfileImage({
-      file,
-      userId: user.sub,
-      userEmail: user.email,
-    });
+    return this.usersService.uploadProfileImage(
+      {
+        file,
+        userId: user.sub,
+        userEmail: user.email,
+      },
+      user.sub,
+    );
   }
 }
