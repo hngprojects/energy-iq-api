@@ -61,8 +61,16 @@ export class CloudinaryService implements OnApplicationBootstrap {
     };
 
     try {
+      const mimeType =
+        data.fileExtname === '.jpg' || data.fileExtname === '.jpeg'
+          ? 'image/jpeg'
+          : data.fileExtname === '.png'
+            ? 'image/png'
+            : data.fileExtname === '.webp'
+              ? 'image/webp'
+              : 'application/octet-stream';
       const result = await cloudinary.uploader.upload(
-        `data:image/jpeg;base64,${buffer.toString('base64')}`,
+        `data:${mimeType};base64,${buffer.toString('base64')}`,
         options,
       );
 

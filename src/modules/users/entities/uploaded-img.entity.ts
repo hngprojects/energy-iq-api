@@ -25,15 +25,15 @@ export class UploadedImage extends AbstractBaseEntity {
   uploadStatus: FileUploadStatus;
 
   @Column({ type: 'text' })
-  uploadUrl?: string;
+  uploadUrl: string;
 
   @Column({ type: 'varchar', length: 255 })
   uploadedByEmail: string;
 
   @Column({ type: 'text' })
-  thumbnail?: string;
+  thumbnail: string;
 
-  @OneToOne(() => User, (user) => user.settings, { onDelete: 'CASCADE' })
+  @OneToOne(() => User, (user) => user.uploadedImg, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

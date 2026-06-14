@@ -224,40 +224,14 @@ export class UsersService {
 
       const { uploadUrl, thumbnail, publicId } = uploadRes;
 
-      // Delete previous images
-      const existing = await this.uploadedImageAction.findByUserId(userId);
+      fileMeta.uploadUrl = uploadUrl;
+      fileMeta.thumbnail = thumbnail;
+      fileMeta.publicId = publicId;
 
-      let returnValue: UploadedImage;
-      if (existing) {
-        await this.cloudinaryService.deleteByPublicId(existing.publicId);
-        const updated = await this.uploadedImageAction.update({
-          ...noTransaction(),
-          identifierOptions: { id: existing.id },
-          updatePayload: {
-            ...fileMeta,
-            uploadUrl,
-            thumbnail,
-            publicId,
-            uploadStatus: FileUploadStatus.COMPLETE,
-          },
-        });
-
-        if (!updated) {
-          throw new ServiceUnavailableException(SYS_MSG.UPDATE_IMAGE_ERROR);
-        }
-        returnValue = updated;
-      } else {
-        returnValue = await this.uploadedImageAction.create({
-          ...noTransaction(),
-          createPayload: {
-            ...fileMeta,
-            uploadUrl,
-            thumbnail,
-            publicId,
-            uploadStatus: FileUploadStatus.COMPLETE,
-          },
-        });
-      }
+      const returnValue = this.uploadedImageAction.upsertUserPorfileImg(
+        userId,
+        fileMeta,
+      );
 
       return returnValue;
     } finally {
