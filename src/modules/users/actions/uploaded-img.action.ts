@@ -43,13 +43,11 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
 
     await queryRunner.startTransaction();
     try {
-
       const existing = await queryRunner.manager
         .createQueryBuilder(UploadedImage, 'img')
         .setLock('pessimistic_write')
         .where('img.user.id = :userId', { userId })
         .getOne();
-
 
       await queryRunner.manager
         .createQueryBuilder(UploadedImage, 'img')
@@ -74,7 +72,6 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
         )
         .returning('public_id')
         .execute();
-
 
       const saved = await queryRunner.manager.findOne(UploadedImage, {
         where: { user: { id: userId } },
