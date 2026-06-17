@@ -33,11 +33,6 @@ lerna-debug.log*
 .zed/
 
 # IDE - VSCode
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
 
 # dotenv environment variable files
 .env
@@ -56,3 +51,7 @@ pids
 *.seed
 *.pid.lock
 
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
