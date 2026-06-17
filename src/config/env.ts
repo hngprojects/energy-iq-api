@@ -112,6 +112,11 @@ export const env = createEnv({
       .int()
       .positive()
       .transform((v) => Number(v)),
+
+    CLOUDINARY_CLOUD_NAME: z.string().nonoptional(),
+    CLOUDINARY_API_KEY: z.string().nonoptional(),
+    CLOUDINARY_API_SECRET: z.string().nonoptional(),
+    CLOUDINARY_RESOURCE_URL: z.url().default('https://res.cloudinary.com'),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

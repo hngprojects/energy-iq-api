@@ -6,6 +6,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { appConfig } from './config/app.config';
+import { cloudinaryConfig } from './config/cloudinary.config';
 import { databaseConfig } from './config/database.config';
 import './config/env';
 import { jwtConfig } from './config/jwt.config';
@@ -45,6 +46,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
         redisConfig,
         googleConfig,
         whatsAppConfig,
+        cloudinaryConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({

@@ -2,15 +2,20 @@ import {
   Body,
   Controller,
   Delete,
+  FileTypeValidator,
   Get,
   HttpCode,
   HttpStatus,
+  MaxFileSizeValidator,
   Param,
+  ParseFilePipe,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { type Response } from 'express';
@@ -21,6 +26,7 @@ import { InverterConnectorDto } from '../inverters/dto/inverter-connector.dto';
 import { PaginationDto } from '../../common/dto/pagination.do';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -92,5 +98,31 @@ export class UsersController {
   @ApiOperation({ summary: "Get a user's settings" })
   getUserSettings(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.getUserSettings(user.sub);
+  }
+
+  @Post('settings/personal/img')
+  @ApiOperation({ summary: 'Upload a profile image' })
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file'))
+  uploadProfileImage(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5 MB
+          new FileTypeValidator({ fileType: /^image\/(jpeg|png|jpg|webp)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.uploadProfileImage(
+      {
+        file,
+        userId: user.sub,
+        userEmail: user.email,
+      },
+      user.sub,
+    );
   }
 }

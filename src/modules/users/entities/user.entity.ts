@@ -3,6 +3,7 @@ import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { UserRole } from '../../../common/enums';
 import { UserSettings } from './user-settings.entity';
+import { UploadedImage } from './uploaded-img.entity';
 
 @Entity('users')
 export class User extends AbstractBaseEntity {
@@ -56,4 +57,7 @@ export class User extends AbstractBaseEntity {
 
   @OneToOne(() => UserSettings, (settings) => settings.user)
   settings: UserSettings;
+
+  @OneToOne(() => UploadedImage, (img) => img.user)
+  uploadedImg: UploadedImage;
 }
