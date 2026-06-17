@@ -6,7 +6,7 @@
     "resolvePackageJsonImports": true,
     "target": "ES2023",
     "lib": ["ES2023"],
-    "types": ["node", "jest"],
+    "types": ["node", "jest", "multer", "cloudinary"],
     "rootDir": ".",
     "outDir": "./dist",
 

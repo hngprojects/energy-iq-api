@@ -2,7 +2,9 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -20,12 +22,27 @@ import { UserSettingsModelAction } from './actions/user-settings.action';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 import { UserSettings } from './entities/user-settings.entity';
 import { GeneratorFuelType } from '../../common/enums/generator';
+import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
+import { UploadedImage } from './entities/uploaded-img.entity';
+import { CloudinaryService } from './cloudinary.service';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { FileUploadStatus } from '../../common/enums';
+import { UploadedImgModelAction } from './actions/uploaded-img.action';
 
 const BCRYPT_ROUNDS = 10;
 
+export type IntermediateUploadedImg = Omit<
+  UploadedImage,
+  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
+>;
+
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
   constructor(
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly uploadedImageAction: UploadedImgModelAction,
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
@@ -182,6 +199,48 @@ export class UsersService {
     };
   }
 
+  async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
+    const user = await this.findOne(userId);
+
+    const fileMeta: UploadedImage = {
+      user,
+      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+      filename: dto.file.originalname.toLowerCase(),
+      filesizeBytes: dto.file.size,
+      uploadStatus: FileUploadStatus.PENDING,
+      uploadedByEmail: dto.userEmail,
+    } as UploadedImage;
+
+    try {
+      const uploadRes =
+        await this.cloudinaryService.signedUploadFileFromMetadata(
+          fileMeta,
+          dto.file.buffer,
+        );
+
+      if (!uploadRes) {
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+      }
+
+      const { uploadUrl, thumbnail, publicId } = uploadRes;
+
+      fileMeta.uploadUrl = uploadUrl;
+      fileMeta.thumbnail = thumbnail;
+      fileMeta.publicId = publicId;
+
+      const returnValue = this.uploadedImageAction.upsertUserPorfileImg(
+        userId,
+        fileMeta,
+      );
+
+      return returnValue;
+    } finally {
+      if (dto.file.path) {
+        await this.deleteFile(dto.file.path);
+      }
+    }
+  }
+
   /**
    * METHODS FOR UPDATING A USER'S SETTING
    */
@@ -320,5 +379,9 @@ export class UsersService {
         .map((f) => f.toLowerCase())
         .includes(t.toLowerCase())
     );
+  }
+
+  async deleteFile(path: string) {
+    return await fs.unlink(path);
   }
 }
