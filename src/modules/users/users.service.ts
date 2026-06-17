@@ -207,7 +207,7 @@ export class UsersService {
       fileExtname: path.extname(dto.file.originalname).toLowerCase(),
       filename: dto.file.originalname.toLowerCase(),
       filesizeBytes: dto.file.size,
-      uploadStatus: FileUploadStatus.PENDING,
+      uploadStatus: FileUploadStatus.COMPLETE,
       uploadedByEmail: dto.userEmail,
     } as UploadedImage;
 
