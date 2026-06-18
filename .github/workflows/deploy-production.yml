@@ -114,7 +114,18 @@ jobs:
             # Point traffic to the new release
             ln -sfn "$DEPLOY_DIR" "$APP_DIR/current"
 
-            pm2 reload be-prod --update-env || pm2 start dist/main.js --name be-prod
+            cat > "$APP_DIR/ecosystem.config.js" <<EOF
+            module.exports = {
+              apps: [{
+                name: 'be-prod',
+                script: '$APP_DIR/current/dist/main.js',
+                cwd: '$APP_DIR/current',
+              }]
+            }
+            EOF
+
+            pm2 delete be-prod 2>/dev/null || true
+            pm2 start "$APP_DIR/ecosystem.config.js"
             pm2 save
 
             # keep last 3 releases, clean the rest
@@ -180,6 +191,8 @@ jobs:
               exit 1
             fi
             ln -sfn "$PREV" "$APP_DIR/current"
-            
-            pm2 reload be-prod --update-env
+
+            pm2 delete be-prod 2>/dev/null || true
+            pm2 start "$APP_DIR/ecosystem.config.js"
+            pm2 save
             
