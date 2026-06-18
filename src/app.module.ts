@@ -33,6 +33,7 @@ import { AlertsModule } from './modules/alerts/alerts.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { whatsAppConfig } from './config/whatsapp.config';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
+import { NotificationModule } from './modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     AlertsModule,
     WhatsappModule,
     WaitlistModule,
+    NotificationModule,
   ],
   providers: [
     {
