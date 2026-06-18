@@ -19,6 +19,10 @@ import {
   getLatestFuelPrice,
 } from './data/fuel';
 import { InverterBrand } from '../../common/enums';
+import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import { AlertModelAction } from '../alerts/actions/alert.action';
+import { CostSavingsReport, SolarReport } from '../reports/types/reports.type';
+import { Report } from '../reports/entities/report.entity';
 
 type Period = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -38,6 +42,7 @@ export class InvertersMetricsService {
     @InjectRepository(UserSettings)
     private readonly userSettingsRepository: Repository<UserSettings>,
     private readonly inverterModelAction: InverterModelAction,
+    private readonly alertsModelAction: AlertModelAction,
   ) {}
 
   /**
@@ -813,7 +818,7 @@ export class InvertersMetricsService {
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -1207,6 +1212,14 @@ export class InvertersMetricsService {
       (s, r) => s + parseFloat(r.solarKwh),
       0,
     );
+
+    const solarCoveragePercent =
+      totalEnergyKwh > 0
+        ? parseFloat(
+            Math.min((totalSolarKwh / totalEnergyKwh) * 100, 100).toFixed(1),
+          )
+        : null;
+
     const totalActiveHours = breakdownRows.reduce(
       (sum, r) => sum + parseInt(r.activeHours, 10),
       0,
@@ -1262,6 +1275,7 @@ export class InvertersMetricsService {
         ),
         totalEnergyConsumedKwh: parseFloat(totalEnergyKwh.toFixed(3)),
         totalEnergyGeneratedKwh: parseFloat(totalSolarKwh.toFixed(3)),
+        solarCoveragePercent,
         totalActiveHours,
       },
 
@@ -1570,11 +1584,222 @@ export class InvertersMetricsService {
     };
   }
 
-  parseDateOrThrow(value: string, field: string) {
+  parseDateOrThrow(value: string, field?: string) {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) {
       throw new BadRequestException(`${field} must be a valid date`);
     }
     return d;
+  }
+
+  async getSolarReport(report: Report): Promise<SolarReport> {
+    const { inverterId, userId } = report;
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (inverter.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
+
+    const tz = 'Africa/Lagos';
+
+    const refDate = report.referenceDate;
+
+    const { rangeStart, rangeEnd, chartGroupExpr, chartOrderExpr } =
+      this.getPeriodRange(report.period as Period, refDate, tz);
+
+    const breakdownRows = await this.metricsRepository
+      .createQueryBuilder('m')
+      .select(chartGroupExpr, 'bucket')
+      .addSelect(
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
+        'energyKwh',
+      )
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
+        'solarKwh',
+      )
+      .addSelect(
+        `COUNT(DISTINCT DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}'))`,
+        'activeHours',
+      )
+      .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
+      .where('m.inverter_id = :inverterId', { inverterId })
+      .andWhere('m.metric_timestamp >= :rangeStart', { rangeStart })
+      .andWhere('m.metric_timestamp < :rangeEnd', { rangeEnd })
+      .groupBy(chartGroupExpr)
+      .orderBy(chartOrderExpr, 'ASC')
+      .getRawMany<{
+        bucket: string;
+        energyKwh: string;
+        solarKwh: string;
+        activeHours: string;
+        avgBatterySoc: string;
+      }>();
+
+    const totalEnergyConsumedKwh = breakdownRows.reduce(
+      (sum, r) => sum + parseFloat(r.energyKwh),
+      0,
+    );
+    const avgLoadKw = totalEnergyConsumedKwh / breakdownRows.length;
+    const totalSolarGeneratedKwh = breakdownRows.reduce(
+      (sum, r) => sum + parseFloat(r.solarKwh),
+      0,
+    );
+
+    const avgBatterySoc =
+      breakdownRows.reduce((sum, r) => sum + parseFloat(r.avgBatterySoc), 0) /
+      breakdownRows.length;
+
+    // const solarCoveragePercent =
+    //   totalEnergyConsumedKwh > 0
+    //     ? parseFloat(
+    //         Math.min(
+    //           (totalSolarGeneratedKwh / totalEnergyConsumedKwh) * 100,
+    //           100,
+    //         ).toFixed(1),
+    //       )
+    //     : null;
+
+    const totalActiveHours = breakdownRows.reduce(
+      (sum, r) => sum + parseInt(r.activeHours, 10),
+      0,
+    );
+
+    return {
+      name: report.name,
+      type: ReportType.SOLAR,
+      period: report.period,
+      status: ReportStatus.READY,
+      dateRequested: report.dateRequested,
+      dateDelivered: new Date(),
+      keyMetrics: {
+        solarKwh: totalSolarGeneratedKwh,
+        avgLoadKw,
+        avgBatterySoc,
+        totalActiveHours,
+      },
+    };
+  }
+
+  async getCostsAndSavingsReport(report: Report): Promise<CostSavingsReport> {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: report.inverterId },
+    });
+    if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (inverter.userId !== report.userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    const settings = await this.userSettingsRepository.findOne({
+      where: { user: { id: inverter.userId } },
+    });
+
+    const POLL_INTERVAL_MINUTES = this.getPollingInterval(
+      inverter?.brand ?? InverterBrand.SANDBOX,
+    );
+
+    const fuelType = settings?.generatorFuelType ?? GeneratorFuelType.PMS;
+    const ratedPowerKw = settings?.generatorRatedPowerKw
+      ? Number(settings.generatorRatedPowerKw)
+      : 2.5;
+
+    const fuelEntry = getLatestFuelPrice(fuelType);
+    const fuelPricePerLitreNaira =
+      settings?.customFuelPriceNaira !== null
+        ? Number(settings?.customFuelPriceNaira)
+        : fuelEntry.pricePerLitreNaira;
+    const consumptionRateLPerHr = estimateFuelConsumptionRate(
+      fuelType,
+      ratedPowerKw,
+    );
+    const co2Factor = CO2_KG_PER_LITRE[fuelType];
+
+    const tz = 'Africa/Lagos';
+
+    const refDate = report.referenceDate;
+
+    const { rangeStart, rangeEnd, chartGroupExpr, chartOrderExpr } =
+      this.getPeriodRange(report.period as Period, refDate, tz);
+    const inverterId = report.inverterId;
+
+    const breakdownRows = await this.metricsRepository
+      .createQueryBuilder('m')
+      .select(chartGroupExpr, 'bucket')
+      .addSelect(
+        `SUM(m.load_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
+        'energyKwh',
+      )
+      .addSelect(
+        `SUM(m.solar_gen_kw) * (${POLL_INTERVAL_MINUTES}.0 / ${this.basePoints})`,
+        'solarKwh',
+      )
+      .addSelect(
+        `COUNT(DISTINCT DATE_TRUNC('hour', m.metric_timestamp AT TIME ZONE '${tz}'))`,
+        'activeHours',
+      )
+      .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
+      .where('m.inverter_id = :inverterId', { inverterId })
+      .andWhere('m.metric_timestamp >= :rangeStart', { rangeStart })
+      .andWhere('m.metric_timestamp < :rangeEnd', { rangeEnd })
+      .groupBy(chartGroupExpr)
+      .orderBy(chartOrderExpr, 'ASC')
+      .getRawMany<{
+        bucket: string;
+        energyKwh: string;
+        solarKwh: string;
+        activeHours: string;
+        avgBatterySoc: string;
+      }>();
+
+    const totalEnergyConsumedKwh = breakdownRows.reduce(
+      (sum, r) => sum + parseFloat(r.energyKwh),
+      0,
+    );
+
+    const totalSolarGeneratedKwh = breakdownRows.reduce(
+      (sum, r) => sum + parseFloat(r.solarKwh),
+      0,
+    );
+
+    const totalActiveHours = breakdownRows.reduce(
+      (sum, r) => sum + parseInt(r.activeHours, 10),
+      0,
+    );
+
+    const fuelSavedLitres =
+      ratedPowerKw > 0
+        ? (totalEnergyConsumedKwh / ratedPowerKw) * consumptionRateLPerHr
+        : 0;
+
+    const generatorCostAvoidedNgn = fuelSavedLitres * fuelPricePerLitreNaira;
+    const co2AvoidedKg = fuelSavedLitres * co2Factor;
+
+    return {
+      name: report.name,
+      type: ReportType.CSC,
+      period: report.period,
+      dateRequested: report.createdAt,
+      dateDelivered: new Date(),
+      status: ReportStatus.READY,
+      keyMetrics: {
+        totalCostSavedNgn: parseFloat(generatorCostAvoidedNgn.toFixed(3)),
+        generatorCostAvoidedNgn: parseFloat(generatorCostAvoidedNgn.toFixed(3)),
+        fuelSavedLitres,
+        co2AvoidedKg,
+        totalActiveHours,
+        totalEnergyGeneratedKwh: parseFloat(totalSolarGeneratedKwh.toFixed(3)),
+        totalEnergyConsumedKwh,
+        meta: {
+          fuelType,
+          fuelPricePerLitreNgn: fuelPricePerLitreNaira,
+          assumedConsumptionRateLPerHr: ratedPowerKw,
+          assumedGeneratorRatedPowerKw: consumptionRateLPerHr,
+        },
+      },
+    };
   }
 }
