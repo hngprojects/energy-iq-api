@@ -69,7 +69,7 @@ describe('ReportsService', () => {
         },
         { provide: ReportModelAction, useValue: mockReportModelAction },
         { provide: AlertsService, useValue: mockAlertsService },
-        { provide: getQueueToken(QUEUES.REPORT_DISPATCH), useValue: mockQueue }
+        { provide: getQueueToken(QUEUES.REPORT_DISPATCH), useValue: mockQueue },
       ],
     }).compile();
 
@@ -104,13 +104,15 @@ describe('ReportsService', () => {
       },
     };
 
-    mockInvertersMetricsService.getPeriodSolarReport.mockResolvedValue(solarReport);
+    mockInvertersMetricsService.getPeriodSolarReport.mockResolvedValue(
+      solarReport,
+    );
 
     const result = await service.computeSolarReport(periodReport);
 
-    expect(mockInvertersMetricsService.getPeriodSolarReport).toHaveBeenCalledWith(
-      periodReport,
-    );
+    expect(
+      mockInvertersMetricsService.getPeriodSolarReport,
+    ).toHaveBeenCalledWith(periodReport);
     expect(result).toBe(solarReport);
   });
 
@@ -129,13 +131,15 @@ describe('ReportsService', () => {
       },
     };
 
-    mockInvertersMetricsService.getCustomRangeSolarReport.mockResolvedValue(solarReport);
+    mockInvertersMetricsService.getCustomRangeSolarReport.mockResolvedValue(
+      solarReport,
+    );
 
     const result = await service.computeSolarReport(customRangeReport);
 
-    expect(mockInvertersMetricsService.getCustomRangeSolarReport).toHaveBeenCalledWith(
-      customRangeReport,
-    );
+    expect(
+      mockInvertersMetricsService.getCustomRangeSolarReport,
+    ).toHaveBeenCalledWith(customRangeReport);
     expect(result).toBe(solarReport);
   });
 
@@ -185,7 +189,9 @@ describe('ReportsService', () => {
 
     const result = await service.computeAlertReport(customRangeReport);
 
-    expect(mockAlertsService.getAlertReport).toHaveBeenCalledWith(customRangeReport);
+    expect(mockAlertsService.getAlertReport).toHaveBeenCalledWith(
+      customRangeReport,
+    );
     expect(result).toBe(alertReport);
   });
 
@@ -274,23 +280,25 @@ describe('ReportsService', () => {
         resolutionRate: 70,
       },
     });
-    mockInvertersMetricsService.getPeriodCostsAndSavingsReport.mockResolvedValue({
-      keyMetrics: {
-        totalCostSavedNgn: 50000,
-        generatorCostAvoidedNgn: 30000,
-        fuelSavedLitres: 20,
-        co2AvoidedKg: 15,
-        totalActiveHours: 12,
-        totalEnergyGeneratedKwh: 90,
-        totalEnergyConsumedKwh: 80,
-        meta: {
-          fuelType: GeneratorFuelType.DIESEL,
-          fuelPricePerLitreNgn: 1500,
-          assumedGeneratorRatedPowerKw: 12,
-          assumedConsumptionRateLPerHr: 2,
+    mockInvertersMetricsService.getPeriodCostsAndSavingsReport.mockResolvedValue(
+      {
+        keyMetrics: {
+          totalCostSavedNgn: 50000,
+          generatorCostAvoidedNgn: 30000,
+          fuelSavedLitres: 20,
+          co2AvoidedKg: 15,
+          totalActiveHours: 12,
+          totalEnergyGeneratedKwh: 90,
+          totalEnergyConsumedKwh: 80,
+          meta: {
+            fuelType: GeneratorFuelType.DIESEL,
+            fuelPricePerLitreNgn: 1500,
+            assumedGeneratorRatedPowerKw: 12,
+            assumedConsumptionRateLPerHr: 2,
+          },
         },
       },
-    });
+    );
     mockInvertersMetricsService.getPeriodSolarReport.mockResolvedValue({
       keyMetrics: {
         solarKwh: 120,
@@ -373,10 +381,7 @@ describe('ReportsService', () => {
 
     mockReportModelAction.updateReport.mockResolvedValue(periodReport);
 
-    const result = await service.updateReport(
-      'report-1',
-      generalReport,
-    );
+    const result = await service.updateReport('report-1', generalReport);
 
     expect(mockReportModelAction.updateReport).toHaveBeenCalledWith(
       'report-1',

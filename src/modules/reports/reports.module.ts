@@ -26,6 +26,6 @@ import { ReportModelAction } from './action/report.action';
   ],
   controllers: [ReportsController],
   providers: [ReportsService, ReportProcessor, ReportModelAction],
-  exports: [ReportModelAction, ReportsService]
+  exports: [ReportModelAction, ReportsService],
 })
 export class ReportsModule {}
