@@ -10,7 +10,6 @@ interface ReportBase {
   name: string;
   period: ReportPeriod;
   status: ReportStatus;
-  dateRequested: Date;
   dateDelivered: Date;
 }
 
@@ -19,6 +18,7 @@ interface SolarKeyMetrics {
   avgBatterySoc: number;
   avgLoadKw: number;
   totalActiveHours: number;
+  solarCoveragePercent?: number;
 }
 
 interface AlertKeyMetrics {

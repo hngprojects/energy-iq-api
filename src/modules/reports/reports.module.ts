@@ -12,6 +12,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { QUEUES } from '../../common/constants/queue';
 import { UsersModule } from '../users/users.module';
 import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
+import { AlertsModule } from '../alerts/alerts.module';
+import { ReportModelAction } from './action/report.action';
 
 @Module({
   imports: [
@@ -19,10 +21,11 @@ import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.m
     BullModule.registerQueue({ name: QUEUES.REPORT_DISPATCH }),
     InvertersModule,
     UsersModule,
-    InvertersModule,
     InvertersMetricsModule,
+    AlertsModule,
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ReportProcessor],
+  providers: [ReportsService, ReportProcessor, ReportModelAction],
+  exports: [ReportModelAction, ReportsService]
 })
 export class ReportsModule {}

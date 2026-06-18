@@ -58,17 +58,16 @@ export class ReportProcessor extends WorkerHost {
         `Successfully processed Report_${reportId}. Writing back to DB...`,
       );
 
-      await this.reportsService.updateReport(reportId, processed, new Date());
+      await this.reportsService.updateReport(reportId, processed);
     } catch (err) {
       const failedReport: Report = {
         ...report,
-        type: report.type,
         status: ReportStatus.FAILED,
       };
+
       await this.reportsService.updateReport(
         reportId,
         failedReport as AnyReport,
-        null,
       );
       this.logger.error(
         `Report_${reportId} failed computing`,

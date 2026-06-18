@@ -17,22 +17,32 @@ export class Report extends AbstractBaseEntity {
   @Column({ type: 'uuid', nullable: false })
   inverterId: string;
 
+  @Column({ type: 'enum', enum: ReportType, default: ReportType.GENERAL })
   type: ReportType;
 
+  @Column({ type: 'varchar' })
   name: string;
 
+  @Column({ type: 'enum', enum: ReportPeriod, default: ReportPeriod.WEEKLY })
   period: ReportPeriod;
 
-  referenceDate: Date;
+  @Column({ type: 'timestamptz', nullable: true })
+  referenceDate?: Date;
 
-  dateRequested: Date;
+  @Column({ type: 'timestamptz', nullable: true })
+  startDate?: Date;
 
-  dateDelivered: Date | null;
+  @Column({ type: 'timestamptz', nullable: true })
+  endDate?: Date;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  dateDelivered?: Date;
+
+  @Column({ type: 'enum', enum: ReportStatus, default: ReportStatus.PENDING })
   status: ReportStatus;
 
-  @Column({ type: 'jsonb' })
-  keyMetrics: ReportKeyMetrics;
+  @Column({ type: 'jsonb', nullable: true })
+  keyMetrics?: ReportKeyMetrics;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })

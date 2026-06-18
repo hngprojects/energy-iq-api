@@ -21,8 +21,13 @@ import { GetAlertsDto } from './dto/get-alerts-dto';
 import { type ConfigType } from '@nestjs/config';
 import { appConfig } from '../../config/app.config';
 import { AlertReport } from '../reports/types/reports.type';
-import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import {
+  ReportPeriod,
+  ReportStatus,
+  ReportType,
+} from '../../common/enums/reports.type';
 import { Report } from '../reports/entities/report.entity';
+import { FindAlertsDto } from '../chatbot/dto/find-alerts.dto';
 
 @Injectable()
 export class AlertsService {
@@ -104,10 +109,24 @@ export class AlertsService {
 
   async getAlertReport(report: Report): Promise<AlertReport> {
     const { userId } = report;
-    const { payload: alerts, paginationMeta } =
-      await this.alertAction.findByUserId(userId);
 
-    const totalAlerts = paginationMeta.total ?? alerts.length;
+    const daysLater = this.getReportSpanDays(report);
+    if (!daysLater) throw new Error('Unable to calculate days difference');
+    const startDate = report.referenceDate || report.startDate;
+    const endDate = new Date();
+    endDate.setDate(startDate!.getDate() + daysLater);
+
+    const findAlertsOptions: FindAlertsDto = {
+      start_date: startDate,
+      end_date: endDate,
+    };
+
+    const alerts = await this.alertAction.findAlertsWhere(
+      findAlertsOptions,
+      userId,
+    );
+
+    const totalAlerts = alerts.length;
     const resolvedAlerts = alerts.filter(
       (a) => a.resolutionStatus === AlertResolutionStatus.RESOLVED,
     ).length;
@@ -126,7 +145,6 @@ export class AlertsService {
       name: report.name,
       period: report.period,
       status: ReportStatus.READY,
-      dateRequested: report.createdAt,
       dateDelivered: new Date(),
       type: ReportType.ALERT,
       keyMetrics: {
@@ -170,5 +188,17 @@ export class AlertsService {
     return Object.entries(counts).reduce((a, b) =>
       b[1] > a[1] ? b : a,
     )[0] as AlertSeverity;
+  }
+
+  private getReportSpanDays(report: Report): number | null {
+    if (report.period === ReportPeriod.CUSTOM) {
+      if (!(report.startDate && report.endDate)) return null;
+
+      return report.endDate.getDate() - report.startDate.getDate();
+    } else if (report.period === ReportPeriod.WEEKLY) {
+      return 7;
+    } else {
+      return 30;
+    }
   }
 }
