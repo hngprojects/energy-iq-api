@@ -110,7 +110,7 @@ function makeProcessor() {
   return {
     processor,
     reportsService,
-    emailService
+    emailService,
   };
 }
 
@@ -136,33 +136,33 @@ describe('ReportProcessor', () => {
       dominantAlertType: AlertType.ENERGY,
       dominantAlertSeverity: AlertSeverity.HIGH,
       resolutionRate: 70,
-    })
+    });
 
     reportsService.getReportById.mockResolvedValue(report);
     reportsService.computeAlertReport.mockResolvedValue(processed);
 
     const processVars = {
       to: 'user@gmail.com',
-      firstName: "firstName",
+      firstName: 'firstName',
       clientUrl: `https://client-url`,
       reportPdf: Buffer.from([]),
       type: report.type,
-      dateDelivered: "string date",
+      dateDelivered: 'string date',
     };
 
     await processor.process(
       makeJob(REPORT_JOBS.SEND_REPORT, {
-       ...processVars 
-      }) as never
-    )
-    
+        ...processVars,
+      }) as never,
+    );
+
     expect(emailService.sendReportEmail).toHaveBeenCalledWith(
       processVars.reportPdf,
       processVars.to,
       processVars.clientUrl,
       processVars.firstName,
       processVars.type,
-      processVars.dateDelivered
+      processVars.dateDelivered,
     );
   });
 
