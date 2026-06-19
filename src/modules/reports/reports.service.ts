@@ -126,7 +126,7 @@ export class ReportsService {
       {
         delay,
         attempts: 3,
-        backoff: { type: 'exponential', jitter: 30 },
+        backoff: { type: 'exponential', delay: 5000 },
       },
     );
 
