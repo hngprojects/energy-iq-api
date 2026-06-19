@@ -386,14 +386,18 @@ describe('ReportsService', () => {
     };
 
     mockReportModelAction.updateReport.mockResolvedValue(periodReport);
-
-    const result = await service.updateReport('report-1', generalReport, new Date());
+    const exactTime = new Date();
+    const result = await service.updateReport(
+      'report-1',
+      generalReport,
+      exactTime,
+    );
 
     expect(mockReportModelAction.updateReport).toHaveBeenCalledWith(
       'report-1',
       generalReport.keyMetrics,
       generalReport.status,
-      new Date()
+      exactTime,
     );
     expect(result).toBe(periodReport);
   });

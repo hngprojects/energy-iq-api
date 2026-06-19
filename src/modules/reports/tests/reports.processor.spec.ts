@@ -230,7 +230,6 @@ describe('ReportProcessor', () => {
 
     reportsService.getReportById.mockResolvedValue(report);
     reportsService.computeAlertReport.mockResolvedValue(processed);
-
     await processor.process(
       makeJob(REPORT_JOBS.COMPUTE_REPORT, {
         reportId: report.id,
@@ -245,6 +244,7 @@ describe('ReportProcessor', () => {
     expect(reportsService.updateReport).toHaveBeenCalledWith(
       report.id,
       processed,
+      new Date('2026-06-02T00:00:00.000Z'),
     );
   });
 
@@ -285,6 +285,7 @@ describe('ReportProcessor', () => {
     expect(reportsService.updateReport).toHaveBeenCalledWith(
       report.id,
       processed,
+      new Date('2026-06-02T00:00:00.000Z'),
     );
   });
 
@@ -314,6 +315,7 @@ describe('ReportProcessor', () => {
     expect(reportsService.updateReport).toHaveBeenCalledWith(
       report.id,
       processed,
+      new Date('2026-06-02T00:00:00.000Z'),
     );
   });
 
@@ -361,6 +363,7 @@ describe('ReportProcessor', () => {
     expect(reportsService.updateReport).toHaveBeenCalledWith(
       report.id,
       processed,
+      new Date('2026-06-02T00:00:00.000Z'),
     );
   });
 
@@ -389,6 +392,7 @@ describe('ReportProcessor', () => {
         status: ReportStatus.FAILED,
         keyMetrics: report.keyMetrics,
       }),
+      null,
     );
   });
 
@@ -413,6 +417,7 @@ describe('ReportProcessor', () => {
         type: 'UNKNOWN',
         status: ReportStatus.FAILED,
       }),
+      null,
     );
   });
 });
