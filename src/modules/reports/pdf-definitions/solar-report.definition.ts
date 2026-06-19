@@ -21,12 +21,20 @@ export function buildSolarReportDefinition(ctx: {
   ];
 
   if (metrics.solarCoveragePercent != null) {
-    metricsContent.push(buildMetricRow('Solar Coverage (%)', metrics.solarCoveragePercent));
+    metricsContent.push(
+      buildMetricRow('Solar Coverage (%)', metrics.solarCoveragePercent),
+    );
   }
 
   return {
     content: [
-      ...buildReportHeader('Solar Report', ctx.name, ctx.period, ctx.status, ctx.dateDelivered),
+      ...buildReportHeader(
+        'Solar Report',
+        ctx.name,
+        ctx.period,
+        ctx.status,
+        ctx.dateDelivered,
+      ),
       ...metricsContent,
     ],
     styles: STYLES,

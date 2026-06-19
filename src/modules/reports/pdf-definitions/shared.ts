@@ -22,7 +22,20 @@ export function buildReportHeader(
       ],
       marginBottom: 16,
     },
-    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#e0e0e0' }], marginBottom: 12 },
+    {
+      canvas: [
+        {
+          type: 'line',
+          x1: 0,
+          y1: 0,
+          x2: 515,
+          y2: 0,
+          lineWidth: 1,
+          lineColor: '#e0e0e0',
+        },
+      ],
+      marginBottom: 12,
+    },
   ];
 }
 
@@ -40,7 +53,9 @@ export function buildMetricRow(label: string, value: string | number): Content {
   };
 }
 
-export function buildAssumptionsTable(rows: [string, string | number][]): Content {
+export function buildAssumptionsTable(
+  rows: [string, string | number][],
+): Content {
   return {
     table: {
       widths: ['60%', '40%'],
