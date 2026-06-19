@@ -387,12 +387,13 @@ describe('ReportsService', () => {
 
     mockReportModelAction.updateReport.mockResolvedValue(periodReport);
 
-    const result = await service.updateReport('report-1', generalReport);
+    const result = await service.updateReport('report-1', generalReport, new Date());
 
     expect(mockReportModelAction.updateReport).toHaveBeenCalledWith(
       'report-1',
       generalReport.keyMetrics,
       generalReport.status,
+      new Date()
     );
     expect(result).toBe(periodReport);
   });

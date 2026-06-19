@@ -21,6 +21,7 @@ import {
   AnyReport,
   CostSavingsKeyMetrics,
   CostSavingsReport,
+  GeneralKeyMetrics,
   GeneralReport,
   SolarKeyMetrics,
   SolarReport,
@@ -43,19 +44,16 @@ import {
   REPORT_JOBS,
   SendReportJobData,
 } from './reports.jobs';
-import * as puppeteer from 'puppeteer';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as Handlebars from 'handlebars';
+import { pdfmake } from './pdf-definitions/printer';
+import { buildAlertReportDefinition } from './pdf-definitions/alert-report.definition';
+import { buildCostSavingsReportDefinition } from './pdf-definitions/cost-savings-report.definition';
+import { buildSolarReportDefinition } from './pdf-definitions/solar-report.definition';
+import { buildGeneralReportDefinition } from './pdf-definitions/general-report.definition';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
 
 @Injectable()
 export class ReportsService {
-  private readonly templateCache = new Map<
-    string,
-    HandlebarsTemplateDelegate
-  >();
   private readonly logger = new Logger(ReportsService.name);
 
   constructor(
@@ -68,9 +66,7 @@ export class ReportsService {
     private readonly reportQueue: Queue,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
-  ) {
-    this.preloadTemplates();
-  }
+  ) {}
 
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
     const inverter = await this.invertersService.findOne(dto.inverterId);
@@ -150,7 +146,17 @@ export class ReportsService {
 
     const reportPdf = await this.getReportPdf(report);
 
-    const file = new StreamableFile(reportPdf);
+    const safeName = report.name.replace(/[^\w.-]+/g, '_');
+    const dateStr = report.dateDelivered
+      ? report.dateDelivered.toISOString().split('T')[0]
+      : 'unknown';
+    const filename = `${report.type}_${safeName}_${dateStr}.pdf`;
+
+    const file = new StreamableFile(reportPdf, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+      length: reportPdf.length,
+    });
 
     return {
       file,
@@ -246,11 +252,12 @@ export class ReportsService {
     };
   }
 
-  async updateReport(id: string, report: AnyReport): Promise<Report | null> {
+  async updateReport(id: string, report: AnyReport, dateDelivered): Promise<Report | null> {
     return await this.reportModelAction.updateReport(
       id,
       report.keyMetrics,
       report.status,
+      dateDelivered
     );
   }
 
@@ -359,139 +366,45 @@ export class ReportsService {
   }
 
   async getReportPdf(report: Report): Promise<Buffer> {
+    const base = {
+      name: report.name,
+      period: report.period,
+      status: report.status,
+      dateDelivered: report.dateDelivered ?? null,
+    };
+
     switch (report.type) {
-      case ReportType.ALERT: {
-        const templateName = 'alert-report';
+      case ReportType.ALERT:
+        return this.renderPdf(
+          buildAlertReportDefinition({
+            ...base,
+            metrics: report.keyMetrics as AlertKeyMetrics,
+          }),
+        );
 
-        const context = {
-          name: report.name,
-          period: report.period,
-          status: report.status,
-          dateDelivered: report.dateDelivered,
-          totalAlerts: (report.keyMetrics! as AlertKeyMetrics).totalAlerts,
-          resolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
-            .resolvedAlerts,
-          unresolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
-            .unresolvedAlerts,
-          resolutionRate: (report.keyMetrics! as AlertKeyMetrics)
-            .resolutionRate,
-          dominantAlertType: (report.keyMetrics! as AlertKeyMetrics)
-            .dominantAlertType,
-          dominantAlertSeverity: (report.keyMetrics! as AlertKeyMetrics)
-            .dominantAlertSeverity,
-        };
+      case ReportType.CSC:
+        return this.renderPdf(
+          buildCostSavingsReportDefinition({
+            ...base,
+            metrics: report.keyMetrics as CostSavingsKeyMetrics,
+          }),
+        );
 
-        return await this.renderPdf(templateName, context);
-      }
+      case ReportType.SOLAR:
+        return this.renderPdf(
+          buildSolarReportDefinition({
+            ...base,
+            metrics: report.keyMetrics as SolarKeyMetrics,
+          }),
+        );
 
-      case ReportType.CSC: {
-        const templateName = 'cost-savings-report';
-
-        const context = {
-          name: report.name,
-          period: report.period,
-          status: report.status,
-          dateDelivered: report.dateDelivered,
-          totalCostSavedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalCostSavedNgn,
-          generatorCostAvoidedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .generatorCostAvoidedNgn,
-          fuelSavedLitres: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .fuelSavedLitres,
-          co2AvoidedKg: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .co2AvoidedKg,
-          totalActiveHours: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalActiveHours,
-          totalEnergyGeneratedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalEnergyGeneratedKwh,
-          totalEnergyConsumedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalEnergyConsumedKwh,
-          fuelType: (report.keyMetrics! as CostSavingsKeyMetrics).meta.fuelType,
-          fuelPricePerLitreNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .meta.fuelPricePerLitreNgn,
-          assumedGeneratorRatedPowerKw: (
-            report.keyMetrics! as CostSavingsKeyMetrics
-          ).meta.assumedGeneratorRatedPowerKw,
-          assumedConsumptionRateLPerHr: (
-            report.keyMetrics! as CostSavingsKeyMetrics
-          ).meta.assumedConsumptionRateLPerHr,
-        };
-
-        return await this.renderPdf(templateName, context);
-      }
-
-      case ReportType.GENERAL: {
-        const templateName = 'general-report';
-
-        const context = {
-          name: report.name,
-          period: report.period,
-          status: report.status,
-          dateDelivered: report.dateDelivered,
-          totalAlerts: (report.keyMetrics! as AlertKeyMetrics).totalAlerts,
-          resolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
-            .resolvedAlerts,
-          unresolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
-            .unresolvedAlerts,
-          resolutionRate: (report.keyMetrics! as AlertKeyMetrics)
-            .resolutionRate,
-          dominantAlertType: (report.keyMetrics! as AlertKeyMetrics)
-            .dominantAlertType,
-          dominantAlertSeverity: (report.keyMetrics! as AlertKeyMetrics)
-            .dominantAlertSeverity,
-          totalCostSavedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalCostSavedNgn,
-          generatorCostAvoidedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .generatorCostAvoidedNgn,
-          fuelSavedLitres: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .fuelSavedLitres,
-          co2AvoidedKg: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .co2AvoidedKg,
-          totalActiveHours: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalActiveHours,
-          totalEnergyGeneratedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalEnergyGeneratedKwh,
-          totalEnergyConsumedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .totalEnergyConsumedKwh,
-          fuelType: (report.keyMetrics! as CostSavingsKeyMetrics).meta.fuelType,
-          fuelPricePerLitreNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
-            .meta.fuelPricePerLitreNgn,
-          assumedGeneratorRatedPowerKw: (
-            report.keyMetrics! as CostSavingsKeyMetrics
-          ).meta.assumedGeneratorRatedPowerKw,
-          assumedConsumptionRateLPerHr: (
-            report.keyMetrics! as CostSavingsKeyMetrics
-          ).meta.assumedConsumptionRateLPerHr,
-          solarKwh: (report.keyMetrics! as SolarKeyMetrics).solarKwh,
-          avgBatterySoc: (report.keyMetrics! as SolarKeyMetrics).avgBatterySoc,
-          avgLoadKw: (report.keyMetrics! as SolarKeyMetrics).avgLoadKw,
-          // totalActiveHours: (report.keyMetrics! as SolarKeyMetrics).totalActiveHours,
-          solarCoveragePercent: (report.keyMetrics! as SolarKeyMetrics)
-            .solarCoveragePercent,
-        };
-
-        return this.renderPdf(templateName, context);
-      }
-
-      case ReportType.SOLAR: {
-        const templateName = 'solar-report';
-
-        const context = {
-          name: report.name,
-          period: report.period,
-          status: report.status,
-          dateDelivered: report.dateDelivered,
-          solarKwh: (report.keyMetrics! as SolarKeyMetrics).solarKwh,
-          avgBatterySoc: (report.keyMetrics! as SolarKeyMetrics).avgBatterySoc,
-          avgLoadKw: (report.keyMetrics! as SolarKeyMetrics).avgLoadKw,
-          totalActiveHours: (report.keyMetrics! as SolarKeyMetrics)
-            .totalActiveHours,
-          solarCoveragePercent: (report.keyMetrics! as SolarKeyMetrics)
-            .solarCoveragePercent,
-        };
-
-        return await this.renderPdf(templateName, context);
-      }
+      case ReportType.GENERAL:
+        return this.renderPdf(
+          buildGeneralReportDefinition({
+            ...base,
+            metrics: report.keyMetrics as GeneralKeyMetrics,
+          }),
+        );
 
       default:
         return Buffer.from([]);
@@ -499,44 +412,8 @@ export class ReportsService {
   }
 
   private async renderPdf(
-    templateName: string,
-    context: Record<string, unknown>,
+    docDefinition: Parameters<typeof pdfmake.createPdf>[0],
   ): Promise<Buffer> {
-    const template = this.renderTemplate(templateName, context);
-
-    const browser = await puppeteer.launch();
-    try {
-      const page = await browser.newPage();
-      await page.setContent(template);
-      const pdfBuffer = await page.pdf({ format: 'A4' });
-      return Buffer.from(pdfBuffer);
-    } finally {
-      await browser.close();
-    }
-  }
-
-  private preloadTemplates() {
-    const names = [
-      'alert-report',
-      'cost-savings-report',
-      'general-report',
-      'solar-report',
-    ];
-    for (const name of names) {
-      const filePath = path.join(__dirname, 'templates', `${name}.hbs`);
-      const source = fs.readFileSync(filePath, 'utf8');
-      this.templateCache.set(name, Handlebars.compile(source));
-    }
-  }
-
-  private renderTemplate(
-    name: string,
-    context: Record<string, unknown>,
-  ): string {
-    const template = this.templateCache.get(name);
-    if (!template) {
-      throw new Error(`Unknown template: ${name}`);
-    }
-    return template(context);
+    return pdfmake.createPdf(docDefinition).getBuffer();
   }
 }

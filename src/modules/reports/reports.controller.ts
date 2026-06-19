@@ -1,13 +1,11 @@
 import {
   Body,
-  ConflictException,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Post,
-  Res,
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import {
@@ -16,7 +14,6 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
-import { type Response } from 'express';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -38,20 +35,8 @@ export class ReportsController {
   async downloadReport(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Res({ passthrough: true }) res: Response,
   ) {
-    const { file, report } = await this.reportsService.downloadReport(
-      id,
-      user.sub,
-    );
-    if (!report.dateDelivered)
-      throw new ConflictException('Report delivery date is missing');
-    const safeName = report.name.replace(/[^\w.-]+/g, '_');
-    const filename = `${report.type}_${safeName}_${report.dateDelivered.toISOString().split('T')[0]}.pdf`;
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    });
+    const { file } = await this.reportsService.downloadReport(id, user.sub);
     return file;
   }
 

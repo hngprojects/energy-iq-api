@@ -33,6 +33,7 @@ export class ReportModelAction extends AbstractModelAction<Report> {
     id: string,
     keyMetrics: ReportKeyMetrics,
     status: ReportStatus,
+    dateDelivered: Date,
   ): Promise<Report | null> {
     const updated = await this.update({
       ...noTransaction(),
@@ -40,6 +41,7 @@ export class ReportModelAction extends AbstractModelAction<Report> {
       updatePayload: {
         keyMetrics,
         status,
+        dateDelivered
       },
     });
 
