@@ -252,12 +252,16 @@ export class ReportsService {
     };
   }
 
-  async updateReport(id: string, report: AnyReport, dateDelivered): Promise<Report | null> {
+  async updateReport(
+    id: string,
+    report: AnyReport,
+    dateDelivered,
+  ): Promise<Report | null> {
     return await this.reportModelAction.updateReport(
       id,
       report.keyMetrics,
       report.status,
-      dateDelivered
+      dateDelivered,
     );
   }
 

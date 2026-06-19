@@ -41,7 +41,7 @@ export class ReportModelAction extends AbstractModelAction<Report> {
       updatePayload: {
         keyMetrics,
         status,
-        dateDelivered
+        dateDelivered,
       },
     });
 
