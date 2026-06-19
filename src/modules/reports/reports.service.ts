@@ -176,7 +176,7 @@ export class ReportsService {
       await this.reportQueue.add(REPORT_JOBS.SEND_REPORT, {
         to: user.email,
         firstName: user.firstName,
-        clientUrl: `${this.appCfg.clientUrl}`,
+        clientUrl: `${this.appCfg.clientUrl}/dashboard/report`,
         reportPdf,
         type: report.type,
         dateDelivered: report.dateDelivered!.toISOString(),
