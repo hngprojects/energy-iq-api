@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Solar Report – {{name}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #2c3e50; }
+    .metric { margin: 10px 0; }
+    .label { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>☀️ Solar Report</h1>
+  <p><strong>Period:</strong> {{period}}</p>
+  <p><strong>Status:</strong> {{status}}</p>
+  <p><strong>Delivered:</strong> {{dateDelivered}}</p>
+
+  <h2>Key Metrics</h2>
+  <div class="metric"><span class="label">Solar Generated (kWh):</span> {{solarKwh}}</div>
+  <div class="metric"><span class="label">Average Battery SoC (%):</span> {{avgBatterySoc}}</div>
+  <div class="metric"><span class="label">Average Load (kW):</span> {{avgLoadKw}}</div>
+  <div class="metric"><span class="label">Total Active Hours:</span> {{totalActiveHours}}</div>
+  {{#if solarCoveragePercent}}
+    <div class="metric"><span class="label">Solar Coverage (%):</span> {{solarCoveragePercent}}</div>
+  {{/if}}
+</body>
+</html>
