@@ -1,5 +1,6 @@
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({ appConfig: { KEY: 'app' } }));
+jest.mock('puppeteer', () => ({}));
 
 import { ConflictException } from '@nestjs/common';
 import { AlertSeverity, AlertType } from '../../../common/enums';
@@ -84,13 +85,32 @@ function makeReportsService() {
   };
 }
 
+function makeEmailService() {
+  return {
+    sendWelcome: jest.fn(),
+    sendPasswordReset: jest.fn(),
+    sendPasswordUpdate: jest.fn(),
+    sendLinkExpire: jest.fn(),
+    sendVerifyEmail: jest.fn(),
+    sendContactUs: jest.fn(),
+    sendAlert: jest.fn(),
+    sendWaitlistJoinedEmail: jest.fn(),
+    sendReportEmail: jest.fn(),
+  };
+}
+
 function makeProcessor() {
   const reportsService = makeReportsService();
-  const processor = new ReportProcessor(reportsService as never);
+  const emailService = makeEmailService();
+  const processor = new ReportProcessor(
+    reportsService as never,
+    emailService as never,
+  );
 
   return {
     processor,
     reportsService,
+    emailService
   };
 }
 
@@ -105,20 +125,46 @@ describe('ReportProcessor', () => {
     expect(processor).toBeDefined();
   });
 
-  // it('returns a no-op handler for send-report jobs', async () => {
-  //   const { processor } = makeProcessor();
+  it('returns a carries out send-report jobs', async () => {
+    const { processor, reportsService, emailService } = makeProcessor();
 
-  //   const result = await processor.process(
-  //     makeJob(REPORT_JOBS.SEND_REPORT, {
-  //       to: 'user@example.com',
-  //       firstName: 'John',
-  //       clientUrl: 'https://app.example.com',
-  //     }) as never,
-  //   );
+    const report = makeReport({ type: ReportType.ALERT });
+    const processed = makeProcessedReport(ReportType.ALERT, {
+      totalAlerts: 10,
+      resolvedAlerts: 7,
+      unresolvedAlerts: 3,
+      dominantAlertType: AlertType.ENERGY,
+      dominantAlertSeverity: AlertSeverity.HIGH,
+      resolutionRate: 70,
+    })
 
-  //   expect(result).toEqual(expect.any(Function));
-  //   expect(result()).toBeUndefined();
-  // });
+    reportsService.getReportById.mockResolvedValue(report);
+    reportsService.computeAlertReport.mockResolvedValue(processed);
+
+    const processVars = {
+      to: 'user@gmail.com',
+      firstName: "firstName",
+      clientUrl: `https://client-url`,
+      reportPdf: Buffer.from([]),
+      type: report.type,
+      dateDelivered: "string date",
+    };
+
+    await processor.process(
+      makeJob(REPORT_JOBS.SEND_REPORT, {
+       ...processVars 
+      }) as never
+    )
+    
+    expect(emailService.sendReportEmail).toHaveBeenCalledWith(
+      processVars.reportPdf,
+      processVars.to,
+      processVars.clientUrl,
+      processVars.firstName,
+      processVars.type,
+      processVars.dateDelivered
+    );
+  });
 
   it('throws for unknown job types', async () => {
     const { processor } = makeProcessor();

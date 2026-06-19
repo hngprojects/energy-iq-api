@@ -1,6 +1,7 @@
 // Mock the config chain before any imports to prevent @t3-oss/env-core ESM parse error
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({ appConfig: { KEY: 'app' } }));
+jest.mock('puppeteer', () => ({}));
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportsService } from '../reports.service';
@@ -19,6 +20,7 @@ import { GeneratorFuelType } from '../../../common/enums/generator';
 import { Report } from '../entities/report.entity';
 import { getQueueToken } from '@nestjs/bullmq';
 import { QUEUES } from '../../../common/constants/queue';
+import { appConfig } from '../../../config/app.config';
 
 const mockInvertersService = {};
 const mockUsersService = {};
@@ -70,6 +72,10 @@ describe('ReportsService', () => {
         { provide: ReportModelAction, useValue: mockReportModelAction },
         { provide: AlertsService, useValue: mockAlertsService },
         { provide: getQueueToken(QUEUES.REPORT_DISPATCH), useValue: mockQueue },
+        {
+          provide: appConfig.KEY,
+          useValue: { clientUrl: 'https://example.com' },
+        },
       ],
     }).compile();
 
