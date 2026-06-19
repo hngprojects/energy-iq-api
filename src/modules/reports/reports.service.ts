@@ -255,7 +255,7 @@ export class ReportsService {
   async updateReport(
     id: string,
     report: AnyReport,
-    dateDelivered,
+    dateDelivered: Date | null,
   ): Promise<Report | null> {
     return await this.reportModelAction.updateReport(
       id,
@@ -411,7 +411,9 @@ export class ReportsService {
         );
 
       default:
-        return Buffer.from([]);
+        throw new BadRequestException(
+          `Unknown report type: ${String(report.type)}`,
+        );
     }
   }
 
