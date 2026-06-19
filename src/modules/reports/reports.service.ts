@@ -1,8 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
+  StreamableFile,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
@@ -10,10 +16,13 @@ import { InvertersService } from '../inverters/inverters.service';
 import { InvertersMetricsService } from '../inverters-metrics/inverters-metrics.service';
 import { ReportModelAction } from './action/report.action';
 import {
+  AlertKeyMetrics,
   AlertReport,
   AnyReport,
+  CostSavingsKeyMetrics,
   CostSavingsReport,
   GeneralReport,
+  SolarKeyMetrics,
   SolarReport,
 } from './types/reports.type';
 import {
@@ -29,10 +38,25 @@ import { noTransaction } from '../../common/constants/transaction-options';
 import { InjectQueue } from '@nestjs/bullmq';
 import { QUEUES } from '../../common/constants/queue';
 import { Queue } from 'bullmq';
-import { ComputeReportJobData, REPORT_JOBS } from './reports.jobs';
+import {
+  ComputeReportJobData,
+  REPORT_JOBS,
+  SendReportJobData,
+} from './reports.jobs';
+import * as puppeteer from 'puppeteer';
+import * as fs from 'fs';
+import * as path from 'path';
+import { appConfig } from '../../config/app.config';
+import { type ConfigType } from '@nestjs/config';
 
 @Injectable()
 export class ReportsService {
+  private readonly templateCache = new Map<
+    string,
+    HandlebarsTemplateDelegate
+  >();
+  private readonly logger = new Logger(ReportsService.name);
+
   constructor(
     private readonly invertersService: InvertersService,
     private readonly usersService: UsersService,
@@ -41,6 +65,8 @@ export class ReportsService {
     private readonly alertsService: AlertsService,
     @InjectQueue(QUEUES.REPORT_DISPATCH)
     private readonly reportQueue: Queue,
+    @Inject(appConfig.KEY)
+    private readonly appCfg: ConfigType<typeof appConfig>,
   ) {}
 
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
@@ -104,7 +130,54 @@ export class ReportsService {
     return created;
   }
 
-  async downloadReport() {}
+  async downloadReport(
+    reportId: string,
+    userId: string,
+  ): Promise<StreamableFile> {
+    const report = await this.reportModelAction.findById(reportId);
+
+    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    if (report.status !== ReportStatus.READY)
+      throw new ConflictException(SYS_MSG.CONFLICT);
+
+    const reportPdf = await this.getReportPdf(report);
+
+    return new StreamableFile(reportPdf);
+  }
+
+  async triggerReportEmail(reportId: string, userId: string): Promise<void> {
+    const report = await this.reportModelAction.findById(reportId);
+
+    try {
+      if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+      if (report.userId !== userId)
+        throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+      if (report.status !== ReportStatus.READY)
+        throw new ConflictException(SYS_MSG.CONFLICT);
+
+      const reportPdf = await this.getReportPdf(report);
+
+      const user = await this.usersService.findOne(report.userId);
+      if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+
+      await this.reportQueue.add(REPORT_JOBS.SEND_REPORT, {
+        to: user.email,
+        firstName: user.firstName,
+        clientUrl: `${this.appCfg.clientUrl}`,
+        reportPdf,
+        type: report.type,
+        dateDelivered: report.dateDelivered!.toISOString(),
+      } satisfies SendReportJobData);
+      return;
+    } catch (err) {
+      this.logger.error(err);
+      throw new ServiceUnavailableException(
+        'Failed to trigger report email. Try again',
+      );
+    }
+  }
 
   async getReportById(reportId: string): Promise<Report | null> {
     return await this.reportModelAction.findById(reportId);
@@ -276,5 +349,172 @@ export class ReportsService {
     }
 
     return { rangeStart, rangeEnd };
+  }
+
+  async getReportPdf(report: Report): Promise<Buffer> {
+    switch (report.type) {
+      case ReportType.ALERT: {
+        const templateName = 'alert-report';
+
+        const context = {
+          name: report.name,
+          period: report.period,
+          status: report.status,
+          dateDelivered: report.dateDelivered,
+          totalAlerts: (report.keyMetrics! as AlertKeyMetrics).totalAlerts,
+          resolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
+            .resolvedAlerts,
+          unresolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
+            .unresolvedAlerts,
+          resolutionRate: (report.keyMetrics! as AlertKeyMetrics)
+            .resolutionRate,
+          dominantAlertType: (report.keyMetrics! as AlertKeyMetrics)
+            .dominantAlertType,
+          dominantAlertSeverity: (report.keyMetrics! as AlertKeyMetrics)
+            .dominantAlertSeverity,
+        };
+
+        return await this.renderPdf(templateName, context);
+      }
+
+      case ReportType.CSC: {
+        const templateName = 'cost-savings-report';
+
+        const context = {
+          name: report.name,
+          period: report.period,
+          status: report.status,
+          dateDelivered: report.dateDelivered,
+          totalCostSavedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalCostSavedNgn,
+          generatorCostAvoidedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .generatorCostAvoidedNgn,
+          fuelSavedLitres: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .fuelSavedLitres,
+          co2AvoidedKg: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .co2AvoidedKg,
+          totalActiveHours: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalActiveHours,
+          totalEnergyGeneratedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalEnergyGeneratedKwh,
+          totalEnergyConsumedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalEnergyConsumedKwh,
+          fuelType: (report.keyMetrics! as CostSavingsKeyMetrics).meta.fuelType,
+          fuelPricePerLitreNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .meta.fuelPricePerLitreNgn,
+          assumedGeneratorRatedPowerKw: (
+            report.keyMetrics! as CostSavingsKeyMetrics
+          ).meta.assumedGeneratorRatedPowerKw,
+          assumedConsumptionRateLPerHr: (
+            report.keyMetrics! as CostSavingsKeyMetrics
+          ).meta.assumedConsumptionRateLPerHr,
+        };
+
+        return await this.renderPdf(templateName, context);
+      }
+
+      case ReportType.GENERAL: {
+        const templateName = 'general-report';
+
+        const context = {
+          name: report.name,
+          period: report.period,
+          status: report.status,
+          dateDelivered: report.dateDelivered,
+          totalAlerts: (report.keyMetrics! as AlertKeyMetrics).totalAlerts,
+          resolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
+            .resolvedAlerts,
+          unresolvedAlerts: (report.keyMetrics! as AlertKeyMetrics)
+            .unresolvedAlerts,
+          resolutionRate: (report.keyMetrics! as AlertKeyMetrics)
+            .resolutionRate,
+          dominantAlertType: (report.keyMetrics! as AlertKeyMetrics)
+            .dominantAlertType,
+          dominantAlertSeverity: (report.keyMetrics! as AlertKeyMetrics)
+            .dominantAlertSeverity,
+          totalCostSavedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalCostSavedNgn,
+          generatorCostAvoidedNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .generatorCostAvoidedNgn,
+          fuelSavedLitres: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .fuelSavedLitres,
+          co2AvoidedKg: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .co2AvoidedKg,
+          totalActiveHours: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalActiveHours,
+          totalEnergyGeneratedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalEnergyGeneratedKwh,
+          totalEnergyConsumedKwh: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .totalEnergyConsumedKwh,
+          fuelType: (report.keyMetrics! as CostSavingsKeyMetrics).meta.fuelType,
+          fuelPricePerLitreNgn: (report.keyMetrics! as CostSavingsKeyMetrics)
+            .meta.fuelPricePerLitreNgn,
+          assumedGeneratorRatedPowerKw: (
+            report.keyMetrics! as CostSavingsKeyMetrics
+          ).meta.assumedGeneratorRatedPowerKw,
+          assumedConsumptionRateLPerHr: (
+            report.keyMetrics! as CostSavingsKeyMetrics
+          ).meta.assumedConsumptionRateLPerHr,
+          solarKwh: (report.keyMetrics! as SolarKeyMetrics).solarKwh,
+          avgBatterySoc: (report.keyMetrics! as SolarKeyMetrics).avgBatterySoc,
+          avgLoadKw: (report.keyMetrics! as SolarKeyMetrics).avgLoadKw,
+          // totalActiveHours: (report.keyMetrics! as SolarKeyMetrics).totalActiveHours,
+          solarCoveragePercent: (report.keyMetrics! as SolarKeyMetrics)
+            .solarCoveragePercent,
+        };
+
+        return this.renderPdf(templateName, context);
+      }
+
+      case ReportType.SOLAR: {
+        const templateName = 'solar-report';
+
+        const context = {
+          name: report.name,
+          period: report.period,
+          status: report.status,
+          dateDelivered: report.dateDelivered,
+          solarKwh: (report.keyMetrics! as SolarKeyMetrics).solarKwh,
+          avgBatterySoc: (report.keyMetrics! as SolarKeyMetrics).avgBatterySoc,
+          avgLoadKw: (report.keyMetrics! as SolarKeyMetrics).avgLoadKw,
+          totalActiveHours: (report.keyMetrics! as SolarKeyMetrics)
+            .totalActiveHours,
+          solarCoveragePercent: (report.keyMetrics! as SolarKeyMetrics)
+            .solarCoveragePercent,
+        };
+
+        return await this.renderPdf(templateName, context);
+      }
+
+      default:
+        return Buffer.from([]);
+    }
+  }
+
+  private async renderPdf(
+    templateName: string,
+    context: Record<string, unknown>,
+  ): Promise<Buffer> {
+    const template = this.renderTemplate(templateName, context);
+
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.setContent(template);
+    const pdfBuffer = await page.pdf({ format: 'A4' });
+    await browser.close();
+
+    return Buffer.from(pdfBuffer);
+  }
+
+  private renderTemplate(
+    name: string,
+    context: Record<string, unknown>,
+  ): string {
+    if (!this.templateCache.has(name)) {
+      const filePath = path.join(__dirname, 'templates', `${name}.hbs`);
+      const source = fs.readFileSync(filePath, 'utf8');
+      this.templateCache.set(name, Handlebars.compile(source));
+    }
+    return this.templateCache.get(name)!(context);
   }
 }

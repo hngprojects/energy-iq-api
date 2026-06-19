@@ -2,17 +2,26 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { QUEUES } from '../../common/constants/queue';
 import { Job } from 'bullmq';
 import { ConflictException, Logger } from '@nestjs/common';
-import { ComputeReportJobData, REPORT_JOBS } from './reports.jobs';
+import {
+  ComputeReportJobData,
+  REPORT_JOBS,
+  SendReportJobData,
+} from './reports.jobs';
 import { ReportsService } from './reports.service';
 import { Report } from './entities/report.entity';
 import { AnyReport } from './types/reports.type';
 import { ReportStatus, ReportType } from '../../common/enums/reports.type';
 import { SYS_MSG } from '../../common/constants/sys-msg';
+import { EmailService } from '../email/email.service';
 
 @Processor(QUEUES.REPORT_DISPATCH)
 export class ReportProcessor extends WorkerHost {
   private readonly logger = new Logger(ReportProcessor.name);
-  constructor(private readonly reportsService: ReportsService) {
+
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly emailService: EmailService,
+  ) {
     super();
   }
 
@@ -21,7 +30,7 @@ export class ReportProcessor extends WorkerHost {
       case REPORT_JOBS.COMPUTE_REPORT:
         return this.handleComputeReport(job as Job<ComputeReportJobData>);
       case REPORT_JOBS.SEND_REPORT:
-        return () => {};
+        return this.sendPdfReport(job as Job<SendReportJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -73,6 +82,25 @@ export class ReportProcessor extends WorkerHost {
         `Report_${reportId} failed computing`,
         err instanceof Error ? err.stack : String(err),
       );
+      throw new Error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async sendPdfReport(job: Job<SendReportJobData>): Promise<void> {
+    const { reportPdf, to, clientUrl, firstName, type, dateDelivered } =
+      job.data;
+
+    try {
+      await this.emailService.sendReportEmail(
+        reportPdf,
+        to,
+        clientUrl,
+        firstName,
+        type,
+        dateDelivered.toString(),
+      );
+    } catch (err) {
+      this.logger.error(err instanceof Error ? err.message : String(err));
       throw new Error(err instanceof Error ? err.message : String(err));
     }
   }

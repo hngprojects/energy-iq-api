@@ -14,6 +14,7 @@ import { UsersModule } from '../users/users.module';
 import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { ReportModelAction } from './action/report.action';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ReportModelAction } from './action/report.action';
     UsersModule,
     InvertersMetricsModule,
     AlertsModule,
+    EmailModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService, ReportProcessor, ReportModelAction],
