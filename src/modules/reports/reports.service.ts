@@ -46,6 +46,7 @@ import {
 import * as puppeteer from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as Handlebars from 'handlebars';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
 
@@ -67,7 +68,9 @@ export class ReportsService {
     private readonly reportQueue: Queue,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
-  ) {}
+  ) {
+    this.preloadTemplates();
+  }
 
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
     const inverter = await this.invertersService.findOne(dto.inverterId);
@@ -133,7 +136,10 @@ export class ReportsService {
   async downloadReport(
     reportId: string,
     userId: string,
-  ): Promise<StreamableFile> {
+  ): Promise<{
+    file: StreamableFile;
+    report: Report;
+  }> {
     const report = await this.reportModelAction.findById(reportId);
 
     if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
@@ -144,7 +150,12 @@ export class ReportsService {
 
     const reportPdf = await this.getReportPdf(report);
 
-    return new StreamableFile(reportPdf);
+    const file = new StreamableFile(reportPdf);
+
+    return {
+      file,
+      report,
+    };
   }
 
   async triggerReportEmail(reportId: string, userId: string): Promise<void> {
@@ -340,12 +351,8 @@ export class ReportsService {
         rangeEnd = new Date(d.getFullYear(), d.getMonth() + 1, 1);
         break;
       }
-      default: {
-        // Last 24 hours from `date` — group by hour
-        rangeEnd = new Date(d);
-        rangeStart = new Date(d.getTime() - 24 * 60 * 60 * 1000 * 7);
-        break;
-      }
+      default:
+        throw new Error(`Unsupported report period: ${period}`);
     }
 
     return { rangeStart, rangeEnd };
@@ -498,23 +505,38 @@ export class ReportsService {
     const template = this.renderTemplate(templateName, context);
 
     const browser = await puppeteer.launch();
-    const page = await browser.newPage();
-    await page.setContent(template);
-    const pdfBuffer = await page.pdf({ format: 'A4' });
-    await browser.close();
+    try {
+      const page = await browser.newPage();
+      await page.setContent(template);
+      const pdfBuffer = await page.pdf({ format: 'A4' });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
+  }
 
-    return Buffer.from(pdfBuffer);
+  private preloadTemplates() {
+    const names = [
+      'alert-report',
+      'cost-savings-report',
+      'general-report',
+      'solar-report',
+    ];
+    for (const name of names) {
+      const filePath = path.join(__dirname, 'templates', `${name}.hbs`);
+      const source = fs.readFileSync(filePath, 'utf8');
+      this.templateCache.set(name, Handlebars.compile(source));
+    }
   }
 
   private renderTemplate(
     name: string,
     context: Record<string, unknown>,
   ): string {
-    if (!this.templateCache.has(name)) {
-      const filePath = path.join(__dirname, 'templates', `${name}.hbs`);
-      const source = fs.readFileSync(filePath, 'utf8');
-      this.templateCache.set(name, Handlebars.compile(source));
+    const template = this.templateCache.get(name);
+    if (!template) {
+      throw new Error(`Unknown template: ${name}`);
     }
-    return this.templateCache.get(name)!(context);
+    return template(context);
   }
 }

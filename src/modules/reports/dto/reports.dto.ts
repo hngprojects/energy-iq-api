@@ -3,7 +3,6 @@ import { ReportPeriod, ReportType } from '../../../common/enums/reports.type';
 import {
   IsDateString,
   IsEnum,
-  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
@@ -55,7 +54,6 @@ export class ReportsDto {
     description: 'period for which the user wants the report',
   })
   @IsEnum(ReportPeriod)
-  @IsOptional()
   @ValidateIf((r: ReportsDto) => r.mode === GenerateReportMode.PERIOD)
   period?: ReportPeriod;
 
@@ -64,7 +62,6 @@ export class ReportsDto {
     description: 'Date to begin counting the period from',
   })
   @IsDateString()
-  @IsOptional()
   @ValidateIf((r: ReportsDto) => r.mode === GenerateReportMode.PERIOD)
   referenceDate?: string;
 
@@ -73,7 +70,6 @@ export class ReportsDto {
     description: 'startDate for the custom range',
   })
   @IsDateString()
-  @IsOptional()
   @ValidateIf((r: ReportsDto) => r.mode === GenerateReportMode.CUSTOM_RANGE)
   startDate?: string;
 
@@ -82,7 +78,6 @@ export class ReportsDto {
     description: 'endDate for the custom range',
   })
   @IsDateString()
-  @IsOptional()
   @ValidateIf((r: ReportsDto) => r.mode === GenerateReportMode.CUSTOM_RANGE)
   endDate?: string;
 }

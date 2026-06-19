@@ -134,9 +134,10 @@ export class AlertsService {
       (a) => a.resolutionStatus === AlertResolutionStatus.UNRESOLVED,
     ).length;
 
-    const resolutionRate = parseFloat(
-      ((resolvedAlerts / totalAlerts) * 100).toFixed(2),
-    );
+    const resolutionRate =
+      totalAlerts > 0
+        ? parseFloat(((resolvedAlerts / totalAlerts) * 100).toFixed(2))
+        : 0;
 
     const dominantAlertType = this.getDominantAlertType(alerts);
     const dominantAlertSeverity = this.getDominantAlertSeverity(alerts);
@@ -194,7 +195,10 @@ export class AlertsService {
     if (report.period === ReportPeriod.CUSTOM) {
       if (!(report.startDate && report.endDate)) return null;
 
-      return report.endDate.getDate() - report.startDate.getDate();
+      return Math.ceil(
+        (report.endDate.getTime() - report.startDate.getTime()) |
+          (1000 * 60 * 60 * 24),
+      );
     } else if (report.period === ReportPeriod.WEEKLY) {
       return 7;
     } else {

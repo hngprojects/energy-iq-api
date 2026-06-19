@@ -990,7 +990,7 @@ export class InvertersMetricsService {
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -1586,7 +1586,7 @@ export class InvertersMetricsService {
     };
   }
 
-  parseDateOrThrow(value: string, field?: string) {
+  parseDateOrThrow(value: string, field = 'Date') {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) {
       throw new BadRequestException(`${field} must be a valid date`);
@@ -1651,7 +1651,10 @@ export class InvertersMetricsService {
       (sum, r) => sum + parseFloat(r.energyKwh),
       0,
     );
-    const avgLoadKw = totalEnergyConsumedKwh / breakdownRows.length;
+    const avgLoadKw =
+      breakdownRows.length > 0
+        ? totalEnergyConsumedKwh / breakdownRows.length
+        : 0;
     const totalSolarGeneratedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.solarKwh),
       0,
@@ -1749,6 +1752,7 @@ export class InvertersMetricsService {
         'activeHours',
       )
       .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
+      .where('m.inverter_id = :inverterId', { inverterId })
       .andWhere('m.metric_timestamp >= :startDate', { startDate })
       .andWhere('m.metric_timestamp < :endDate', { endDate })
       .groupBy(chartGroupExpr)
@@ -2062,8 +2066,8 @@ export class InvertersMetricsService {
         meta: {
           fuelType,
           fuelPricePerLitreNgn: fuelPricePerLitreNaira,
-          assumedConsumptionRateLPerHr: ratedPowerKw,
-          assumedGeneratorRatedPowerKw: consumptionRateLPerHr,
+          assumedConsumptionRateLPerHr: consumptionRateLPerHr,
+          assumedGeneratorRatedPowerKw: ratedPowerKw,
         },
       },
     };

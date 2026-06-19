@@ -87,8 +87,14 @@ export class ReportProcessor extends WorkerHost {
   }
 
   private async sendPdfReport(job: Job<SendReportJobData>): Promise<void> {
-    const { reportPdf, to, clientUrl, firstName, type, dateDelivered } =
-      job.data;
+    const {
+      reportPdf,
+      to,
+      clientUrl,
+      firstName,
+      type: reportType,
+      dateDelivered,
+    } = job.data;
 
     try {
       await this.emailService.sendReportEmail(
@@ -96,8 +102,8 @@ export class ReportProcessor extends WorkerHost {
         to,
         clientUrl,
         firstName,
-        type,
-        dateDelivered.toString(),
+        reportType,
+        dateDelivered,
       );
     } catch (err) {
       this.logger.error(err instanceof Error ? err.message : String(err));
@@ -120,7 +126,7 @@ export class ReportProcessor extends WorkerHost {
         return this.reportsService.computeGeneralReport(report);
       }
       default: {
-        const message = `Unknown report type`;
+        const message = `Unknown report type: ${String(report.type)}`;
         this.logger.warn(message);
         throw new Error(message);
       }

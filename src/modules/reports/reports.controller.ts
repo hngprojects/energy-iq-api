@@ -2,11 +2,11 @@ import {
   Body,
   Controller,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   Param,
   Post,
+  Res,
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import {
@@ -15,6 +15,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
+import { type Response } from 'express';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -32,14 +33,22 @@ export class ReportsController {
   }
 
   @Get('download/:id')
-  @Header('Content-Type', 'application/pdf')
-  @Header('Content-Disposition', 'attachment; filename="report.pdf"')
   @HttpCode(HttpStatus.OK)
-  downloadReport(
+  async downloadReport(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.reportsService.downloadReport(id, user.sub);
+    const { file, report } = await this.reportsService.downloadReport(
+      id,
+      user.sub,
+    );
+    const filename = `${report.type}_${report.name}_${report.dateDelivered?.toISOString().split('T')[0]}.pdf`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return file;
   }
 
   @Post('email-report/:id')

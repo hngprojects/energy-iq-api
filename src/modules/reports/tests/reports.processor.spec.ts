@@ -41,7 +41,6 @@ function makeReport(overrides: Partial<Report> = {}): Report {
     type: ReportType.ALERT,
     period: ReportPeriod.MONTHLY,
     referenceDate: new Date('2026-06-01T00:00:00.000Z'),
-    // dateRequested: new Date('2026-06-01T00:00:00.000Z'),
     dateDelivered: null,
     status: ReportStatus.PROCESSING,
     keyMetrics: {
@@ -67,7 +66,6 @@ function makeProcessedReport(
     name: 'June report',
     period: ReportPeriod.MONTHLY,
     status: ReportStatus.READY,
-    // dateRequested: new Date('2026-06-01T00:00:00.000Z'),
     dateDelivered: new Date('2026-06-02T00:00:00.000Z'),
     type,
     keyMetrics,
@@ -125,7 +123,7 @@ describe('ReportProcessor', () => {
     expect(processor).toBeDefined();
   });
 
-  it('returns a carries out send-report jobs', async () => {
+  it('carries out send-report jobs', async () => {
     const { processor, reportsService, emailService } = makeProcessor();
 
     const report = makeReport({ type: ReportType.ALERT });
@@ -147,7 +145,7 @@ describe('ReportProcessor', () => {
       clientUrl: `https://client-url`,
       reportPdf: Buffer.from([]),
       type: report.type,
-      dateDelivered: 'string date',
+      dateDelivered: new Date('2026-06-02T00:00:00.000Z').toISOString(),
     };
 
     await processor.process(

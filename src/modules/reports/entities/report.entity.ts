@@ -11,10 +11,10 @@ import { Inverter } from '../../inverters/entities/inverters.entity';
 
 @Entity('reports')
 export class Report extends AbstractBaseEntity {
-  @Column({ type: 'uuid', nullable: false })
+  @Column({ type: 'uuid', nullable: false, name: 'user_id' })
   userId: string;
 
-  @Column({ type: 'uuid', nullable: false })
+  @Column({ type: 'uuid', nullable: false, name: 'inverter_id' })
   inverterId: string;
 
   @Column({ type: 'enum', enum: ReportType, default: ReportType.GENERAL })

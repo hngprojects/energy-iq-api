@@ -393,17 +393,17 @@ export class EmailProcessor extends WorkerHost {
     this.logger.log(`Sending report in email to ${this.maskEmail(to)}`);
     const html = this.renderTemplate(EMAIL_JOBS.SEND_REPORT, {
       firstName,
-      to,
+      toEmail: to,
       clientUrl,
       reportName,
-      reportDate: new Date().toISOString(),
+      reportDate: dateDelivered,
     });
 
     const fromAddress = this.appCfg.resendFrom;
 
     const reportAttachment: Attachment = {
       content: reportPdf,
-      filename: reportName,
+      filename: `${reportName}.pdf`,
       contentType: 'application/pdf',
     };
 

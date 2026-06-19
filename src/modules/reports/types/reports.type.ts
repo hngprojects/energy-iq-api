@@ -10,7 +10,7 @@ export interface ReportBase {
   name: string;
   period: ReportPeriod;
   status: ReportStatus;
-  dateDelivered: Date;
+  dateDelivered: Date | null;
 }
 
 export interface SolarKeyMetrics {

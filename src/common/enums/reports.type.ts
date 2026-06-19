@@ -2,7 +2,7 @@ export enum ReportType {
   GENERAL = 'GENERAL',
   SOLAR = 'SOLAR',
   ALERT = 'ALERT',
-  CSC = 'COSTS AND SAVINGS',
+  CSC = 'COSTS_AND_SAVINGS',
 }
 
 export enum ReportPeriod {

@@ -347,7 +347,7 @@ describe('ReportsService', () => {
       },
     });
     expect(result.dateDelivered).toBeInstanceOf(Date);
-    expect(result.dateDelivered.getTime()).toBeGreaterThanOrEqual(
+    expect(result.dateDelivered!.getTime()).toBeGreaterThanOrEqual(
       deliveredBefore.getTime(),
     );
   });
