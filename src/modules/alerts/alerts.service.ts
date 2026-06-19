@@ -196,7 +196,7 @@ export class AlertsService {
       if (!(report.startDate && report.endDate)) return null;
 
       return Math.ceil(
-        (report.endDate.getTime() - report.startDate.getTime()) |
+        (report.endDate.getTime() - report.startDate.getTime()) /
           (1000 * 60 * 60 * 24),
       );
     } else if (report.period === ReportPeriod.WEEKLY) {

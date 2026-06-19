@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -43,7 +44,10 @@ export class ReportsController {
       id,
       user.sub,
     );
-    const filename = `${report.type}_${report.name}_${report.dateDelivered?.toISOString().split('T')[0]}.pdf`;
+    if (!report.dateDelivered)
+      throw new ConflictException('Report delivery date is missing');
+    const safeName = report.name.replace(/[^\w.-]+/g, '_');
+    const filename = `${report.type}_${safeName}_${report.dateDelivered.toISOString().split('T')[0]}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
