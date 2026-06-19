@@ -13,8 +13,10 @@ import {
   AlertNotificationJobData,
   AlertStat,
   WaitlistJoinedJobData,
+  SendReportJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
+import { ReportType } from '../../common/enums/reports.type';
 
 @Injectable()
 export class EmailService {
@@ -131,5 +133,23 @@ export class EmailService {
       to: toEmail,
       year: year.toString(),
     } satisfies WaitlistJoinedJobData);
+  }
+
+  async sendReportEmail(
+    reportPdf: Buffer,
+    to: string,
+    clientUrl: string,
+    firstName: string,
+    reportType: ReportType,
+    dateDelivered: string,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.SEND_REPORT, {
+      reportPdf,
+      to,
+      clientUrl,
+      firstName,
+      reportType,
+      dateDelivered,
+    } satisfies SendReportJobData);
   }
 }
