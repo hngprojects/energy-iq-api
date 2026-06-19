@@ -6,14 +6,14 @@ import {
   ReportType,
 } from '../../../common/enums/reports.type';
 
-interface ReportBase {
+export interface ReportBase {
   name: string;
   period: ReportPeriod;
   status: ReportStatus;
   dateDelivered: Date;
 }
 
-interface SolarKeyMetrics {
+export interface SolarKeyMetrics {
   solarKwh: number;
   avgBatterySoc: number;
   avgLoadKw: number;
@@ -21,7 +21,7 @@ interface SolarKeyMetrics {
   solarCoveragePercent?: number;
 }
 
-interface AlertKeyMetrics {
+export interface AlertKeyMetrics {
   totalAlerts: number;
   resolvedAlerts: number;
   unresolvedAlerts: number;
@@ -30,7 +30,7 @@ interface AlertKeyMetrics {
   resolutionRate: number;
 }
 
-interface CostSavingsKeyMetrics {
+export interface CostSavingsKeyMetrics {
   totalCostSavedNgn: number;
   generatorCostAvoidedNgn: number;
   fuelSavedLitres: number;
@@ -46,7 +46,7 @@ interface CostSavingsKeyMetrics {
   };
 }
 
-interface GeneralKeyMetrics
+export interface GeneralKeyMetrics
   extends AlertKeyMetrics, CostSavingsKeyMetrics, SolarKeyMetrics {}
 
 export type SolarReport = ReportBase & {
@@ -78,4 +78,5 @@ export type AnyReport =
 export type ReportKeyMetrics =
   | AlertKeyMetrics
   | SolarKeyMetrics
-  | CostSavingsKeyMetrics;
+  | CostSavingsKeyMetrics
+  | GeneralKeyMetrics;
