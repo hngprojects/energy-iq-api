@@ -305,7 +305,7 @@ export class ReportsService {
 
       const dueTime = report.endDate.getTime();
 
-      return dueTime - Date.now();
+      return Math.max(dueTime - Date.now(), 0);
     } else {
       if (!report.referenceDate)
         throw new BadRequestException(
@@ -316,7 +316,7 @@ export class ReportsService {
         report.referenceDate,
       );
 
-      return rangeEnd.getTime() - Date.now();
+      return Math.max(rangeEnd.getTime() - Date.now(), 0);
     }
   }
 
