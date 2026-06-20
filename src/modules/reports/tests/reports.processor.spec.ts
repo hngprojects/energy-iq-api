@@ -18,16 +18,24 @@ interface MockJob<T extends Record<string, unknown> = Record<string, unknown>> {
   id: string;
   name: string;
   data: T;
+  attemptsMade: number;
+  opts: { attempts: number };
 }
 
 function makeJob<T extends Record<string, unknown>>(
   name: string,
   data: T,
+  {
+    attemptsMade = 0,
+    attempts = 3,
+  }: { attemptsMade?: number; attempts?: number } = {},
 ): MockJob<T> {
   return {
     id: 'job-1',
     name,
     data,
+    attemptsMade,
+    opts: { attempts },
   };
 }
 
@@ -105,6 +113,7 @@ function makeReportsService() {
     computeSolarReport: jest.fn(),
     computeGeneralReport: jest.fn(),
     updateReport: jest.fn(),
+    resetReportToPending: jest.fn().mockResolvedValue(undefined),
     // Defaults to resolving null — tests that need COMPUTE_REPORT to proceed past
     // the PROCESSING guard must call:
     //   reportsService.updateReportStatus.mockResolvedValue({ ...report, status: ReportStatus.PROCESSING })
@@ -416,9 +425,6 @@ describe('ReportProcessor', () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.SOLAR });
     const processingReport = { ...report, status: ReportStatus.PROCESSING };
-    const errorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
 
     reportsService.getReportById.mockResolvedValue(report);
     reportsService.updateReportStatus.mockResolvedValue(processingReport);
@@ -426,11 +432,14 @@ describe('ReportProcessor', () => {
       new Error('solar aggregation failed'),
     );
 
+    // Simulate last attempt so the processor writes FAILED (not PENDING reset)
     await expect(
       processor.process(
-        makeJob(REPORT_JOBS.COMPUTE_REPORT, {
-          reportId: report.id,
-        }) as never,
+        makeJob(
+          REPORT_JOBS.COMPUTE_REPORT,
+          { reportId: report.id },
+          { attemptsMade: 2, attempts: 3 },
+        ) as never,
       ),
     ).rejects.toThrow('solar aggregation failed');
 
@@ -444,7 +453,7 @@ describe('ReportProcessor', () => {
       }),
       null,
     );
-    errorSpy.mockRestore();
+    expect(reportsService.resetReportToPending).not.toHaveBeenCalled();
   });
 
   it('marks the report as failed when the report type is unknown', async () => {
@@ -455,11 +464,14 @@ describe('ReportProcessor', () => {
     reportsService.getReportById.mockResolvedValue(report);
     reportsService.updateReportStatus.mockResolvedValue(processingReport);
 
+    // Simulate last attempt so the processor writes FAILED
     await expect(
       processor.process(
-        makeJob(REPORT_JOBS.COMPUTE_REPORT, {
-          reportId: report.id,
-        }) as never,
+        makeJob(
+          REPORT_JOBS.COMPUTE_REPORT,
+          { reportId: report.id },
+          { attemptsMade: 2, attempts: 3 },
+        ) as never,
       ),
     ).rejects.toThrow('Unknown report type');
 
