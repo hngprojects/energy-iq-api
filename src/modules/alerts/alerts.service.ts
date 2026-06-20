@@ -112,9 +112,16 @@ export class AlertsService {
 
     const daysLater = this.getReportSpanDays(report);
     if (!daysLater) throw new Error('Unable to calculate days difference');
-    const startDate = report.referenceDate || report.startDate;
-    const endDate = new Date();
-    endDate.setDate(startDate!.getDate() + daysLater);
+    const startDate = report.referenceDate ?? report.startDate;
+    if (!startDate) throw new Error('Report start date is required');
+
+    const endDate =
+      report.period === ReportPeriod.CUSTOM && report.endDate
+        ? new Date(report.endDate)
+        : new Date(startDate);
+
+    if (report.period !== ReportPeriod.CUSTOM)
+      endDate.setDate(endDate.getDate() + daysLater);
 
     const findAlertsOptions: FindAlertsDto = {
       start_date: startDate,
@@ -194,6 +201,7 @@ export class AlertsService {
   private getReportSpanDays(report: Report): number | null {
     if (report.period === ReportPeriod.CUSTOM) {
       if (!(report.startDate && report.endDate)) return null;
+      if (report.endDate < report.startDate) return null;
 
       return Math.ceil(
         (report.endDate.getTime() - report.startDate.getTime()) /
