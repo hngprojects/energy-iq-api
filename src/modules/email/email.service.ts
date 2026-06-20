@@ -16,7 +16,6 @@ import {
   SendReportJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
-import { ReportType } from '../../common/enums/reports.type';
 
 @Injectable()
 export class EmailService {
@@ -136,20 +135,18 @@ export class EmailService {
   }
 
   async sendReportEmail(
-    reportPdf: Buffer,
+    reportId: string,
     to: string,
     clientUrl: string,
     firstName: string,
-    reportType: ReportType,
-    dateDelivered: string,
   ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.SEND_REPORT, {
-      reportPdf,
+      reportId,
       to,
       clientUrl,
       firstName,
-      reportType,
-      dateDelivered,
+      // reportType,
+      // dateDelivered,
     } satisfies SendReportJobData);
   }
 }

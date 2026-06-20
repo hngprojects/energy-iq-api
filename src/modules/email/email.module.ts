@@ -6,7 +6,10 @@ import { EmailProcessor } from './email.processor';
 import { ReportsModule } from '../reports/reports.module';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUES.EMAIL }), forwardRef(() => ReportsModule)],
+  imports: [
+    BullModule.registerQueue({ name: QUEUES.EMAIL }),
+    forwardRef(() => ReportsModule),
+  ],
   providers: [EmailService, EmailProcessor],
   exports: [EmailService],
 })

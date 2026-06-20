@@ -1,5 +1,4 @@
 import { AlertSeverity, AlertType } from '../../common/enums';
-import { ReportType } from '../../common/enums/reports.type';
 
 export const EMAIL_JOBS = {
   WELCOME: 'welcome',
@@ -85,12 +84,10 @@ export interface WaitlistJoinedJobData {
 }
 
 export interface SendReportJobData {
-  reportPdf: Buffer;
+  reportId: string;
   to: string;
   clientUrl: string;
   firstName: string;
-  reportType: ReportType;
-  dateDelivered: string;
 }
 
 export type EmailJobData =
