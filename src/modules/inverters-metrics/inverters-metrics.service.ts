@@ -1647,22 +1647,29 @@ export class InvertersMetricsService {
         avgBatterySoc: string;
       }>();
 
+    const totalActiveHours = breakdownRows.reduce(
+      (sum, r) => sum + parseInt(r.activeHours, 10),
+      0,
+    );
+
     const totalEnergyConsumedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.energyKwh),
       0,
     );
     const avgLoadKw =
-      breakdownRows.length > 0
-        ? totalEnergyConsumedKwh / breakdownRows.length
-        : 0;
+      totalActiveHours > 0 ? totalEnergyConsumedKwh / totalActiveHours : 0;
     const totalSolarGeneratedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.solarKwh),
       0,
     );
 
     const avgBatterySoc =
-      breakdownRows.reduce((sum, r) => sum + parseFloat(r.avgBatterySoc), 0) /
-      breakdownRows.length;
+      breakdownRows.length > 0
+        ? breakdownRows.reduce(
+            (sum, r) => sum + parseFloat(r.avgBatterySoc),
+            0,
+          ) / breakdownRows.length
+        : 0;
 
     const solarCoveragePercent =
       totalEnergyConsumedKwh > 0
@@ -1673,11 +1680,6 @@ export class InvertersMetricsService {
             ).toFixed(1),
           )
         : undefined;
-
-    const totalActiveHours = breakdownRows.reduce(
-      (sum, r) => sum + parseInt(r.activeHours, 10),
-      0,
-    );
 
     return {
       name: report.name,
@@ -1765,19 +1767,30 @@ export class InvertersMetricsService {
         avgBatterySoc: string;
       }>();
 
+    const totalActiveHours = breakdownRows.reduce(
+      (sum, r) => sum + parseInt(r.activeHours, 10),
+      0,
+    );
+
     const totalEnergyConsumedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.energyKwh),
       0,
     );
-    const avgLoadKw = totalEnergyConsumedKwh / breakdownRows.length;
+
+    const avgLoadKw =
+      totalActiveHours > 0 ? totalEnergyConsumedKwh / totalActiveHours : 0;
     const totalSolarGeneratedKwh = breakdownRows.reduce(
       (sum, r) => sum + parseFloat(r.solarKwh),
       0,
     );
 
     const avgBatterySoc =
-      breakdownRows.reduce((sum, r) => sum + parseFloat(r.avgBatterySoc), 0) /
-      breakdownRows.length;
+      breakdownRows.length > 0
+        ? breakdownRows.reduce(
+            (sum, r) => sum + parseFloat(r.avgBatterySoc),
+            0,
+          ) / breakdownRows.length
+        : 0;
 
     const solarCoveragePercent =
       totalEnergyConsumedKwh > 0
@@ -1788,11 +1801,6 @@ export class InvertersMetricsService {
             ).toFixed(1),
           )
         : undefined;
-
-    const totalActiveHours = breakdownRows.reduce(
-      (sum, r) => sum + parseInt(r.activeHours, 10),
-      0,
-    );
 
     return {
       name: report.name,
@@ -1840,7 +1848,7 @@ export class InvertersMetricsService {
 
     const fuelEntry = getLatestFuelPrice(fuelType);
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira !== null
+      settings?.customFuelPriceNaira != null
         ? Number(settings?.customFuelPriceNaira)
         : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
@@ -1964,7 +1972,7 @@ export class InvertersMetricsService {
 
     const fuelEntry = getLatestFuelPrice(fuelType);
     const fuelPricePerLitreNaira =
-      settings?.customFuelPriceNaira !== null
+      settings?.customFuelPriceNaira != null
         ? Number(settings?.customFuelPriceNaira)
         : fuelEntry.pricePerLitreNaira;
     const consumptionRateLPerHr = estimateFuelConsumptionRate(
@@ -2013,8 +2021,8 @@ export class InvertersMetricsService {
       )
       .addSelect('AVG(m.battery_soc_percent)', 'avgBatterySoc')
       .where('m.inverter_id = :inverterId', { inverterId })
-      .andWhere('m.metric_timestamp >= :rangeStart', { startDate })
-      .andWhere('m.metric_timestamp < :rangeEnd', { endDate })
+      .andWhere('m.metric_timestamp >= :startDate', { startDate })
+      .andWhere('m.metric_timestamp < :endDate', { endDate })
       .groupBy(chartGroupExpr)
       .orderBy(chartGroupExpr, 'ASC')
       .getRawMany<{
