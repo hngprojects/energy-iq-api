@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InvertersModule } from '../inverters/inverters.module';
 import { Report } from './entities/report.entity';
@@ -21,7 +21,7 @@ import { EmailModule } from '../email/email.module';
     UsersModule,
     InvertersMetricsModule,
     AlertsModule,
-    EmailModule,
+    forwardRef(() => EmailModule),
   ],
   controllers: [ReportsController],
   providers: [ReportsService, ReportProcessor, ReportModelAction],
