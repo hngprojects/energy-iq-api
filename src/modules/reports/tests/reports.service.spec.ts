@@ -1,7 +1,6 @@
 // Mock the config chain before any imports to prevent @t3-oss/env-core ESM parse error
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({ appConfig: { KEY: 'app' } }));
-jest.mock('puppeteer', () => ({}));
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportsService } from '../reports.service';

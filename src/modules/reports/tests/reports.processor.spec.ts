@@ -1,6 +1,5 @@
 jest.mock('../../../config/env', () => ({}));
 jest.mock('../../../config/app.config', () => ({ appConfig: { KEY: 'app' } }));
-jest.mock('puppeteer', () => ({}));
 
 import { ConflictException } from '@nestjs/common';
 import { AlertSeverity, AlertType } from '../../../common/enums';
