@@ -48,24 +48,45 @@ export class ReportModelAction extends AbstractModelAction<Report> {
     return updated;
   }
 
+  async updateReportStatusUnconditional(
+    id: string,
+    status: ReportStatus,
+  ): Promise<void> {
+    await this.repository.update({ id }, { status });
+  }
+
   async updateReportStatus(
     id: string,
     status: ReportStatus,
   ): Promise<Report | null> {
-    const report = await this.findById(id);
+    // Atomic conditional update: only transitions FROM PENDING to prevent TOCTOU races.
+    // Uses affected row count — if 0 rows updated, another worker already claimed it.
+    const result = await this.repository.update(
+      { id, status: ReportStatus.PENDING },
+      { status },
+    );
 
-    if (!report) throw new Error(`Report with id ${id} not found`);
+    if (!result.affected) return null;
 
-    if (report.status !== ReportStatus.PENDING) return null;
+    return this.findById(id);
+  }
 
-    const updated = await this.update({
-      ...noTransaction(),
-      identifierOptions: { id },
-      updatePayload: {
-        status,
-      },
-    });
+  async resetStalledProcessingReports(
+    olderThanMinutes: number,
+  ): Promise<number> {
+    // Recovers reports stuck in PROCESSING due to worker crashes.
+    // Any report still PROCESSING after olderThanMinutes is reset to PENDING
+    // so the next scheduled job can pick it up again.
+    const threshold = new Date(Date.now() - olderThanMinutes * 60 * 1000);
 
-    return updated;
+    const result = await this.repository
+      .createQueryBuilder()
+      .update(Report)
+      .set({ status: ReportStatus.PENDING })
+      .where('status = :status', { status: ReportStatus.PROCESSING })
+      .andWhere('updated_at < :threshold', { threshold })
+      .execute();
+
+    return result.affected ?? 0;
   }
 }

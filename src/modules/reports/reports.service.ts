@@ -272,6 +272,21 @@ export class ReportsService {
     return await this.reportModelAction.updateReportStatus(id, status);
   }
 
+  async resetReportToPending(id: string): Promise<void> {
+    await this.reportModelAction.updateReportStatusUnconditional(
+      id,
+      ReportStatus.PENDING,
+    );
+  }
+
+  async resetStalledProcessingReports(
+    olderThanMinutes: number,
+  ): Promise<number> {
+    return await this.reportModelAction.resetStalledProcessingReports(
+      olderThanMinutes,
+    );
+  }
+
   private parseDateOrThrow(value: string, field: string) {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) {

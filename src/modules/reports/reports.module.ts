@@ -5,6 +5,7 @@ import { Report } from './entities/report.entity';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { ReportProcessor } from './reports.processor';
+import { ReportsCron } from './reports.cron';
 import { BullModule } from '@nestjs/bullmq';
 import { QUEUES } from '../../common/constants/queue';
 import { UsersModule } from '../users/users.module';
@@ -24,7 +25,7 @@ import { EmailModule } from '../email/email.module';
     forwardRef(() => EmailModule),
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ReportProcessor, ReportModelAction],
+  providers: [ReportsService, ReportProcessor, ReportsCron, ReportModelAction],
   exports: [ReportModelAction, ReportsService],
 })
 export class ReportsModule {}

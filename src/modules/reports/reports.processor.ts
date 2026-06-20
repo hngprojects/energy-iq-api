@@ -39,12 +39,6 @@ export class ReportProcessor extends WorkerHost {
     }
   }
 
-  private maskEmail(email: string): string {
-    const [local, domain] = email.split('@');
-    if (!local || !domain) return '***';
-    return `${local.slice(0, 2)}***@${domain}`;
-  }
-
   private async handleComputeReport(
     job: Job<ComputeReportJobData>,
   ): Promise<void> {
@@ -56,18 +50,29 @@ export class ReportProcessor extends WorkerHost {
       this.logger.error(`No report with id ${reportId} found`);
       throw new Error(`No report with id ${reportId} found`);
     }
+
     if (report.status !== ReportStatus.PENDING)
       throw new ConflictException(SYS_MSG.CONFLICT);
 
     this.logger.log(`Computing report Report_${reportId}`);
 
-    try {
-      const updated = await this.reportsService.updateReportStatus(
-        report.id,
-        ReportStatus.PROCESSING,
-      );
-      if (!updated) throw new ConflictException(SYS_MSG.CONFLICT);
+    // Fix 1+2: Atomic claim — only transitions from PENDING, returns null if another
+    // worker already claimed it. Handled outside the try so contention is not
+    // misidentified as a computation failure.
+    const updated = await this.reportsService.updateReportStatus(
+      report.id,
+      ReportStatus.PROCESSING,
+    );
 
+    if (!updated) {
+      // Another worker won the race — silently discard, not a failure.
+      this.logger.warn(
+        `Report_${reportId} already claimed by another worker — skipping`,
+      );
+      return;
+    }
+
+    try {
       const processed = await this.processReport(updated);
       this.logger.log(
         `Successfully processed Report_${reportId}. Writing back to DB...`,
@@ -79,33 +84,33 @@ export class ReportProcessor extends WorkerHost {
         processed.dateDelivered,
       );
     } catch (err) {
-      const failedReport: Report = {
-        ...report,
-        status: ReportStatus.FAILED,
-      };
-
-      await this.reportsService.updateReport(
-        reportId,
-        failedReport as AnyReport,
-        null,
-      );
       this.logger.error(
         `Report_${reportId} failed computing`,
         err instanceof Error ? err.stack : String(err),
       );
+
+      // Fix 3: On the last attempt write FAILED; on earlier attempts reset to PENDING
+      // so the BullMQ retry passes the PENDING guard on the next run.
+      const maxAttempts = job.opts?.attempts ?? 1;
+      const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
+
+      if (isLastAttempt) {
+        const failedReport: Report = { ...report, status: ReportStatus.FAILED };
+        await this.reportsService.updateReport(
+          reportId,
+          failedReport as AnyReport,
+          null,
+        );
+      } else {
+        await this.reportsService.resetReportToPending(reportId);
+      }
+
       throw new Error(err instanceof Error ? err.message : String(err));
     }
   }
 
   private async sendPdfReport(job: Job<SendReportJobData>): Promise<void> {
-    const {
-      reportId,
-      to,
-      clientUrl,
-      firstName,
-      // type: reportType,
-      // dateDelivered,
-    } = job.data;
+    const { reportId, to, clientUrl, firstName } = job.data;
 
     try {
       await this.emailService.sendReportEmail(
@@ -121,21 +126,15 @@ export class ReportProcessor extends WorkerHost {
   }
 
   private async processReport(report: Report): Promise<AnyReport> {
-    if (report.status !== ReportStatus.PROCESSING)
-      throw new ConflictException(SYS_MSG.CONFLICT);
     switch (report.type) {
-      case ReportType.ALERT: {
+      case ReportType.ALERT:
         return this.reportsService.computeAlertReport(report);
-      }
-      case ReportType.CSC: {
+      case ReportType.CSC:
         return this.reportsService.computeCostAndSavingsReport(report);
-      }
-      case ReportType.SOLAR: {
+      case ReportType.SOLAR:
         return this.reportsService.computeSolarReport(report);
-      }
-      case ReportType.GENERAL: {
+      case ReportType.GENERAL:
         return this.reportsService.computeGeneralReport(report);
-      }
       default: {
         const message = `Unknown report type: ${String(report.type)}`;
         this.logger.warn(message);
