@@ -47,4 +47,25 @@ export class ReportModelAction extends AbstractModelAction<Report> {
 
     return updated;
   }
+
+  async updateReportStatus(
+    id: string,
+    status: ReportStatus,
+  ): Promise<Report | null> {
+    const report = await this.findById(id);
+
+    if (!report) throw new Error(`Report with id ${id} not found`);
+
+    if (report.status !== ReportStatus.PENDING) return null;
+
+    const updated = await this.update({
+      ...noTransaction(),
+      identifierOptions: { id },
+      updatePayload: {
+        status,
+      },
+    });
+
+    return updated;
+  }
 }

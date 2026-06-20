@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -174,8 +175,6 @@ export class ReportsService {
       if (report.status !== ReportStatus.READY)
         throw new ConflictException(SYS_MSG.CONFLICT);
 
-      const reportPdf = await this.getReportPdf(report);
-
       const user = await this.usersService.findOne(report.userId);
       if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
 
@@ -183,13 +182,14 @@ export class ReportsService {
         to: user.email,
         firstName: user.firstName,
         clientUrl: `${this.appCfg.clientUrl}/dashboard/report`,
-        reportPdf,
-        type: report.type,
-        dateDelivered: report.dateDelivered!.toISOString(),
+        reportId,
+        // type: report.type,
+        // dateDelivered: report.dateDelivered!.toISOString(),
       } satisfies SendReportJobData);
       return;
     } catch (err) {
       this.logger.error(err);
+      if (err instanceof HttpException) throw err;
       throw new ServiceUnavailableException(
         'Failed to trigger report email. Try again',
       );
@@ -265,6 +265,13 @@ export class ReportsService {
     );
   }
 
+  async updateReportStatus(
+    id: string,
+    status: ReportStatus,
+  ): Promise<Report | null> {
+    return await this.reportModelAction.updateReportStatus(id, status);
+  }
+
   private parseDateOrThrow(value: string, field: string) {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) {
@@ -295,6 +302,10 @@ export class ReportsService {
       if (!dto.period)
         throw new BadRequestException(
           'period must be defined for period report mode',
+        );
+      if (dto.period === ReportPeriod.CUSTOM)
+        throw new BadRequestException(
+          'period must be weekly or monthly for period report mode',
         );
       if (!dto.referenceDate)
         throw new BadRequestException(

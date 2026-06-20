@@ -3,6 +3,7 @@ import { ReportPeriod, ReportType } from '../../../common/enums/reports.type';
 import {
   IsDateString,
   IsEnum,
+  IsIn,
   IsString,
   IsUUID,
   MaxLength,
@@ -55,6 +56,7 @@ export class ReportsDto {
   })
   @IsEnum(ReportPeriod)
   @ValidateIf((r: ReportsDto) => r.mode === GenerateReportMode.PERIOD)
+  @IsIn([ReportPeriod.WEEKLY, ReportPeriod.MONTHLY])
   period?: ReportPeriod;
 
   @ApiProperty({

@@ -16,7 +16,15 @@ export function buildReportHeader(
         { text: `Period: ${period}`, style: 'meta' },
         { text: `Status: ${status}`, style: 'meta' },
         {
-          text: `Delivered: ${dateDelivered ? dateDelivered.toLocaleString() : '—'}`,
+          text: `Delivered: ${
+            dateDelivered
+              ? new Intl.DateTimeFormat('en-GB', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                  timeZone: 'UTC',
+                }).format(dateDelivered) + ' UTC'
+              : '—'
+          }`,
           style: 'meta',
         },
       ],

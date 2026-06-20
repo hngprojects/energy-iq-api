@@ -56,13 +56,19 @@ export class ReportProcessor extends WorkerHost {
       this.logger.error(`No report with id ${reportId} found`);
       throw new Error(`No report with id ${reportId} found`);
     }
-    if (report.status === ReportStatus.READY)
+    if (report.status !== ReportStatus.PENDING)
       throw new ConflictException(SYS_MSG.CONFLICT);
 
     this.logger.log(`Computing report Report_${reportId}`);
 
     try {
-      const processed = await this.processReport(report);
+      const updated = await this.reportsService.updateReportStatus(
+        report.id,
+        ReportStatus.PROCESSING,
+      );
+      if (!updated) throw new ConflictException(SYS_MSG.CONFLICT);
+
+      const processed = await this.processReport(updated);
       this.logger.log(
         `Successfully processed Report_${reportId}. Writing back to DB...`,
       );
@@ -93,22 +99,20 @@ export class ReportProcessor extends WorkerHost {
 
   private async sendPdfReport(job: Job<SendReportJobData>): Promise<void> {
     const {
-      reportPdf,
+      reportId,
       to,
       clientUrl,
       firstName,
-      type: reportType,
-      dateDelivered,
+      // type: reportType,
+      // dateDelivered,
     } = job.data;
 
     try {
       await this.emailService.sendReportEmail(
-        reportPdf,
+        reportId,
         to,
         clientUrl,
         firstName,
-        reportType,
-        dateDelivered,
       );
     } catch (err) {
       this.logger.error(err instanceof Error ? err.message : String(err));
@@ -117,6 +121,8 @@ export class ReportProcessor extends WorkerHost {
   }
 
   private async processReport(report: Report): Promise<AnyReport> {
+    if (report.status !== ReportStatus.PROCESSING)
+      throw new ConflictException(SYS_MSG.CONFLICT);
     switch (report.type) {
       case ReportType.ALERT: {
         return this.reportsService.computeAlertReport(report);

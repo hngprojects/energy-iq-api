@@ -41,6 +41,32 @@ function makeReport(overrides: Partial<Report> = {}): Report {
     period: ReportPeriod.MONTHLY,
     referenceDate: new Date('2026-06-01T00:00:00.000Z'),
     dateDelivered: null,
+    status: ReportStatus.PENDING,
+    keyMetrics: {
+      totalAlerts: 2,
+      resolvedAlerts: 1,
+      unresolvedAlerts: 1,
+      dominantAlertType: AlertType.ENERGY,
+      dominantAlertSeverity: AlertSeverity.HIGH,
+      resolutionRate: 50,
+    },
+    createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+    deletedAt: null,
+    ...overrides,
+  } as Report;
+}
+
+function makeProcessingReport(overrides: Partial<Report> = {}): Report {
+  return {
+    id: 'report-1',
+    userId: 'user-1',
+    inverterId: 'inverter-1',
+    name: 'June report',
+    type: ReportType.ALERT,
+    period: ReportPeriod.MONTHLY,
+    referenceDate: new Date('2026-06-01T00:00:00.000Z'),
+    dateDelivered: null,
     status: ReportStatus.PROCESSING,
     keyMetrics: {
       totalAlerts: 2,
@@ -79,6 +105,10 @@ function makeReportsService() {
     computeSolarReport: jest.fn(),
     computeGeneralReport: jest.fn(),
     updateReport: jest.fn(),
+    // Defaults to resolving null — tests that need COMPUTE_REPORT to proceed past
+    // the PROCESSING guard must call:
+    //   reportsService.updateReportStatus.mockResolvedValue({ ...report, status: ReportStatus.PROCESSING })
+    updateReportStatus: jest.fn().mockResolvedValue(null),
   };
 }
 
@@ -126,6 +156,7 @@ describe('ReportProcessor', () => {
     const { processor, reportsService, emailService } = makeProcessor();
 
     const report = makeReport({ type: ReportType.ALERT });
+    const processing = makeProcessingReport({ type: ReportType.ALERT });
     const processed = makeProcessedReport(ReportType.ALERT, {
       totalAlerts: 10,
       resolvedAlerts: 7,
@@ -137,14 +168,16 @@ describe('ReportProcessor', () => {
 
     reportsService.getReportById.mockResolvedValue(report);
     reportsService.computeAlertReport.mockResolvedValue(processed);
+    reportsService.updateReportStatus.mockResolvedValue(processing);
 
     const processVars = {
+      reportId: 'report-id-1',
       to: 'user@gmail.com',
       firstName: 'firstName',
       clientUrl: `https://client-url`,
-      reportPdf: Buffer.from([]),
-      type: report.type,
-      dateDelivered: new Date('2026-06-02T00:00:00.000Z').toISOString(),
+      // reportPdf: Buffer.from([]),
+      // type: report.type,
+      // dateDelivered: new Date('2026-06-02T00:00:00.000Z').toISOString(),
     };
 
     await processor.process(
@@ -154,12 +187,12 @@ describe('ReportProcessor', () => {
     );
 
     expect(emailService.sendReportEmail).toHaveBeenCalledWith(
-      processVars.reportPdf,
+      processVars.reportId,
       processVars.to,
       processVars.clientUrl,
       processVars.firstName,
-      processVars.type,
-      processVars.dateDelivered,
+      // processVars.type,
+      // processVars.dateDelivered,
     );
   });
 
@@ -218,6 +251,7 @@ describe('ReportProcessor', () => {
   it('processes alert reports and persists the result', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.ALERT });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
     const processed = makeProcessedReport(ReportType.ALERT, {
       totalAlerts: 10,
       resolvedAlerts: 7,
@@ -228,15 +262,17 @@ describe('ReportProcessor', () => {
     });
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
     reportsService.computeAlertReport.mockResolvedValue(processed);
     await processor.process(
       makeJob(REPORT_JOBS.COMPUTE_REPORT, {
         reportId: report.id,
-        processed,
       }) as never,
     );
 
-    expect(reportsService.computeAlertReport).toHaveBeenCalledWith(report);
+    expect(reportsService.computeAlertReport).toHaveBeenCalledWith(
+      processingReport,
+    );
     expect(reportsService.computeCostAndSavingsReport).not.toHaveBeenCalled();
     expect(reportsService.computeSolarReport).not.toHaveBeenCalled();
     expect(reportsService.computeGeneralReport).not.toHaveBeenCalled();
@@ -250,6 +286,7 @@ describe('ReportProcessor', () => {
   it('processes cost and savings reports and persists the result', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.CSC });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
     const processed = makeProcessedReport(ReportType.CSC, {
       totalCostSavedNgn: 50000,
       generatorCostAvoidedNgn: 30000,
@@ -267,6 +304,7 @@ describe('ReportProcessor', () => {
     });
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
     reportsService.computeCostAndSavingsReport.mockResolvedValue(processed);
 
     await processor.process(
@@ -276,7 +314,7 @@ describe('ReportProcessor', () => {
     );
 
     expect(reportsService.computeCostAndSavingsReport).toHaveBeenCalledWith(
-      report,
+      processingReport,
     );
     expect(reportsService.computeAlertReport).not.toHaveBeenCalled();
     expect(reportsService.computeSolarReport).not.toHaveBeenCalled();
@@ -291,6 +329,7 @@ describe('ReportProcessor', () => {
   it('processes solar reports and persists the result', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.SOLAR });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
     const processed = makeProcessedReport(ReportType.SOLAR, {
       solarKwh: 120,
       avgBatterySoc: 75,
@@ -299,6 +338,7 @@ describe('ReportProcessor', () => {
     });
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
     reportsService.computeSolarReport.mockResolvedValue(processed);
 
     await processor.process(
@@ -307,7 +347,9 @@ describe('ReportProcessor', () => {
       }) as never,
     );
 
-    expect(reportsService.computeSolarReport).toHaveBeenCalledWith(report);
+    expect(reportsService.computeSolarReport).toHaveBeenCalledWith(
+      processingReport,
+    );
     expect(reportsService.computeAlertReport).not.toHaveBeenCalled();
     expect(reportsService.computeCostAndSavingsReport).not.toHaveBeenCalled();
     expect(reportsService.computeGeneralReport).not.toHaveBeenCalled();
@@ -321,6 +363,7 @@ describe('ReportProcessor', () => {
   it('processes general reports and persists the result', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.GENERAL });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
     const processed = makeProcessedReport(ReportType.GENERAL, {
       totalAlerts: 10,
       resolvedAlerts: 7,
@@ -347,6 +390,7 @@ describe('ReportProcessor', () => {
     });
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
     reportsService.computeGeneralReport.mockResolvedValue(processed);
 
     await processor.process(
@@ -355,7 +399,9 @@ describe('ReportProcessor', () => {
       }) as never,
     );
 
-    expect(reportsService.computeGeneralReport).toHaveBeenCalledWith(report);
+    expect(reportsService.computeGeneralReport).toHaveBeenCalledWith(
+      processingReport,
+    );
     expect(reportsService.computeAlertReport).not.toHaveBeenCalled();
     expect(reportsService.computeCostAndSavingsReport).not.toHaveBeenCalled();
     expect(reportsService.computeSolarReport).not.toHaveBeenCalled();
@@ -369,8 +415,13 @@ describe('ReportProcessor', () => {
   it('marks the report as failed when computation throws', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: ReportType.SOLAR });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
+    const errorSpy = jest
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
     reportsService.computeSolarReport.mockRejectedValue(
       new Error('solar aggregation failed'),
     );
@@ -393,13 +444,16 @@ describe('ReportProcessor', () => {
       }),
       null,
     );
+    errorSpy.mockRestore();
   });
 
   it('marks the report as failed when the report type is unknown', async () => {
     const { processor, reportsService } = makeProcessor();
     const report = makeReport({ type: 'UNKNOWN' as ReportType });
+    const processingReport = { ...report, status: ReportStatus.PROCESSING };
 
     reportsService.getReportById.mockResolvedValue(report);
+    reportsService.updateReportStatus.mockResolvedValue(processingReport);
 
     await expect(
       processor.process(
