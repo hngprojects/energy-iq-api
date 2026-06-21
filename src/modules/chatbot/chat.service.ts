@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -105,11 +106,18 @@ export class ChatService {
     return this.messageModelAction.findByChatId(chat.id);
   }
 
-  async getSingleChat(chatId: string) {
-    return await this.chatModelAction.findById(chatId);
+  async getSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    return chat;
   }
 
-  async deleteSingleChat(chatId: string) {
+  async deleteSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
     return await this.chatModelAction.delete({
       ...noTransaction(),
       identifierOptions: { id: chatId },

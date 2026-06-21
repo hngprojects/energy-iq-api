@@ -54,15 +54,21 @@ export class ChatController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a single chat' })
-  getSingleChat(@Param('id', ParseUUIDPipe) chatId: string) {
-    return this.chatbotService.getSingleChat(chatId);
+  getSingleChat(
+    @Param('id', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.chatbotService.getSingleChat(chatId, user.sub);
   }
 
   @Delete(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a single chat' })
-  deleteSingleChat(@Param('id', ParseUUIDPipe) chatId: string) {
-    return this.chatbotService.deleteSingleChat(chatId);
+  deleteSingleChat(
+    @Param('id', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.chatbotService.deleteSingleChat(chatId, user.sub);
   }
 
   @Patch(':id/settings')
