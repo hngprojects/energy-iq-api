@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cost & Savings Report – {{name}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #27ae60; }
+    .metric { margin: 10px 0; }
+    .label { font-weight: bold; }
+    .meta { background: #f4f4f4; padding: 10px; border-radius: 5px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>💰 Cost & Savings Report</h1>
+  <p><strong>Period:</strong> {{period}}</p>
+  <p><strong>Status:</strong> {{status}}</p>
+  <p><strong>Delivered:</strong> {{dateDelivered}}</p>
+
+  <h2>Key Metrics</h2>
+  <div class="metric"><span class="label">Total Cost Saved (NGN):</span> {{totalCostSavedNgn}}</div>
+  <div class="metric"><span class="label">Generator Cost Avoided (NGN):</span> {{generatorCostAvoidedNgn}}</div>
+  <div class="metric"><span class="label">Fuel Saved (Litres):</span> {{fuelSavedLitres}}</div>
+  <div class="metric"><span class="label">CO₂ Avoided (kg):</span> {{co2AvoidedKg}}</div>
+  <div class="metric"><span class="label">Total Active Hours:</span> {{totalActiveHours}}</div>
+  <div class="metric"><span class="label">Total Energy Generated (kWh):</span> {{totalEnergyGeneratedKwh}}</div>
+  <div class="metric"><span class="label">Total Energy Consumed (kWh):</span> {{totalEnergyConsumedKwh}}</div>
+
+  <div class="meta">
+    <h3>Assumptions</h3>
+    <p>Fuel Type: {{fuelType}}</p>
+    <p>Fuel Price (₦/L): {{fuelPricePerLitreNgn}}</p>
+    <p>Generator Rated Power (kW): {{assumedGeneratorRatedPowerKw}}</p>
+    <p>Consumption Rate (L/hr): {{assumedConsumptionRateLPerHr}}</p>
+  </div>
+</body>
+</html>

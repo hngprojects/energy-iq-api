@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>General Report – {{name}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #8e44ad; }
+    .section { margin-bottom: 30px; border-bottom: 1px solid #eee; }
+    .metric { margin: 8px 0; }
+    .label { font-weight: bold; }
+    .meta { background: #f4f4f4; padding: 10px; border-radius: 5px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>📊 General Report</h1>
+  <p><strong>Period:</strong> {{period}}</p>
+  <p><strong>Status:</strong> {{status}}</p>
+  <p><strong>Delivered:</strong> {{dateDelivered}}</p>
+
+  <!-- Alert section -->
+  <div class="section">
+    <h2>🔔 Alert Summary</h2>
+    <div class="metric"><span class="label">Total Alerts:</span> {{totalAlerts}}</div>
+    <div class="metric"><span class="label">Resolved:</span> {{resolvedAlerts}}</div>
+    <div class="metric"><span class="label">Unresolved:</span> {{unresolvedAlerts}}</div>
+    <div class="metric"><span class="label">Resolution Rate (%):</span> {{resolutionRate}}</div>
+    <div class="metric"><span class="label">Dominant Type:</span> {{dominantAlertType}}</div>
+    <div class="metric"><span class="label">Dominant Severity:</span> {{dominantAlertSeverity}}</div>
+  </div>
+
+  <!-- Cost & Savings section -->
+  <div class="section">
+    <h2>💰 Cost & Savings</h2>
+    <div class="metric"><span class="label">Total Cost Saved (NGN):</span> {{totalCostSavedNgn}}</div>
+    <div class="metric"><span class="label">Generator Cost Avoided (NGN):</span> {{generatorCostAvoidedNgn}}</div>
+    <div class="metric"><span class="label">Fuel Saved (L):</span> {{fuelSavedLitres}}</div>
+    <div class="metric"><span class="label">CO₂ Avoided (kg):</span> {{co2AvoidedKg}}</div>
+    <div class="metric"><span class="label">Total Energy Generated (kWh):</span> {{totalEnergyGeneratedKwh}}</div>
+    <div class="metric"><span class="label">Total Energy Consumed (kWh):</span> {{totalEnergyConsumedKwh}}</div>
+    <div class="meta">
+      <p>Fuel: {{fuelType}} | Price: ₦{{fuelPricePerLitreNgn}}/L</p>
+      <p>Gen. Rated Power: {{assumedGeneratorRatedPowerKw}} kW</p>
+      <p>Consumption: {{assumedConsumptionRateLPerHr}} L/hr</p>
+    </div>
+  </div>
+
+  <!-- Solar section -->
+  <div class="section">
+    <h2>☀️ Solar Performance</h2>
+    <div class="metric"><span class="label">Solar Generated (kWh):</span> {{solarKwh}}</div>
+    <div class="metric"><span class="label">Average Battery SoC (%):</span> {{avgBatterySoc}}</div>
+    <div class="metric"><span class="label">Average Load (kW):</span> {{avgLoadKw}}</div>
+    <div class="metric"><span class="label">Total Active Hours:</span> {{totalActiveHours}}</div>
+    {{#if solarCoveragePercent}}
+      <div class="metric"><span class="label">Solar Coverage (%):</span> {{solarCoveragePercent}}</div>
+    {{/if}}
+  </div>
+</body>
+</html>
