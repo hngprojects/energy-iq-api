@@ -82,7 +82,7 @@ jobs:
         env:
           ARCHIVE: ${{ steps.archive.outputs.filename }}
         with:
-          host: ${{ secrets.SERVER_IP }}
+          host: ${{ secrets.PROD_SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           envs: ARCHIVE
