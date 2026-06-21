@@ -94,7 +94,7 @@ jobs:
             tar -xzf /tmp/"${ARCHIVE}" -C "${DEPLOY_DIR}"
 
             # Capture previous release before any changes
-            PREV=$(readlink -f "$APP_DIR/current")
+            PREV=$(readlink -f "$APP_DIR/current" 2>/dev/null || echo "")
             echo "$PREV" > "$APP_DIR/.prev_release"
 
             cd "$DEPLOY_DIR"
