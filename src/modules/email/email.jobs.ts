@@ -9,6 +9,7 @@ export const EMAIL_JOBS = {
   CONTACT_US: 'contact-us',
   ALERT_ALERT: 'alert-notification',
   WAITLIST_JOINED: 'waitlist-joined',
+  SEND_REPORT: 'send-report',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -82,6 +83,13 @@ export interface WaitlistJoinedJobData {
   year: string;
 }
 
+export interface SendReportJobData {
+  reportId: string;
+  to: string;
+  clientUrl: string;
+  firstName: string;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
@@ -89,4 +97,5 @@ export type EmailJobData =
   | PasswordUpdateJobData
   | LinkExpiredJobData
   | ContactUsJobData
-  | AlertNotificationJobData;
+  | AlertNotificationJobData
+  | SendReportJobData;

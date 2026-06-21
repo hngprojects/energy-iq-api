@@ -1,6 +1,7 @@
 export const QUEUES = {
   EMAIL: 'email',
   ALERT_DISPATCH: 'alert-dispatch',
+  REPORT_DISPATCH: 'dispatch-report',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
