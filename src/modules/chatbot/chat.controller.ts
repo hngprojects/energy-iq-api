@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -55,6 +56,13 @@ export class ChatController {
   @ApiOperation({ summary: 'Get a single chat' })
   getSingleChat(@Param('id', ParseUUIDPipe) chatId: string) {
     return this.chatbotService.getSingleChat(chatId);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a single chat' })
+  deleteSingleChat(@Param('id', ParseUUIDPipe) chatId: string) {
+    return this.chatbotService.deleteSingleChat(chatId);
   }
 
   @Patch(':id/settings')

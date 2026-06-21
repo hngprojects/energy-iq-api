@@ -28,6 +28,7 @@ import { Message } from './entities/message.entity';
 import { AgentService } from './agent.service';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { GatewayResponseDTO } from './dto/gateway-response.dto';
+import { noTransaction } from '../../common/constants/transaction-options';
 
 @Injectable()
 export class ChatService {
@@ -104,8 +105,15 @@ export class ChatService {
     return this.messageModelAction.findByChatId(chat.id);
   }
 
-  getSingleChat(chatId: string) {
-    return this.chatModelAction.findById(chatId);
+  async getSingleChat(chatId: string) {
+    return await this.chatModelAction.findById(chatId);
+  }
+
+  async deleteSingleChat(chatId: string) {
+    return await this.chatModelAction.delete({
+      ...noTransaction(),
+      identifierOptions: { id: chatId },
+    });
   }
 
   getSuggestedChatQuestions() {}
