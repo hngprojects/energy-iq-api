@@ -1,6 +1,11 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Inject, Logger } from '@nestjs/common';
-import { Resend } from 'resend';
+import {
+  ConflictException,
+  Inject,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { Attachment, Resend } from 'resend';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
 import { Job } from 'bullmq';
@@ -14,12 +19,16 @@ import {
   ContactUsJobData,
   AlertNotificationJobData,
   WaitlistJoinedJobData,
+  SendReportJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { QUEUES } from '../../common/constants/queue';
 import { AlertSeverity } from '../../common/enums';
+import { ReportsService } from '../reports/reports.service';
+import { SYS_MSG } from '../../common/constants/sys-msg';
+import { ReportStatus } from '../../common/enums/reports.type';
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -33,6 +42,7 @@ export class EmailProcessor extends WorkerHost {
   constructor(
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
+    private readonly reportsService: ReportsService,
   ) {
     super();
     this.resend = new Resend(appCfg.resendApiKey);
@@ -58,6 +68,8 @@ export class EmailProcessor extends WorkerHost {
         return this.handleInverterAlert(job as Job<AlertNotificationJobData>);
       case EMAIL_JOBS.WAITLIST_JOINED:
         return this.handleWaitlistJoined(job as Job<WaitlistJoinedJobData>);
+      case EMAIL_JOBS.SEND_REPORT:
+        return this.handleSendReport(job as Job<SendReportJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -380,6 +392,58 @@ export class EmailProcessor extends WorkerHost {
     this.logger.log(
       `Waitlist joined email sent successfully to ${this.maskEmail(to)}`,
     );
+  }
+
+  private async handleSendReport(job: Job<SendReportJobData>): Promise<void> {
+    const { reportId, to, clientUrl, firstName } = job.data;
+
+    const report = await this.reportsService.getReportById(reportId);
+
+    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (report.status !== ReportStatus.READY)
+      throw new ConflictException(SYS_MSG.CONFLICT);
+    if (!report.dateDelivered) throw new Error('Date delivered is required');
+
+    const { type: reportType, dateDelivered } = report;
+    const reportPdf = await this.reportsService.getReportPdf(report);
+
+    const reportName = `${reportType.toString()}_${dateDelivered.toISOString()}`;
+    this.logger.log(`Sending report in email to ${this.maskEmail(to)}`);
+    const html = this.renderTemplate(EMAIL_JOBS.SEND_REPORT, {
+      firstName,
+      toEmail: to,
+      clientUrl,
+      reportName,
+      reportDate: dateDelivered,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+
+    const reportAttachment: Attachment = {
+      content: reportPdf,
+      filename: `${reportName}.pdf`,
+      contentType: 'application/pdf',
+    };
+
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `Energy IQ ${reportType.toString()} Report`,
+      html,
+      attachments: [reportAttachment],
+    });
+
+    if (error) {
+      this.logger.error(
+        `Send pdf report to email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(`Pdf report successfully sent to ${this.maskEmail(to)}`);
   }
 
   private renderTemplate(

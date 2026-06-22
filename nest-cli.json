@@ -8,6 +8,10 @@
       {
         "include": "modules/email/templates/**/*",
         "outDir": "dist"
+      },
+      {
+        "include": "modules/reports/templates/**/*",
+        "outDir": "dist"
       }
     ],
     "watchAssets": true
