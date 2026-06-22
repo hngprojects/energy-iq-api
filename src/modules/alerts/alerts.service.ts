@@ -12,10 +12,22 @@ import { noTransaction } from '../../common/constants/transaction-options';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { ResolveAlertDetailsDto } from './dto/resolve-alert.dto';
 import { AlertSummaryDto } from './dto/alert-summary.dto';
-import { AlertResolutionStatus, AlertSeverity } from '../../common/enums';
+import {
+  AlertResolutionStatus,
+  AlertSeverity,
+  AlertType,
+} from '../../common/enums';
 import { GetAlertsDto } from './dto/get-alerts-dto';
 import { type ConfigType } from '@nestjs/config';
 import { appConfig } from '../../config/app.config';
+import { AlertReport } from '../reports/types/reports.type';
+import {
+  ReportPeriod,
+  ReportStatus,
+  ReportType,
+} from '../../common/enums/reports.type';
+import { Report } from '../reports/entities/report.entity';
+import { FindAlertsDto } from '../chatbot/dto/find-alerts.dto';
 
 @Injectable()
 export class AlertsService {
@@ -93,5 +105,112 @@ export class AlertsService {
       throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
     }
     return this.alertAction.markAsResolved(dto.alertId);
+  }
+
+  async getAlertReport(report: Report): Promise<AlertReport> {
+    const { userId } = report;
+
+    const daysLater = this.getReportSpanDays(report);
+    if (!daysLater) throw new Error('Unable to calculate days difference');
+    const startDate = report.referenceDate ?? report.startDate;
+    if (!startDate) throw new Error('Report start date is required');
+
+    const endDate =
+      report.period === ReportPeriod.CUSTOM && report.endDate
+        ? new Date(report.endDate)
+        : new Date(startDate);
+
+    if (report.period !== ReportPeriod.CUSTOM)
+      endDate.setDate(endDate.getDate() + daysLater);
+
+    const findAlertsOptions: FindAlertsDto = {
+      start_date: startDate,
+      end_date: endDate,
+    };
+
+    const alerts = await this.alertAction.findAlertsWhere(
+      findAlertsOptions,
+      userId,
+    );
+
+    const totalAlerts = alerts.length;
+    const resolvedAlerts = alerts.filter(
+      (a) => a.resolutionStatus === AlertResolutionStatus.RESOLVED,
+    ).length;
+    const unresolvedAlerts = alerts.filter(
+      (a) => a.resolutionStatus === AlertResolutionStatus.UNRESOLVED,
+    ).length;
+
+    const resolutionRate =
+      totalAlerts > 0
+        ? parseFloat(((resolvedAlerts / totalAlerts) * 100).toFixed(2))
+        : 0;
+
+    const dominantAlertType = this.getDominantAlertType(alerts);
+    const dominantAlertSeverity = this.getDominantAlertSeverity(alerts);
+
+    return {
+      name: report.name,
+      period: report.period,
+      status: ReportStatus.READY,
+      dateDelivered: new Date(),
+      type: ReportType.ALERT,
+      keyMetrics: {
+        totalAlerts,
+        resolvedAlerts,
+        unresolvedAlerts,
+        dominantAlertType,
+        dominantAlertSeverity,
+        resolutionRate,
+      },
+    };
+  }
+
+  private getDominantAlertType(alerts: Alert[]): AlertType | null {
+    if (alerts.length === 0) return null;
+
+    const counts = alerts.reduce<Record<AlertType, number>>(
+      (acc, alert) => {
+        acc[alert.type] = (acc[alert.type] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<AlertType, number>,
+    );
+
+    return Object.entries(counts).reduce((a, b) =>
+      b[1] > a[1] ? b : a,
+    )[0] as AlertType;
+  }
+
+  private getDominantAlertSeverity(alerts: Alert[]): AlertSeverity | null {
+    if (alerts.length === 0) return null;
+
+    const counts = alerts.reduce<Record<AlertSeverity, number>>(
+      (acc, alert) => {
+        acc[alert.severity] = (acc[alert.severity] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<AlertSeverity, number>,
+    );
+
+    return Object.entries(counts).reduce((a, b) =>
+      b[1] > a[1] ? b : a,
+    )[0] as AlertSeverity;
+  }
+
+  private getReportSpanDays(report: Report): number | null {
+    if (report.period === ReportPeriod.CUSTOM) {
+      if (!(report.startDate && report.endDate)) return null;
+      if (report.endDate < report.startDate) return null;
+
+      return Math.ceil(
+        (report.endDate.getTime() - report.startDate.getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+    } else if (report.period === ReportPeriod.WEEKLY) {
+      return 7;
+    } else {
+      return 30;
+    }
   }
 }

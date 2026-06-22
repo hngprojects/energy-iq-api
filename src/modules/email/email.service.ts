@@ -13,6 +13,7 @@ import {
   AlertNotificationJobData,
   AlertStat,
   WaitlistJoinedJobData,
+  SendReportJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
 
@@ -131,5 +132,21 @@ export class EmailService {
       to: toEmail,
       year: year.toString(),
     } satisfies WaitlistJoinedJobData);
+  }
+
+  async sendReportEmail(
+    reportId: string,
+    to: string,
+    clientUrl: string,
+    firstName: string,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.SEND_REPORT, {
+      reportId,
+      to,
+      clientUrl,
+      firstName,
+      // reportType,
+      // dateDelivered,
+    } satisfies SendReportJobData);
   }
 }

@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -28,6 +29,7 @@ import { Message } from './entities/message.entity';
 import { AgentService } from './agent.service';
 import { SYSTEM_SENDER_ID } from './helpers/constants';
 import { GatewayResponseDTO } from './dto/gateway-response.dto';
+import { noTransaction } from '../../common/constants/transaction-options';
 
 @Injectable()
 export class ChatService {
@@ -104,8 +106,22 @@ export class ChatService {
     return this.messageModelAction.findByChatId(chat.id);
   }
 
-  getSingleChat(chatId: string) {
-    return this.chatModelAction.findById(chatId);
+  async getSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    return chat;
+  }
+
+  async deleteSingleChat(chatId: string, userId: string) {
+    const chat = await this.chatModelAction.findById(chatId);
+    if (!chat) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (chat.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    return await this.chatModelAction.delete({
+      ...noTransaction(),
+      identifierOptions: { id: chatId },
+    });
   }
 
   getSuggestedChatQuestions() {}
