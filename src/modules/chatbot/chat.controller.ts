@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -36,6 +39,7 @@ export class ChatController {
   @Get('')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all chats started by a user' })
+  @HttpCode(HttpStatus.OK)
   getChatsForUser(@CurrentUser() user: AuthenticatedUser) {
     return this.chatbotService.getChatsForUser(user.sub);
   }
@@ -43,6 +47,7 @@ export class ChatController {
   @Get(':id/messages')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all the messages in a chat' })
+  @HttpCode(HttpStatus.OK)
   getChatMessages(
     @Param('id', ParseUUIDPipe) chatId: string,
     @Query('user_id', ParseUUIDPipe) userId: string,
@@ -53,8 +58,23 @@ export class ChatController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a single chat' })
-  getSingleChat(@Param('id', ParseUUIDPipe) chatId: string) {
-    return this.chatbotService.getSingleChat(chatId);
+  @HttpCode(HttpStatus.OK)
+  getSingleChat(
+    @Param('id', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.chatbotService.getSingleChat(chatId, user.sub);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a single chat' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteSingleChat(
+    @Param('id', ParseUUIDPipe) chatId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.chatbotService.deleteSingleChat(chatId, user.sub);
   }
 
   @Patch(':id/settings')

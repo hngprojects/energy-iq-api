@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Alert Report – {{name}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { color: #e67e22; }
+    .metric { margin: 10px 0; }
+    .label { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>🔔 Alert Report</h1>
+  <p><strong>Period:</strong> {{period}}</p>
+  <p><strong>Status:</strong> {{status}}</p>
+  <p><strong>Delivered:</strong> {{dateDelivered}}</p>
+
+  <h2>Key Metrics</h2>
+  <div class="metric"><span class="label">Total Alerts:</span> {{totalAlerts}}</div>
+  <div class="metric"><span class="label">Resolved:</span> {{resolvedAlerts}}</div>
+  <div class="metric"><span class="label">Unresolved:</span> {{unresolvedAlerts}}</div>
+  <div class="metric"><span class="label">Resolution Rate (%):</span> {{resolutionRate}}</div>
+  <div class="metric"><span class="label">Dominant Type:</span> {{dominantAlertType}}</div>
+  <div class="metric"><span class="label">Dominant Severity:</span> {{dominantAlertSeverity}}</div>
+</body>
+</html>

@@ -66,6 +66,7 @@
     "@nestjs/typeorm": "^11.0.1",
     "@nestjs/websockets": "^11.1.20",
     "@t3-oss/env-core": "^0.13.11",
+    "@types/pdfmake": "^0.3.3",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.76.8",
     "class-transformer": "^0.5.1",
@@ -82,6 +83,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
+    "pdfmake": "^0.3.11",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.3",
@@ -139,13 +141,21 @@
   },
   "pnpm": {
     "overrides": {
-      "typeorm": "0.3.28",
+      "typeorm": "0.3.30",
       "ws": "8.21.0",
-      "axios": "1.16.1",
+      "axios": "1.18.0",
       "follow-redirects": "1.16.0",
       "uuid": "11.1.1",
       "form-data": "4.0.6",
-      "js-yaml": "4.2.0"
+      "js-yaml": "4.2.0",
+      "multer": "2.2.0",
+      "flatted": "3.4.2",
+      "handlebars": "4.7.9",
+      "lodash": "4.18.0",
+      "node-forge": "1.4.0",
+      "qs": "6.15.2",
+      "underscore": "1.13.8",
+      "jose": "4.15.5"
     }
   },
   "jest": {

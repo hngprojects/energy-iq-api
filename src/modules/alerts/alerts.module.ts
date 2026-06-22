@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Alert } from './entities/alert.entity';
@@ -22,7 +22,7 @@ import { QUEUES } from '../../common/constants/queue';
     BullModule.registerQueue({ name: QUEUES.ALERT_DISPATCH }),
     MetricsStreamModule,
     WhatsappModule,
-    EmailModule,
+    forwardRef(() => EmailModule),
   ],
   providers: [
     AlertsService,
