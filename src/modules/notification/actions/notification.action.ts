@@ -14,21 +14,17 @@ export class NotificationModelAction extends AbstractModelAction<Notification> {
     super(repository, Notification);
   }
 
-  async createNotitfication(data: Notification) {
-    return await this.create({
-      createPayload: data,
-      ...noTransaction(),
-    });
-  }
-
   async findNotificationsWhere(dto: GetNotificationsDto) {
+    const pageNumber = dto.page_number ?? 1;
+    const pageSize = dto.page_size ?? 10;
+
     const notifications = await this.find({
       findOptions: {
         userId: dto.userId,
       },
       paginationPayload: {
-        limit: dto.page_size!,
-        page: dto.page_number!,
+        limit: pageSize,
+        page: pageNumber,
       },
       ...noTransaction(),
     });
@@ -39,6 +35,7 @@ export class NotificationModelAction extends AbstractModelAction<Notification> {
     const notifications = await this.find({
       findOptions: {
         userId: dto.userId,
+        isRead: false,
       },
       paginationPayload: {
         limit: dto.page_size!,

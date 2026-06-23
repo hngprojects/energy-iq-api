@@ -1,6 +1,7 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { ProcessingStatus } from '../../../common/constants/processing-status';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('notifications')
 export class Notification extends AbstractBaseEntity {
@@ -29,8 +30,12 @@ export class Notification extends AbstractBaseEntity {
   isRead: boolean;
 
   @Column({ type: 'varchar', length: 50, default: ProcessingStatus.pending })
-  inAppDefliveryStatus: ProcessingStatus;
+  inAppDeliveryStatus: ProcessingStatus;
 
   @Column({ type: 'varchar', length: 50, default: ProcessingStatus.pending })
   pushDeliveryStatus: ProcessingStatus;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 }
