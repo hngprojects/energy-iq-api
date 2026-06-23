@@ -70,7 +70,6 @@ export class NotificationGateway
 
   @SubscribeMessage(NotificationSocketEvent.JOIN_NOTIFICATION_CHANNEL)
   async joinNotificationChannel(
-    // @MessageBody('userId', ParseUUIDPipe) userId: string,
     @ConnectedSocket() socket: Socket,
   ) {
     const userId = (socket.data as AuthenticatedSocketData).user.sub;
