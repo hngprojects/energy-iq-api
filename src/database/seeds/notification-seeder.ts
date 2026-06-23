@@ -20,6 +20,15 @@ export const notificationSeeder: Seeder = {
     }
 
     const notifications: Notification[] = [];
+    const alreadySeeded = await notificationRepo.exists({
+      where: { userId: existing.id },
+    });
+    if (alreadySeeded) {
+      console.log(
+        `[NotificationSeeder] notifications already exist for ${adminEmail} - skipping`,
+      );
+      return;
+    }
 
     for (let i = 0; i < 20; i++) {
       const notification = notificationRepo.create({
