@@ -69,9 +69,7 @@ export class NotificationGateway
   }
 
   @SubscribeMessage(NotificationSocketEvent.JOIN_NOTIFICATION_CHANNEL)
-  async joinNotificationChannel(
-    @ConnectedSocket() socket: Socket,
-  ) {
+  async joinNotificationChannel(@ConnectedSocket() socket: Socket) {
     const userId = (socket.data as AuthenticatedSocketData).user.sub;
     if (!userId) throw new WsException(SYS_MSG.UNAUTHORIZED);
     return await this.notificationService.joinNotificationChannel(userId);
