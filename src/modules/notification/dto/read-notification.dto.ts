@@ -8,8 +8,4 @@ export class ReadNotificationDto {
   })
   @IsUUID()
   id: string;
-
-  @ApiProperty({ format: 'uuid', description: 'id of the user' })
-  @IsUUID()
-  userId: string;
 }
