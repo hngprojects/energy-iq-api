@@ -1,9 +1,10 @@
 import {
-  Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Patch,
   Query,
 } from '@nestjs/common';
@@ -14,7 +15,6 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { GetNotificationsQuery } from './dto/get-notifications.query';
 import { NotificationService } from './notification.service';
-import { ReadNotificationDto } from './dto/read-notification.dto';
 
 @Controller('notifications')
 export class NotificationController {
@@ -52,7 +52,10 @@ export class NotificationController {
   @ApiOperation({ summary: 'mark notification as read' })
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  markNotificationAsRead(@Body() dto: ReadNotificationDto) {
-    return this.notificationService.markAsRead(dto);
+  markNotificationAsRead(
+    @Param('id', ParseUUIDPipe) notificationId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.notificationService.markAsRead(notificationId, user.sub);
   }
 }

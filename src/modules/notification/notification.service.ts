@@ -1,18 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { ReadNotificationDto } from './dto/read-notification.dto';
 import { GetNotificationsDto } from './dto/get-notifications-dto';
 import { NotificationModelAction } from './actions/notification.action';
+import { noTransaction } from '../../common/constants/transaction-options';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly notificationAction: NotificationModelAction) {}
+  constructor(
+    private readonly notificationAction: NotificationModelAction,
+    private readonly usersService: UsersService,
+  ) {}
 
-  create(createNotificationDto: CreateNotificationDto) {
-    return (
-      'This action adds a new notification' +
-      JSON.stringify(createNotificationDto)
-    );
+  async create(createNotificationDto: CreateNotificationDto) {
+    const { userId, title, subtitle, textContent } = createNotificationDto;
+
+    const notification = await this.notificationAction.create({
+      ...noTransaction(),
+      createPayload: {
+        channelRoomId: userId,
+        title,
+        subtitle,
+        textContent,
+        userId,
+      },
+    });
+
+    return 'This action adds a new notification' + JSON.stringify(notification);
   }
 
   async getUserNotifications(dto: GetNotificationsDto) {
@@ -20,26 +34,19 @@ export class NotificationService {
   }
 
   async getUnreadNotifications(dto: GetNotificationsDto) {
-    return await this.notificationAction.findNotificationsWhere(dto);
+    return await this.notificationAction.findUnreadNotificationsWhere(dto);
   }
 
   async joinNotificationChannel(userId: string) {
-    /**
-     * Steps to join notification channel
-     * fetch the user by id
-     * use the user's id as their notification channel
-     * join the notification room
-     * send a joined event back to the client
-     */
-    return await Promise.resolve(
-      `user with id ${userId} has joined the notification channel`,
-    );
+    await this.usersService.findOne(userId);
+
+    return userId;
   }
 
-  async markAsRead(dto: ReadNotificationDto) {
+  async markAsRead(notificationId: string, userId: string) {
     return await this.notificationAction.updateNotification(
-      dto.id,
-      dto.userId,
+      notificationId,
+      userId,
       { isRead: true },
     );
   }
