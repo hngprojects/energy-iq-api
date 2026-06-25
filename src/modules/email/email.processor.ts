@@ -399,7 +399,6 @@ export class EmailProcessor extends WorkerHost {
 
     const report = await this.reportsService.getReportById(reportId);
 
-    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (report.status !== ReportStatus.READY)
       throw new ConflictException(SYS_MSG.CONFLICT);
     if (!report.dateDelivered) throw new Error('Date delivered is required');

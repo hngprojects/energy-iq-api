@@ -416,15 +416,17 @@ export class ReportsService {
     );
   }
 
-  async cancelReports(id: string, userId: string): Promise<Report | null> {
+  async cancelReports(id: string, userId: string): Promise<Report> {
     const report = await this.getReportById(id);
 
     if (report.userId !== userId)
       throw new ForbiddenException(SYS_MSG.FORBIDDEN);
-    return await this.reportModelAction.updateReportStatus(
+    const cancelled = await this.reportModelAction.updateReportStatus(
       id,
       ReportStatus.CANCELLED,
     );
+    if (!cancelled) throw new ConflictException(SYS_MSG.CONFLICT);
+    return cancelled
   }
 
   async deleteReports(id: string, userId: string) {

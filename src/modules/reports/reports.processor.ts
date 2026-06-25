@@ -50,11 +50,6 @@ export class ReportProcessor extends WorkerHost {
 
     const report = await this.reportsService.getReportById(reportId);
 
-    if (!report) {
-      this.logger.error(`No report with id ${reportId} found`);
-      throw new Error(`No report with id ${reportId} found`);
-    }
-
     if (report.status !== ReportStatus.PENDING)
       throw new ConflictException(SYS_MSG.CONFLICT);
 

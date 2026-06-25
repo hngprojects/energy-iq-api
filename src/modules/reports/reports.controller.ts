@@ -67,7 +67,7 @@ export class ReportsController {
 
   @Get('summary')
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Get a sumary of a user's reports" })
+  @ApiOperation({ summary: "Get a summary of a user's reports" })
   @HttpCode(HttpStatus.OK)
   getReportsSummary(@CurrentUser('sub') id: string) {
     return this.reportsService.getReportTypesSummary(id);
