@@ -46,4 +46,6 @@ export const SYS_MSG = {
   NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type',
   ERROR_UPLOADING_IMAGE: 'Error occurred uploading image.',
   UPDATE_IMAGE_ERROR: 'Failed to update image',
+  RECURRING_REPORTS_INVALID_COMBINATION:
+    'Recurring reports must use a period (weekly/monthly), not a custom date range.',
 } as const;

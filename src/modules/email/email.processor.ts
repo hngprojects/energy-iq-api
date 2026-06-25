@@ -1,10 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import {
-  ConflictException,
-  Inject,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Inject, Logger } from '@nestjs/common';
 import { Attachment, Resend } from 'resend';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
@@ -399,7 +394,6 @@ export class EmailProcessor extends WorkerHost {
 
     const report = await this.reportsService.getReportById(reportId);
 
-    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (report.status !== ReportStatus.READY)
       throw new ConflictException(SYS_MSG.CONFLICT);
     if (!report.dateDelivered) throw new Error('Date delivered is required');

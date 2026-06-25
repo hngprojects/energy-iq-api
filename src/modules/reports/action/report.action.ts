@@ -2,10 +2,25 @@ import { AbstractModelAction } from '@hng-sdk/orm';
 import { Injectable } from '@nestjs/common';
 import { Report } from '../entities/report.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ReportStatus } from '../../../common/enums/reports.type';
+import {
+  Between,
+  FindManyOptions,
+  FindOptionsWhere,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
+import { ReportStatus, ReportType } from '../../../common/enums/reports.type';
 import { ReportKeyMetrics } from '../types/reports.type';
 import { noTransaction } from '../../../common/constants/transaction-options';
+
+interface FindReportsOptions {
+  count?: number;
+  endDate?: Date;
+  status?: ReportStatus;
+  startDate?: Date;
+  type: ReportType;
+}
 
 @Injectable()
 export class ReportModelAction extends AbstractModelAction<Report> {
@@ -23,7 +38,39 @@ export class ReportModelAction extends AbstractModelAction<Report> {
     });
   }
 
-  async findByStatus(status: ReportStatus): Promise<Report[]> {
+  async findReportsWhere(
+    options: FindReportsOptions,
+    userId: string,
+  ): Promise<Report[]> {
+    const whereOptions: FindOptionsWhere<Report> = {
+      userId,
+    };
+
+    if (options.startDate && options.endDate) {
+      whereOptions.createdAt = Between(options.startDate, options.endDate);
+    } else if (options.endDate) {
+      whereOptions.createdAt = LessThanOrEqual(options.endDate);
+    } else if (options.startDate) {
+      whereOptions.createdAt = MoreThanOrEqual(options.startDate);
+    }
+
+    if (options.status) whereOptions.status = options.status;
+    if (options.type) whereOptions.type = options.type;
+
+    const queryOptions: FindManyOptions = {
+      where: whereOptions,
+    };
+    if (options.count) queryOptions.take = options.count;
+
+    const reports = await this.repository.find(queryOptions);
+    return reports;
+  }
+
+  getReportCountWhere(options: FindOptionsWhere<Report>) {
+    return this.repository.countBy(options);
+  }
+
+  findByStatus(status: ReportStatus): Promise<Report[]> {
     return this.repository.find({
       where: { status },
     });

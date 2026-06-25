@@ -10,7 +10,11 @@ import {
 import { ReportsService } from './reports.service';
 import { Report } from './entities/report.entity';
 import { AnyReport } from './types/reports.type';
-import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import {
+  ReportPeriod,
+  ReportStatus,
+  ReportType,
+} from '../../common/enums/reports.type';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { EmailService } from '../email/email.service';
 
@@ -46,17 +50,12 @@ export class ReportProcessor extends WorkerHost {
 
     const report = await this.reportsService.getReportById(reportId);
 
-    if (!report) {
-      this.logger.error(`No report with id ${reportId} found`);
-      throw new Error(`No report with id ${reportId} found`);
-    }
-
     if (report.status !== ReportStatus.PENDING)
       throw new ConflictException(SYS_MSG.CONFLICT);
 
     this.logger.log(`Computing report Report_${reportId}`);
 
-    // Fix 1+2: Atomic claim — only transitions from PENDING, returns null if another
+    // Atomic claim — only transitions from PENDING, returns null if another
     // worker already claimed it. Handled outside the try so contention is not
     // misidentified as a computation failure.
     const updated = await this.reportsService.updateReportStatus(
@@ -83,6 +82,32 @@ export class ReportProcessor extends WorkerHost {
         processed,
         processed.dateDelivered,
       );
+      this.logger.log('Successfully updated status for report ', reportId);
+
+      if (
+        report.period !== ReportPeriod.CUSTOM &&
+        report.recurring &&
+        report.seriesId &&
+        !Number.isNaN(report.occurrence) &&
+        processed.dateDelivered
+      ) {
+        this.logger.log(
+          `Report_${reportId} recurring; Scheduling new occurrence`,
+        );
+        try {
+          await this.reportsService.generateNewSeriesReport(
+            report,
+            processed.dateDelivered,
+          );
+        } catch (scheduleErr) {
+          this.logger.error(
+            `Report_${reportId} processed but failed scheduling next occurence`,
+            scheduleErr instanceof Error
+              ? scheduleErr.stack
+              : String(scheduleErr),
+          );
+        }
+      }
     } catch (err) {
       this.logger.error(
         `Report_${reportId} failed computing`,
