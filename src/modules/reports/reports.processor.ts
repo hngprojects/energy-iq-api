@@ -107,7 +107,9 @@ export class ReportProcessor extends WorkerHost {
         } catch (scheduleErr) {
           this.logger.error(
             `Report_${reportId} processed but failed scheduling next occurence`,
-            scheduleErr instanceof Error ? scheduleErr.stack : String(scheduleErr),
+            scheduleErr instanceof Error
+              ? scheduleErr.stack
+              : String(scheduleErr),
           );
         }
       }

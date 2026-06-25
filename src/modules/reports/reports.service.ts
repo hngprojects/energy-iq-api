@@ -154,7 +154,11 @@ export class ReportsService {
   }
 
   async generateNewSeriesReport(old: Report, newReferenceDate: Date) {
-    if (!old.seriesId || old.occurrence == null || !Number.isInteger(old.occurrence))
+    if (
+      !old.seriesId ||
+      old.occurrence == null ||
+      !Number.isInteger(old.occurrence)
+    )
       throw new ConflictException(SYS_MSG.CONFLICT);
 
     const renewed = await this.reportModelAction.create({
@@ -180,14 +184,14 @@ export class ReportsService {
     await this.reportQueue.add(
       REPORT_JOBS.COMPUTE_REPORT,
       {
-        reportId: renewed.id
+        reportId: renewed.id,
       } satisfies ComputeReportJobData,
       {
         delay,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
-      }
-    )
+      },
+    );
   }
 
   async downloadReport(
@@ -259,9 +263,10 @@ export class ReportsService {
   async getUserReport(reportId: string, userId: string): Promise<Report> {
     const report = await this.getReportById(reportId);
 
-    if (report.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
-    return report
+    return report;
   }
 
   async getReportById(reportId: string): Promise<Report> {
@@ -278,7 +283,7 @@ export class ReportsService {
       ...(dto.endDate && { endDate: new Date(dto.endDate) }),
       ...(dto.startDate && { startDate: new Date(dto.startDate) }),
       ...(dto.status && { status: dto.status }),
-      ...(dto.seriesId && { seriesId: dto.seriesId })
+      ...(dto.seriesId && { seriesId: dto.seriesId }),
     };
 
     return this.reportModelAction.find({
@@ -413,20 +418,26 @@ export class ReportsService {
 
   async cancelReports(id: string, userId: string): Promise<Report | null> {
     const report = await this.getReportById(id);
-    
-    if (report.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
-    return await this.reportModelAction.updateReportStatus(id, ReportStatus.CANCELLED)
+
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    return await this.reportModelAction.updateReportStatus(
+      id,
+      ReportStatus.CANCELLED,
+    );
   }
 
   async deleteReports(id: string, userId: string) {
     const report = await this.getReportById(id);
-    
-    if (report.userId !== userId) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
-    if (report.status === ReportStatus.PROCESSING) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    if (report.status === ReportStatus.PROCESSING)
+      throw new ConflictException(SYS_MSG.CONFLICT);
     return await this.reportModelAction.delete({
       identifierOptions: { id },
-      ...noTransaction()
-    })
+      ...noTransaction(),
+    });
   }
 
   private validateDtoDates(dto: ReportsDto) {

@@ -75,11 +75,11 @@ export class ReportsController {
 
   @Patch('cancel/:id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Cancel a pending report" })
+  @ApiOperation({ summary: 'Cancel a pending report' })
   @HttpCode(HttpStatus.OK)
   cancelReport(
     @CurrentUser('sub') userId: string,
-    @Param('id') reportId: string
+    @Param('id') reportId: string,
   ) {
     return this.reportsService.cancelReports(reportId, userId);
   }

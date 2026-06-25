@@ -1,4 +1,12 @@
-import { IsDateString, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 import { ReportStatus, ReportType } from '../../../common/enums/reports.type';
 import { Type } from 'class-transformer';
 
