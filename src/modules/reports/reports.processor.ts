@@ -10,7 +10,11 @@ import {
 import { ReportsService } from './reports.service';
 import { Report } from './entities/report.entity';
 import { AnyReport } from './types/reports.type';
-import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import {
+  ReportPeriod,
+  ReportStatus,
+  ReportType,
+} from '../../common/enums/reports.type';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { EmailService } from '../email/email.service';
 
@@ -83,6 +87,23 @@ export class ReportProcessor extends WorkerHost {
         processed,
         processed.dateDelivered,
       );
+      this.logger.log('Successfully updated status for report ', reportId);
+
+      if (
+        report.period !== ReportPeriod.CUSTOM &&
+        report.recurring &&
+        report.seriesId &&
+        !Number.isNaN(report.occurrence) &&
+        processed.dateDelivered
+      ) {
+        this.logger.log(
+          `Report_${reportId} recurring; Scheduling new occurrence`,
+        );
+        await this.reportsService.generateNewSeriesReport(
+          report,
+          processed.dateDelivered,
+        );
+      }
     } catch (err) {
       this.logger.error(
         `Report_${reportId} failed computing`,

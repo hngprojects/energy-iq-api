@@ -52,6 +52,10 @@ import { buildSolarReportDefinition } from './pdf-definitions/solar-report.defin
 import { buildGeneralReportDefinition } from './pdf-definitions/general-report.definition';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
+import { GetReportsDto } from './dto/get-reports.dto';
+import { FindOptionsWhere } from 'typeorm';
+import { ReportTypesSummaryDto } from './dto/report-types-summary.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ReportsService {
@@ -72,7 +76,14 @@ export class ReportsService {
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
     const inverter = await this.invertersService.findOne(dto.inverterId);
 
+    if (dto.recurring && dto.mode === GenerateReportMode.CUSTOM_RANGE) {
+      throw new BadRequestException(
+        SYS_MSG.RECURRING_REPORTS_INVALID_COMBINATION,
+      );
+    }
     this.validateDtoDates(dto);
+
+    const seriesId = dto.recurring ? randomUUID() : undefined;
 
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
@@ -81,6 +92,14 @@ export class ReportsService {
     let created: Report;
 
     if (dto.mode === GenerateReportMode.PERIOD) {
+      if (
+        new Date(dto.referenceDate!).getTime() < inverter.createdAt.getTime()
+      ) {
+        throw new ConflictException(
+          'Reference Date cannot be before Inverter Creation',
+        );
+      }
+
       created = await this.reportModelAction.create({
         ...noTransaction(),
         createPayload: {
@@ -93,6 +112,9 @@ export class ReportsService {
           status: ReportStatus.PENDING,
           user: { id: userId },
           inverter: { id: dto.inverterId },
+          recurring: dto.recurring,
+          ...(dto.recurring && { occurrence: 1 }),
+          ...(seriesId && { seriesId }),
         },
       });
     } else {
@@ -109,6 +131,7 @@ export class ReportsService {
           status: ReportStatus.PENDING,
           user: { id: userId },
           inverter: { id: dto.inverterId },
+          recurring: dto.recurring,
         },
       });
     }
@@ -128,6 +151,29 @@ export class ReportsService {
     );
 
     return created;
+  }
+
+  async generateNewSeriesReport(old: Report, newReferenceDate: Date) {
+    if (!old.seriesId || Number.isNaN(old.occurrence))
+      throw new ConflictException(SYS_MSG.CONFLICT);
+
+    await this.reportModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId: old.userId,
+        user: { id: old.userId },
+        inverterId: old.inverterId,
+        type: old.type,
+        name: old.name,
+        period: old.period,
+        referenceDate: new Date(newReferenceDate),
+        status: ReportStatus.PENDING,
+        inverter: { id: old.inverterId },
+        recurring: old.recurring,
+        occurrence: Number(old.occurrence) + 1,
+        seriesId: old.seriesId,
+      },
+    });
   }
 
   async downloadReport(
@@ -198,6 +244,55 @@ export class ReportsService {
 
   async getReportById(reportId: string): Promise<Report | null> {
     return await this.reportModelAction.findById(reportId);
+  }
+
+  async getReports(dto: GetReportsDto, userId: string) {
+    const findOptions: FindOptionsWhere<Report> = {
+      userId,
+      ...(dto.reportType && { type: dto.reportType }),
+    };
+
+    return this.reportModelAction.find({
+      findOptions,
+      ...noTransaction(),
+      paginationPayload: {
+        limit: dto.pageSize ?? 10,
+        page: dto.pageNumber ?? 1,
+      },
+    });
+  }
+
+  async getReportTypesSummary(userId: string): Promise<ReportTypesSummaryDto> {
+    const [
+      alertReportCount,
+      costsAndSavingsReportCount,
+      generalReportCount,
+      solarReportCount,
+    ] = await Promise.all([
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.ALERT,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.CSC,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.GENERAL,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.SOLAR,
+      }),
+    ]);
+
+    return {
+      alerts: Number(alertReportCount),
+      costsAndSavings: Number(costsAndSavingsReportCount),
+      general: Number(generalReportCount),
+      solar: Number(solarReportCount),
+    };
   }
 
   async computeSolarReport(report: Report): Promise<SolarReport> {

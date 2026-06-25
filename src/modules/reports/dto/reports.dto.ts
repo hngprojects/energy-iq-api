@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ReportPeriod, ReportType } from '../../../common/enums/reports.type';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -10,6 +11,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export enum GenerateReportMode {
   CUSTOM_RANGE = 'custom-date',
@@ -48,6 +50,15 @@ export class ReportsDto {
   @MinLength(1)
   @MaxLength(60)
   name: string;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Boolean representing whether or not this is a recurring report',
+  })
+  @Transform(({ value }) => Boolean(value))
+  @IsBoolean()
+  recurring: boolean;
 
   @ApiProperty({
     enum: ReportPeriod,
