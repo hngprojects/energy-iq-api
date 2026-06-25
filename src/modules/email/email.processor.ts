@@ -1,10 +1,5 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import {
-  ConflictException,
-  Inject,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Inject, Logger } from '@nestjs/common';
 import { Attachment, Resend } from 'resend';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';

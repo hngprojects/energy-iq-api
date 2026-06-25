@@ -426,7 +426,7 @@ export class ReportsService {
       ReportStatus.CANCELLED,
     );
     if (!cancelled) throw new ConflictException(SYS_MSG.CONFLICT);
-    return cancelled
+    return cancelled;
   }
 
   async deleteReports(id: string, userId: string) {

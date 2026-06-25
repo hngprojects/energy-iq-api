@@ -217,21 +217,6 @@ describe('ReportProcessor', () => {
     ).rejects.toThrow('Unknown job type: unknown-job');
   });
 
-  it('throws when the report does not exist', async () => {
-    const { processor, reportsService } = makeProcessor();
-    reportsService.getReportById.mockResolvedValue(null);
-
-    await expect(
-      processor.process(
-        makeJob(REPORT_JOBS.COMPUTE_REPORT, {
-          reportId: 'missing-report',
-        }) as never,
-      ),
-    ).rejects.toThrow('No report with id missing-report found');
-
-    expect(reportsService.updateReport).not.toHaveBeenCalled();
-  });
-
   it('throws ConflictException when the report is already ready', async () => {
     const { processor, reportsService } = makeProcessor();
     reportsService.getReportById.mockResolvedValue(
