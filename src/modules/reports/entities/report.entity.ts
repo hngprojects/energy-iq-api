@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, Unique } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import {
   ReportPeriod,
@@ -10,6 +10,7 @@ import { User } from '../../users/entities/user.entity';
 import { Inverter } from '../../inverters/entities/inverters.entity';
 
 @Entity('reports')
+@Unique(['seriesId', 'occurrence'])
 export class Report extends AbstractBaseEntity {
   @Column({ type: 'uuid', nullable: false, name: 'user_id' })
   userId: string;
@@ -40,6 +41,15 @@ export class Report extends AbstractBaseEntity {
 
   @Column({ type: 'enum', enum: ReportStatus, default: ReportStatus.PENDING })
   status: ReportStatus;
+
+  @Column({ type: 'uuid', nullable: true })
+  seriesId?: string;
+
+  @Column({ type: 'smallint', nullable: true })
+  occurrence?: number;
+
+  @Column({ type: 'boolean', default: false })
+  recurring: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
   keyMetrics?: ReportKeyMetrics;
