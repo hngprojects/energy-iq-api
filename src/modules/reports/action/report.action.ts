@@ -66,9 +66,8 @@ export class ReportModelAction extends AbstractModelAction<Report> {
     return reports;
   }
 
-  getReportCountWhere(options: Partial<Report>) {
-    const findOptions = options as FindOptionsWhere<Report>;
-    return this.repository.countBy(findOptions);
+  getReportCountWhere(options: FindOptionsWhere<Report>) {
+    return this.repository.countBy(options);
   }
 
   findByStatus(status: ReportStatus): Promise<Report[]> {

@@ -16,4 +16,5 @@ export enum ReportStatus {
   PROCESSING = 'PROCESSING',
   READY = 'READY',
   FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED'
 }

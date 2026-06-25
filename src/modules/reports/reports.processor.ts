@@ -60,7 +60,7 @@ export class ReportProcessor extends WorkerHost {
 
     this.logger.log(`Computing report Report_${reportId}`);
 
-    // Fix 1+2: Atomic claim — only transitions from PENDING, returns null if another
+    // Atomic claim — only transitions from PENDING, returns null if another
     // worker already claimed it. Handled outside the try so contention is not
     // misidentified as a computation failure.
     const updated = await this.reportsService.updateReportStatus(
@@ -99,10 +99,17 @@ export class ReportProcessor extends WorkerHost {
         this.logger.log(
           `Report_${reportId} recurring; Scheduling new occurrence`,
         );
-        await this.reportsService.generateNewSeriesReport(
-          report,
-          processed.dateDelivered,
-        );
+        try {
+          await this.reportsService.generateNewSeriesReport(
+            report,
+            processed.dateDelivered,
+          );
+        } catch (scheduleErr) {
+          this.logger.error(
+            `Report_${reportId} processed but failed scheduling next occurence`,
+            scheduleErr instanceof Error ? scheduleErr.stack : String(scheduleErr),
+          );
+        }
       }
     } catch (err) {
       this.logger.error(

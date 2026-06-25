@@ -56,9 +56,15 @@ export class ReportsDto {
     description:
       'Boolean representing whether or not this is a recurring report',
   })
-  @Transform(({ value }) => Boolean(value))
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value
+  })
   @IsBoolean()
-  recurring: boolean;
+  recurring = false;
 
   @ApiProperty({
     enum: ReportPeriod,

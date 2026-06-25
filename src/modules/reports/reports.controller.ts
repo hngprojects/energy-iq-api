@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -41,12 +43,45 @@ export class ReportsController {
     return this.reportsService.getReports(query, id);
   }
 
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get a single report' })
+  @HttpCode(HttpStatus.OK)
+  getSingleReport(
+    @CurrentUser('sub') userId: string,
+    @Param('id') reportId: string,
+  ) {
+    return this.reportsService.getUserReport(reportId, userId);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a report' })
+  @HttpCode(HttpStatus.OK)
+  deleteReport(
+    @CurrentUser('sub') userId: string,
+    @Param('id') reportId: string,
+  ) {
+    return this.reportsService.deleteReports(reportId, userId);
+  }
+
   @Get('summary')
   @ApiBearerAuth()
   @ApiOperation({ summary: "Get a sumary of a user's reports" })
   @HttpCode(HttpStatus.OK)
   getReportsSummary(@CurrentUser('sub') id: string) {
     return this.reportsService.getReportTypesSummary(id);
+  }
+
+  @Patch('cancel/:id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Cancel a pending report" })
+  @HttpCode(HttpStatus.OK)
+  cancelReport(
+    @CurrentUser('sub') userId: string,
+    @Param('id') reportId: string
+  ) {
+    return this.reportsService.cancelReports(reportId, userId);
   }
 
   @Get('download/:id')
