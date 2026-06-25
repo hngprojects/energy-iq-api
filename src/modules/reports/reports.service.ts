@@ -52,6 +52,10 @@ import { buildSolarReportDefinition } from './pdf-definitions/solar-report.defin
 import { buildGeneralReportDefinition } from './pdf-definitions/general-report.definition';
 import { appConfig } from '../../config/app.config';
 import { type ConfigType } from '@nestjs/config';
+import { GetReportsDto } from './dto/get-reports.dto';
+import { FindOptionsWhere } from 'typeorm';
+import { ReportTypesSummaryDto } from './dto/report-types-summary.dto';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ReportsService {
@@ -72,7 +76,14 @@ export class ReportsService {
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
     const inverter = await this.invertersService.findOne(dto.inverterId);
 
+    if (dto.recurring && dto.mode === GenerateReportMode.CUSTOM_RANGE) {
+      throw new BadRequestException(
+        SYS_MSG.RECURRING_REPORTS_INVALID_COMBINATION,
+      );
+    }
     this.validateDtoDates(dto);
+
+    const seriesId = dto.recurring ? randomUUID() : undefined;
 
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     if (inverter.userId !== userId)
@@ -81,6 +92,14 @@ export class ReportsService {
     let created: Report;
 
     if (dto.mode === GenerateReportMode.PERIOD) {
+      if (
+        new Date(dto.referenceDate!).getTime() < inverter.createdAt.getTime()
+      ) {
+        throw new ConflictException(
+          'Reference Date cannot be before Inverter Creation',
+        );
+      }
+
       created = await this.reportModelAction.create({
         ...noTransaction(),
         createPayload: {
@@ -93,6 +112,9 @@ export class ReportsService {
           status: ReportStatus.PENDING,
           user: { id: userId },
           inverter: { id: dto.inverterId },
+          recurring: dto.recurring,
+          ...(dto.recurring && { occurrence: 1 }),
+          ...(seriesId && { seriesId }),
         },
       });
     } else {
@@ -109,6 +131,7 @@ export class ReportsService {
           status: ReportStatus.PENDING,
           user: { id: userId },
           inverter: { id: dto.inverterId },
+          recurring: dto.recurring,
         },
       });
     }
@@ -128,6 +151,47 @@ export class ReportsService {
     );
 
     return created;
+  }
+
+  async generateNewSeriesReport(old: Report, newReferenceDate: Date) {
+    if (
+      !old.seriesId ||
+      old.occurrence == null ||
+      !Number.isInteger(old.occurrence)
+    )
+      throw new ConflictException(SYS_MSG.CONFLICT);
+
+    const renewed = await this.reportModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId: old.userId,
+        user: { id: old.userId },
+        inverterId: old.inverterId,
+        type: old.type,
+        name: old.name,
+        period: old.period,
+        referenceDate: new Date(newReferenceDate),
+        status: ReportStatus.PENDING,
+        inverter: { id: old.inverterId },
+        recurring: old.recurring,
+        occurrence: Number(old.occurrence) + 1,
+        seriesId: old.seriesId,
+      },
+    });
+
+    const delay = this.computeReportDelay(renewed);
+
+    await this.reportQueue.add(
+      REPORT_JOBS.COMPUTE_REPORT,
+      {
+        reportId: renewed.id,
+      } satisfies ComputeReportJobData,
+      {
+        delay,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      },
+    );
   }
 
   async downloadReport(
@@ -196,8 +260,73 @@ export class ReportsService {
     }
   }
 
-  async getReportById(reportId: string): Promise<Report | null> {
-    return await this.reportModelAction.findById(reportId);
+  async getUserReport(reportId: string, userId: string): Promise<Report> {
+    const report = await this.getReportById(reportId);
+
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    return report;
+  }
+
+  async getReportById(reportId: string): Promise<Report> {
+    const report = await this.reportModelAction.findById(reportId);
+    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+    return report;
+  }
+
+  async getReports(dto: GetReportsDto, userId: string) {
+    const findOptions: FindOptionsWhere<Report> = {
+      userId,
+      ...(dto.reportType && { type: dto.reportType }),
+      ...(dto.endDate && { endDate: new Date(dto.endDate) }),
+      ...(dto.startDate && { startDate: new Date(dto.startDate) }),
+      ...(dto.status && { status: dto.status }),
+      ...(dto.seriesId && { seriesId: dto.seriesId }),
+    };
+
+    return this.reportModelAction.find({
+      findOptions,
+      ...noTransaction(),
+      paginationPayload: {
+        limit: dto.pageSize ?? 10,
+        page: dto.pageNumber ?? 1,
+      },
+    });
+  }
+
+  async getReportTypesSummary(userId: string): Promise<ReportTypesSummaryDto> {
+    const [
+      alertReportCount,
+      costsAndSavingsReportCount,
+      generalReportCount,
+      solarReportCount,
+    ] = await Promise.all([
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.ALERT,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.CSC,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.GENERAL,
+      }),
+      this.reportModelAction.getReportCountWhere({
+        userId,
+        type: ReportType.SOLAR,
+      }),
+    ]);
+
+    return {
+      alerts: Number(alertReportCount),
+      costsAndSavings: Number(costsAndSavingsReportCount),
+      general: Number(generalReportCount),
+      solar: Number(solarReportCount),
+    };
   }
 
   async computeSolarReport(report: Report): Promise<SolarReport> {
@@ -287,12 +416,30 @@ export class ReportsService {
     );
   }
 
-  private parseDateOrThrow(value: string, field: string) {
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) {
-      throw new BadRequestException(`${field} must be a valid date`);
-    }
-    return d;
+  async cancelReports(id: string, userId: string): Promise<Report> {
+    const report = await this.getReportById(id);
+
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    const cancelled = await this.reportModelAction.updateReportStatus(
+      id,
+      ReportStatus.CANCELLED,
+    );
+    if (!cancelled) throw new ConflictException(SYS_MSG.CONFLICT);
+    return cancelled;
+  }
+
+  async deleteReports(id: string, userId: string) {
+    const report = await this.getReportById(id);
+
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    if (report.status === ReportStatus.PROCESSING)
+      throw new ConflictException(SYS_MSG.CONFLICT);
+    return await this.reportModelAction.delete({
+      identifierOptions: { id },
+      ...noTransaction(),
+    });
   }
 
   private validateDtoDates(dto: ReportsDto) {
