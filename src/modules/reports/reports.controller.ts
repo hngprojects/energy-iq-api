@@ -69,7 +69,8 @@ export class ReportsController {
   @ApiQuery({
     name: 'seriesId',
     required: false,
-    type: 'uuid',
+    type: 'string',
+    format: 'uuid'
   })
   @ApiQuery({
     name: 'pageSize',
