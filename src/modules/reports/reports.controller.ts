@@ -15,9 +15,10 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
 import { GetReportsDto } from './dto/get-reports.dto';
+import { ReportStatus, ReportType } from '../../common/enums/reports.type';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -38,9 +39,54 @@ export class ReportsController {
   @Get('')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all reports for a user' })
+  @ApiQuery({
+    name: 'reportType',
+    required: false,
+    enum: ReportType
+  })
+  @ApiQuery({
+    name: 'pageNumber',
+    required: false,
+    type: 'integer'
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    example: '2026-05-26',
+    description: 'Start date for the reports to fetch'
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    example: '2026-05-26',
+    description: 'End date for the reports to fetch'
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ReportStatus,
+  })
+  @ApiQuery({
+    name: 'seriesId',
+    required: false,
+    type: 'uuid'
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: 'integer'
+  })
   @HttpCode(HttpStatus.OK)
   getReports(@CurrentUser('sub') id: string, @Query() query: GetReportsDto) {
     return this.reportsService.getReports(query, id);
+  }
+
+  @Get('summary')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get a summary of a user's reports" })
+  @HttpCode(HttpStatus.OK)
+  getReportsSummary(@CurrentUser('sub') id: string) {
+    return this.reportsService.getReportTypesSummary(id);
   }
 
   @Get(':id')
@@ -65,15 +111,7 @@ export class ReportsController {
     return this.reportsService.deleteReports(reportId, userId);
   }
 
-  @Get('summary')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Get a summary of a user's reports" })
-  @HttpCode(HttpStatus.OK)
-  getReportsSummary(@CurrentUser('sub') id: string) {
-    return this.reportsService.getReportTypesSummary(id);
-  }
-
-  @Patch('cancel/:id')
+  @Patch(':id/cancel')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel a pending report' })
   @HttpCode(HttpStatus.OK)
@@ -84,7 +122,7 @@ export class ReportsController {
     return this.reportsService.cancelReports(reportId, userId);
   }
 
-  @Get('download/:id')
+  @Get(':id/download')
   @HttpCode(HttpStatus.OK)
   async downloadReport(
     @Param('id') id: string,
@@ -94,7 +132,7 @@ export class ReportsController {
     return file;
   }
 
-  @Post('email-report/:id')
+  @Post(':id/email-report')
   @HttpCode(HttpStatus.OK)
   triggerReportEmail(
     @Param('id') id: string,
