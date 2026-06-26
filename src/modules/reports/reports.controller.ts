@@ -70,7 +70,7 @@ export class ReportsController {
     name: 'seriesId',
     required: false,
     type: 'string',
-    format: 'uuid'
+    format: 'uuid',
   })
   @ApiQuery({
     name: 'pageSize',
