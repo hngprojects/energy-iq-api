@@ -42,24 +42,24 @@ export class ReportsController {
   @ApiQuery({
     name: 'reportType',
     required: false,
-    enum: ReportType
+    enum: ReportType,
   })
   @ApiQuery({
     name: 'pageNumber',
     required: false,
-    type: 'integer'
+    type: 'integer',
   })
   @ApiQuery({
     name: 'startDate',
     required: false,
     example: '2026-05-26',
-    description: 'Start date for the reports to fetch'
+    description: 'Start date for the reports to fetch',
   })
   @ApiQuery({
     name: 'endDate',
     required: false,
     example: '2026-05-26',
-    description: 'End date for the reports to fetch'
+    description: 'End date for the reports to fetch',
   })
   @ApiQuery({
     name: 'status',
@@ -69,12 +69,12 @@ export class ReportsController {
   @ApiQuery({
     name: 'seriesId',
     required: false,
-    type: 'uuid'
+    type: 'uuid',
   })
   @ApiQuery({
     name: 'pageSize',
     required: false,
-    type: 'integer'
+    type: 'integer',
   })
   @HttpCode(HttpStatus.OK)
   getReports(@CurrentUser('sub') id: string, @Query() query: GetReportsDto) {
