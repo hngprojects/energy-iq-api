@@ -33,20 +33,28 @@ export class CloudinaryService implements OnApplicationBootstrap {
     const cloudName = this.cfg.cloudName;
     const resourceUrl = this.cfg.resourceURL;
     const format = res.format;
-    return `${resourceUrl}/${cloudName}/image/upload/c_thumb,w_200,h_200/${res.public_id}.${format}`;
+    return `${resourceUrl}/${cloudName}/image/upload/v${res.version}/c_thumb,w_200,h_200/${res.public_id}.${format}`;
   }
 
   generateAdditionalProperties(
     res: UploadApiResponse,
-  ): Partial<CloudinaryFileEntity> {
-    console.log(res);
-    const props: Partial<CloudinaryFileEntity> = {
+  ): Pick<
+    CloudinaryFileEntity,
+    | 'thumbnailUrl'
+    | 'cloudinaryPublicId'
+    | 'format'
+    | 'cloudinaryUrl'
+    | 'resourceType'
+    | 'metadata'
+    | 'version'
+  > {
+    const props = {
       thumbnailUrl: this.generateThumbnailUrl(res),
       cloudinaryPublicId: res.public_id,
       format: res.format,
       cloudinaryUrl: res.secure_url,
       resourceType: res.resource_type,
-      ...(res.version && { version: res.version }),
+      version: res.version,
       metadata: {
         uploadedAt: res.created_at,
         etag: res.etag,
@@ -60,14 +68,20 @@ export class CloudinaryService implements OnApplicationBootstrap {
 
   async signedUploadFileFromMetadata(
     folder: string,
-    data: CloudinaryFileEntity,
+    data: Pick<
+      CloudinaryFileEntity,
+      'fileExtname' | 'filename' | 'filesizeBytes' | 'mimeType'
+    >,
     buffer: Buffer,
-  ): Promise<CloudinaryFileEntity | null> {
+  ): Promise<Omit<
+    CloudinaryFileEntity,
+    'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
+  > | null> {
     const options: UploadApiOptions = {
       folder,
       // public_id: data.filename!.replace(/\.[^/.]+$/, ''),
       use_filename: true,
-      unique_filename: false,
+      unique_filename: true,
       overwrite: true,
       resource_type: 'auto',
     };
@@ -81,7 +95,7 @@ export class CloudinaryService implements OnApplicationBootstrap {
 
       const additionalProperties = this.generateAdditionalProperties(result);
 
-      const fileEntity: CloudinaryFileEntity = {
+      const fileEntity = {
         ...data,
         ...additionalProperties,
       };

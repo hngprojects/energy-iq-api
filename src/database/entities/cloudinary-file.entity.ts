@@ -9,7 +9,7 @@ export abstract class CloudinaryFileEntity extends AbstractBaseEntity {
   filename?: string;
 
   @Column({ type: 'bigint' })
-  filesizeBytes: number;
+  filesizeBytes: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   mimeType?: string;

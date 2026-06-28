@@ -83,16 +83,19 @@ export class ProfileImageModelAction extends AbstractModelAction<ProfileImage> {
       if (!saved)
         throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_IMAGE);
 
-      if (
+      const oldCloudinaryPublicIdToDelete =
         existing?.cloudinaryPublicId &&
         existing.cloudinaryPublicId !== fileMeta.cloudinaryPublicId
-      ) {
-        await this.cloudinaryService.deleteByPublicId(
-          existing.cloudinaryPublicId,
-        );
-      }
+          ? existing.cloudinaryPublicId
+          : undefined;
 
       await queryRunner.commitTransaction();
+
+      if (oldCloudinaryPublicIdToDelete) {
+        await this.cloudinaryService.deleteByPublicId(
+          oldCloudinaryPublicIdToDelete,
+        );
+      }
 
       return saved;
     } catch (err) {

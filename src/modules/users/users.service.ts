@@ -25,9 +25,7 @@ import { GeneratorFuelType } from '../../common/enums/generator';
 import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
 import fs from 'node:fs/promises';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
-import { CloudinaryFileEntity } from '../../database/entities/cloudinary-file.entity';
 import path from 'node:path';
-import { ProfileImage } from './entities/profile-img.entity';
 import { ProfileImageModelAction } from './actions/profile-img.action';
 
 const BCRYPT_ROUNDS = 10;
@@ -196,11 +194,10 @@ export class UsersService {
 
   async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
     const user = await this.findOne(userId);
-    console.log('File: ', dto.file);
-    const fileMeta: Partial<CloudinaryFileEntity> = {
+    const fileMeta = {
       filename: dto.file.originalname.toLowerCase(),
       fileExtname: path.extname(dto.file.originalname).toLowerCase(),
-      filesizeBytes: dto.file.size,
+      filesizeBytes: dto.file.size.toString(),
       mimeType: dto.file.mimetype,
     };
 
@@ -208,20 +205,20 @@ export class UsersService {
       const uploadRes =
         await this.cloudinaryService.signedUploadFileFromMetadata(
           'user_profile_images',
-          fileMeta as CloudinaryFileEntity,
+          fileMeta,
           dto.file.buffer,
         );
 
       if (!uploadRes)
         throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
 
-      const fullImg: ProfileImage = {
+      const fullImg = {
         ...uploadRes,
         user,
         userId,
       };
 
-      const profileImage = this.profileImageAction.upsertUserPorfileImg(
+      const profileImage = await this.profileImageAction.upsertUserPorfileImg(
         userId,
         fullImg,
       );
@@ -231,6 +228,7 @@ export class UsersService {
       this.logger.error(
         `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
       );
+      if (err instanceof ServiceUnavailableException) throw err;
       throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_IMAGE);
     } finally {
       if (dto.file.path) {
