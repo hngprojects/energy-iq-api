@@ -23,26 +23,21 @@ import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settin
 import { UserSettings } from './entities/user-settings.entity';
 import { GeneratorFuelType } from '../../common/enums/generator';
 import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
-import { UploadedImage } from './entities/uploaded-img.entity';
-import { CloudinaryService } from './cloudinary.service';
-import path from 'node:path';
 import fs from 'node:fs/promises';
-import { FileUploadStatus } from '../../common/enums';
-import { UploadedImgModelAction } from './actions/uploaded-img.action';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { CloudinaryFileEntity } from '../../database/entities/cloudinary-file.entity';
+import path from 'node:path';
+import { ProfileImage } from './entities/profile-img.entity';
+import { ProfileImageModelAction } from './actions/profile-img.action';
 
 const BCRYPT_ROUNDS = 10;
-
-export type IntermediateUploadedImg = Omit<
-  UploadedImage,
-  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
->;
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   constructor(
     private readonly cloudinaryService: CloudinaryService,
-    private readonly uploadedImageAction: UploadedImgModelAction,
+    private readonly profileImageAction: ProfileImageModelAction,
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
@@ -201,39 +196,42 @@ export class UsersService {
 
   async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
     const user = await this.findOne(userId);
-
-    const fileMeta: UploadedImage = {
-      user,
-      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+    console.log('File: ', dto.file);
+    const fileMeta: Partial<CloudinaryFileEntity> = {
       filename: dto.file.originalname.toLowerCase(),
+      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
       filesizeBytes: dto.file.size,
-      uploadStatus: FileUploadStatus.COMPLETE,
-      uploadedByEmail: dto.userEmail,
-    } as UploadedImage;
+      mimeType: dto.file.mimetype,
+    };
 
     try {
       const uploadRes =
         await this.cloudinaryService.signedUploadFileFromMetadata(
-          fileMeta,
+          'user_profile_images',
+          fileMeta as CloudinaryFileEntity,
           dto.file.buffer,
         );
 
-      if (!uploadRes) {
+      if (!uploadRes)
         throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
-      }
 
-      const { uploadUrl, thumbnail, publicId } = uploadRes;
-
-      fileMeta.uploadUrl = uploadUrl;
-      fileMeta.thumbnail = thumbnail;
-      fileMeta.publicId = publicId;
-
-      const returnValue = this.uploadedImageAction.upsertUserPorfileImg(
+      const fullImg: ProfileImage = {
+        ...uploadRes,
+        user,
         userId,
-        fileMeta,
+      };
+
+      const profileImage = this.profileImageAction.upsertUserPorfileImg(
+        userId,
+        fullImg,
       );
 
-      return returnValue;
+      return profileImage;
+    } catch (err) {
+      this.logger.error(
+        `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_IMAGE);
     } finally {
       if (dto.file.path) {
         await this.deleteFile(dto.file.path);
