@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -138,5 +139,9 @@ export class ReportsController {
 
   @Post(':id/generate-link')
   @HttpCode(HttpStatus.OK)
-  generateShareableLink() {}
+  generateShareableLink(@Param('id') id: string) {
+    throw new NotImplementedException(
+      `POST /reports/${id}/generate-link is not implemented yet`,
+    );
+  }
 }

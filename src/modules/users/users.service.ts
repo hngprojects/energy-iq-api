@@ -201,13 +201,16 @@ export class UsersService {
       mimeType: dto.file.mimetype,
     };
 
+    let uploadRes: Awaited<
+      ReturnType<CloudinaryService['signedUploadFileFromMetadata']>
+    > = null;
+
     try {
-      const uploadRes =
-        await this.cloudinaryService.signedUploadFileFromMetadata(
-          'user_profile_images',
-          fileMeta,
-          dto.file.buffer,
-        );
+      uploadRes = await this.cloudinaryService.signedUploadFileFromMetadata(
+        'user_profile_images',
+        fileMeta,
+        dto.file.buffer,
+      );
 
       if (!uploadRes)
         throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
@@ -225,6 +228,11 @@ export class UsersService {
 
       return profileImage;
     } catch (err) {
+      if (uploadRes?.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(
+          uploadRes.cloudinaryPublicId,
+        );
+      }
       this.logger.error(
         `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
       );
