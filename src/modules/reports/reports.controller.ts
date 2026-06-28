@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -26,7 +27,6 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post('')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate a report' })
   @HttpCode(HttpStatus.CREATED)
   generateReport(
@@ -37,7 +37,6 @@ export class ReportsController {
   }
 
   @Get('')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all reports for a user' })
   @ApiQuery({
     name: 'reportType',
@@ -83,7 +82,6 @@ export class ReportsController {
   }
 
   @Get('summary')
-  @ApiBearerAuth()
   @ApiOperation({ summary: "Get a summary of a user's reports" })
   @HttpCode(HttpStatus.OK)
   getReportsSummary(@CurrentUser('sub') id: string) {
@@ -91,7 +89,6 @@ export class ReportsController {
   }
 
   @Get(':id')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a single report' })
   @HttpCode(HttpStatus.OK)
   getSingleReport(
@@ -102,7 +99,6 @@ export class ReportsController {
   }
 
   @Delete(':id')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a report' })
   @HttpCode(HttpStatus.OK)
   deleteReport(
@@ -113,7 +109,6 @@ export class ReportsController {
   }
 
   @Patch(':id/cancel')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Cancel a pending report' })
   @HttpCode(HttpStatus.OK)
   cancelReport(
@@ -140,5 +135,13 @@ export class ReportsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reportsService.triggerReportEmail(id, user.sub);
+  }
+
+  @Post(':id/generate-link')
+  @HttpCode(HttpStatus.OK)
+  generateShareableLink(@Param('id') id: string) {
+    throw new NotImplementedException(
+      `POST /reports/${id}/generate-link is not implemented yet`,
+    );
   }
 }
