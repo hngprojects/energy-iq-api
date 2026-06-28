@@ -50,8 +50,8 @@ export class CloudinaryService implements OnApplicationBootstrap {
       metadata: {
         uploadedAt: res.created_at,
         etag: res.etag,
-        versionId: res['version_id'],
-        assetFolder: res['asset_folder'],
+        versionId: res['version_id'] as string,
+        assetFolder: res['asset_folder'] as string,
       },
     };
 
