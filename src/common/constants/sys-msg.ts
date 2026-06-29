@@ -44,8 +44,11 @@ export const SYS_MSG = {
   ALERT_NOT_FOUND: 'Alert not found',
   NOT_INVERTER_OWNER: 'User does not own inverter',
   NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type',
-  ERROR_UPLOADING_IMAGE: 'Error occurred uploading image.',
+  ERROR_UPLOADING_FILE: 'Error occurred uploading file.',
+  ERROR_GENERATING_SHAREABLE: 'Failed to generate shareable link',
   UPDATE_IMAGE_ERROR: 'Failed to update image',
   RECURRING_REPORTS_INVALID_COMBINATION:
     'Recurring reports must use a period (weekly/monthly), not a custom date range.',
+  SHAREABLE_LINK_EXPIRED:
+    'This shareable link has expired. Please generate a new one.',
 } as const;

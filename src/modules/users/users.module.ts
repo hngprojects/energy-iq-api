@@ -7,21 +7,19 @@ import { UsersService } from './users.service';
 import { InvertersModule } from '../inverters/inverters.module';
 import { UserSettings } from './entities/user-settings.entity';
 import { UserSettingsModelAction } from './actions/user-settings.action';
-import { CloudinaryService } from './cloudinary.service';
-import { UploadedImgModelAction } from './actions/uploaded-img.action';
-import { UploadedImage } from './entities/uploaded-img.entity';
+import { ProfileImage } from './entities/profile-img.entity';
+import { ProfileImageModelAction } from './actions/profile-img.action';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserSettings, UploadedImage]),
+    TypeOrmModule.forFeature([User, UserSettings, ProfileImage]),
     InvertersModule,
   ],
   controllers: [UsersController],
   providers: [
-    CloudinaryService,
     UserModelAction,
     UserSettingsModelAction,
-    UploadedImgModelAction,
+    ProfileImageModelAction,
     UsersService,
   ],
   exports: [UsersService, UserModelAction],
