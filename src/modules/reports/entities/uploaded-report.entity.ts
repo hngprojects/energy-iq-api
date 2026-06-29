@@ -11,7 +11,7 @@ export class UploadedReport extends CloudinaryFileEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
-  @Column({ type: 'uuid', unique: true, default: () => 'gen_random_uuid()' })
+  @Column({ type: 'uuid', unique: true })
   shareToken: string;
 
   @Column({ type: 'timestamptz', nullable: true })
