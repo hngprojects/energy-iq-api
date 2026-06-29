@@ -566,10 +566,7 @@ export class ReportsService {
         shareableLinkExpiresAt,
       };
 
-      const existingUploadedReport =
-        await this.uploadedReportModelAction.findByReportId(report.id);
-
-      const uploadedReport =
+      const { uploadedReport, existingUploadedReport } =
         await this.uploadedReportModelAction.upsertUploadedReport(
           report.id,
           fullUploadedReport,

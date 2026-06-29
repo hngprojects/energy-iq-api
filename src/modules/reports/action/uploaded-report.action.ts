@@ -34,7 +34,10 @@ export class UploadedReportModelAction extends AbstractModelAction<UploadedRepor
   async upsertUploadedReport(
     reportId: string,
     fileMeta: Partial<UploadedReport>,
-  ): Promise<UploadedReport> {
+  ): Promise<{
+    uploadedReport: UploadedReport;
+    existingUploadedReport: UploadedReport | null;
+  }> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     try {
@@ -74,7 +77,7 @@ export class UploadedReportModelAction extends AbstractModelAction<UploadedRepor
       }
 
       await queryRunner.commitTransaction();
-      return saved;
+      return { uploadedReport: saved, existingUploadedReport: existing };
     } catch {
       if (queryRunner.isTransactionActive) {
         await queryRunner.rollbackTransaction();
