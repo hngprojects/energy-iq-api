@@ -81,7 +81,7 @@ export class ProfileImageModelAction extends AbstractModelAction<ProfileImage> {
       });
 
       if (!saved)
-        throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+        throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
 
       const oldCloudinaryPublicIdToDelete =
         existing?.cloudinaryPublicId &&
@@ -104,7 +104,7 @@ export class ProfileImageModelAction extends AbstractModelAction<ProfileImage> {
         'Error uploading img',
         err instanceof Error ? err.stack : JSON.stringify(err),
       );
-      throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+      throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
     } finally {
       await queryRunner.release();
     }

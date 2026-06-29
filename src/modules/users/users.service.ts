@@ -213,7 +213,7 @@ export class UsersService {
       );
 
       if (!uploadRes)
-        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
 
       const fullImg = {
         ...uploadRes,
@@ -237,7 +237,7 @@ export class UsersService {
         `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
       );
       if (err instanceof ServiceUnavailableException) throw err;
-      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
     } finally {
       if (dto.file.path) {
         await this.deleteFile(dto.file.path);
