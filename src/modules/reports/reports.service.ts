@@ -462,6 +462,10 @@ export class ReportsService {
     // This throws
     await this.usersService.findOne(userId);
 
+    const report = await this.getReportById(reportId);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
     const uploadedReport = await this.getUploadedReportById(reportId);
 
     return `${this.appCfg.clientUrl}/share/${uploadedReport.shareToken}`;
@@ -497,6 +501,10 @@ export class ReportsService {
   async generateShareableLink(id: string, userId: string): Promise<string> {
     await this.usersService.findOne(userId);
     // The above function already throws
+
+    const report = await this.getReportById(id);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
     const { shareToken } = await this.uploadReportToCloudinary(id);
     const clientUrl = this.appCfg.clientUrl;
@@ -558,24 +566,33 @@ export class ReportsService {
         shareableLinkExpiresAt,
       };
 
+      const existingUploadedReport =
+        await this.uploadedReportModelAction.findByReportId(report.id);
+
       const uploadedReport =
         await this.uploadedReportModelAction.upsertUploadedReport(
           report.id,
           fullUploadedReport,
         );
 
-      const oldJobId = uploadedReport.deleteJobId;
+      const oldJobId =
+        existingUploadedReport?.deleteJobId ?? uploadedReport.deleteJobId;
       if (oldJobId) {
         await this.reportQueue.remove(oldJobId).catch(() => {
           this.logger.debug(`Job ${oldJobId} already removed or not found`);
         });
       }
 
+      const oldPublicId = existingUploadedReport?.cloudinaryPublicId;
+      if (oldPublicId && oldPublicId !== uploadedReport.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(oldPublicId);
+      }
+
       // Job that deletes at the right time;
       if (uploadedReport.shareableLinkExpiresAt) {
         const delay =
           uploadedReport.shareableLinkExpiresAt.getTime() - Date.now();
-        const jobId = `delete-${report.id}-${Date.now()}`;
+        const jobId = randomUUID();
         await this.reportQueue.add(
           REPORT_JOBS.DELETE_REPORT,
           {
@@ -782,10 +799,13 @@ export class ReportsService {
       throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
     const deleted = await this.cloudinaryService.deleteByPublicId(publicId);
+    if (!deleted) {
+      throw new ServiceUnavailableException(SYS_MSG.INTERNAL_SERVER_ERROR);
+    }
     await this.uploadedReportModelAction.delete({
       ...noTransaction(),
       identifierOptions: { reportId, cloudinaryPublicId: publicId },
     });
-    return deleted;
+    return true;
   }
 }

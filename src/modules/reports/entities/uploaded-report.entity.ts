@@ -5,7 +5,7 @@ import { User } from '../../users/entities/user.entity';
 
 @Entity('uploaded-reports')
 export class UploadedReport extends CloudinaryFileEntity {
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', unique: true })
   reportId: string;
 
   @Column({ type: 'uuid' })
@@ -18,7 +18,7 @@ export class UploadedReport extends CloudinaryFileEntity {
   shareableLinkExpiresAt?: Date;
 
   @Column({ type: 'uuid', nullable: true })
-  deleteJobId: string;
+  deleteJobId?: string;
 
   @Column({ type: 'int', default: 0 })
   downloadCount: number;

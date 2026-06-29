@@ -91,10 +91,10 @@ export class ReportsController {
 
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @Get('share/:shareToken')
+  @Get('share/:token')
   @HttpCode(HttpStatus.OK)
-  accessShareableLink(@Param() shareToken: string) {
-    return this.reportsService.accessShareableLink(shareToken);
+  accessShareableLink(@Param('token') token: string) {
+    return this.reportsService.accessShareableLink(token);
   }
 
   @Get(':id')

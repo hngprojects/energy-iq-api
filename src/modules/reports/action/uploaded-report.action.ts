@@ -37,20 +37,20 @@ export class UploadedReportModelAction extends AbstractModelAction<UploadedRepor
   ): Promise<UploadedReport> {
     const queryRunner = this.dataSource.createQueryRunner();
 
-    await queryRunner.connect();
-
-    const user = await queryRunner.manager.findOneBy(User, {
-      id: fileMeta.userId,
-    });
-    if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
-
-    await queryRunner.startTransaction();
-
     try {
+      await queryRunner.connect();
+
+      const user = await queryRunner.manager.findOneBy(User, {
+        id: fileMeta.userId,
+      });
+      if (!user) throw new UnauthorizedException(SYS_MSG.UNAUTHORIZED);
+
+      await queryRunner.startTransaction();
+
       const existing = await queryRunner.manager
-        .createQueryBuilder(UploadedReport, 'hosted-report')
+        .createQueryBuilder(UploadedReport, 'hostedReport')
         .setLock('pessimistic_write')
-        .where('hosted-report.reportId = :reportId', { reportId })
+        .where('hostedReport.reportId = :reportId', { reportId })
         .getOne();
 
       // If the link exists and not expired, we might still want to updateit
@@ -76,7 +76,9 @@ export class UploadedReportModelAction extends AbstractModelAction<UploadedRepor
       await queryRunner.commitTransaction();
       return saved;
     } catch {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       throw new ServiceUnavailableException(SYS_MSG.ERROR_GENERATING_SHAREABLE);
     } finally {
       await queryRunner.release();

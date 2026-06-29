@@ -13,10 +13,12 @@ import { InvertersMetricsModule } from '../inverters-metrics/inverters-metrics.m
 import { AlertsModule } from '../alerts/alerts.module';
 import { ReportModelAction } from './action/report.action';
 import { EmailModule } from '../email/email.module';
+import { UploadedReportModelAction } from './action/uploaded-report.action';
+import { UploadedReport } from './entities/uploaded-report.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Report]),
+    TypeOrmModule.forFeature([Report, UploadedReport]),
     BullModule.registerQueue({ name: QUEUES.REPORT_DISPATCH }),
     InvertersModule,
     UsersModule,
@@ -25,7 +27,13 @@ import { EmailModule } from '../email/email.module';
     forwardRef(() => EmailModule),
   ],
   controllers: [ReportsController],
-  providers: [ReportsService, ReportProcessor, ReportsCron, ReportModelAction],
-  exports: [ReportModelAction, ReportsService],
+  providers: [
+    ReportsService,
+    ReportProcessor,
+    ReportsCron,
+    ReportModelAction,
+    UploadedReportModelAction,
+  ],
+  exports: [ReportModelAction, ReportsService, UploadedReportModelAction],
 })
 export class ReportsModule {}
