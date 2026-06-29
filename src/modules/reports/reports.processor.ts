@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { ConflictException, Logger } from '@nestjs/common';
 import {
   ComputeReportJobData,
+  DeleteUploadedReportJobData,
   REPORT_JOBS,
   SendReportJobData,
 } from './reports.jobs';
@@ -35,6 +36,8 @@ export class ReportProcessor extends WorkerHost {
         return this.handleComputeReport(job as Job<ComputeReportJobData>);
       case REPORT_JOBS.SEND_REPORT:
         return this.sendPdfReport(job as Job<SendReportJobData>);
+      case REPORT_JOBS.DELETE_REPORT:
+        return this.deleteRemoteReport(job as Job<DeleteUploadedReportJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -144,6 +147,30 @@ export class ReportProcessor extends WorkerHost {
         clientUrl,
         firstName,
       );
+    } catch (err) {
+      this.logger.error(err instanceof Error ? err.message : String(err));
+      throw new Error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private async deleteRemoteReport(
+    job: Job<DeleteUploadedReportJobData>,
+  ): Promise<void> {
+    const { reportId, publicId } = job.data;
+
+    try {
+      const deleted = await this.reportsService.deleteRemoteReport(
+        reportId,
+        publicId,
+      );
+
+      if (deleted) {
+        this.logger.log(
+          `Successfully deleted remote pdf for report ${reportId}`,
+        );
+      } else {
+        this.logger.error(`Failed to delete remote report ${reportId}`);
+      }
     } catch (err) {
       this.logger.error(err instanceof Error ? err.message : String(err));
       throw new Error(err instanceof Error ? err.message : String(err));

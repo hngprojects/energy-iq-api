@@ -2,9 +2,11 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   HttpException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
@@ -42,6 +44,7 @@ import { QUEUES } from '../../common/constants/queue';
 import { Queue } from 'bullmq';
 import {
   ComputeReportJobData,
+  DeleteUploadedReportJobData,
   REPORT_JOBS,
   SendReportJobData,
 } from './reports.jobs';
@@ -56,6 +59,9 @@ import { GetReportsDto } from './dto/get-reports.dto';
 import { FindOptionsWhere } from 'typeorm';
 import { ReportTypesSummaryDto } from './dto/report-types-summary.dto';
 import { randomUUID } from 'crypto';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import { UploadedReportModelAction } from './action/uploaded-report.action';
+import { UploadedReport } from './entities/uploaded-report.entity';
 
 @Injectable()
 export class ReportsService {
@@ -71,6 +77,8 @@ export class ReportsService {
     private readonly reportQueue: Queue,
     @Inject(appConfig.KEY)
     private readonly appCfg: ConfigType<typeof appConfig>,
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly uploadedReportModelAction: UploadedReportModelAction,
   ) {}
 
   async generateReport(dto: ReportsDto, userId: string): Promise<Report> {
@@ -276,6 +284,14 @@ export class ReportsService {
     return report;
   }
 
+  async getUploadedReportById(reportId: string): Promise<UploadedReport> {
+    const uploadedReport =
+      await this.uploadedReportModelAction.findByReportId(reportId);
+    if (!uploadedReport) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+    return uploadedReport;
+  }
+
   async getReports(dto: GetReportsDto, userId: string) {
     const findOptions: FindOptionsWhere<Report> = {
       userId,
@@ -442,6 +458,178 @@ export class ReportsService {
     });
   }
 
+  async getShareableLink(reportId: string, userId: string): Promise<string> {
+    // This throws
+    await this.usersService.findOne(userId);
+
+    const report = await this.getReportById(reportId);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    const uploadedReport = await this.getUploadedReportById(reportId);
+
+    return `${this.appCfg.clientUrl}/share/${uploadedReport.shareToken}`;
+  }
+
+  async accessShareableLink(shareToken: string): Promise<string> {
+    const uploadedReport =
+      await this.uploadedReportModelAction.findByShareToken(shareToken);
+    if (!uploadedReport) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+
+    if (
+      uploadedReport.shareableLinkExpiresAt &&
+      Date.now() > uploadedReport.shareableLinkExpiresAt.getTime()
+    ) {
+      await this.deleteRemoteReport(
+        uploadedReport.reportId,
+        uploadedReport.cloudinaryPublicId,
+      );
+      throw new GoneException(SYS_MSG.SHAREABLE_LINK_EXPIRED);
+    }
+
+    await this.uploadedReportModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { shareToken },
+      updatePayload: {
+        downloadCount: uploadedReport.downloadCount + 1,
+      },
+    });
+
+    return uploadedReport.cloudinaryUrl;
+  }
+
+  async generateShareableLink(id: string, userId: string): Promise<string> {
+    await this.usersService.findOne(userId);
+    // The above function already throws
+
+    const report = await this.getReportById(id);
+    if (report.userId !== userId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    const { shareToken } = await this.uploadReportToCloudinary(id);
+    const clientUrl = this.appCfg.clientUrl;
+
+    const shareableLink = `${clientUrl}/share/${shareToken}`;
+
+    return shareableLink;
+  }
+
+  async uploadReportToCloudinary(id: string) {
+    const report = await this.reportModelAction.findById(id);
+    if (!report) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    if (report.status !== ReportStatus.READY)
+      throw new ConflictException(SYS_MSG.CONFLICT);
+
+    const reportPdfBuffer = await this.getReportPdf(report);
+
+    const filename = `${
+      report.name
+        .toLowerCase()
+        .replace(/[^a-zA-Z0-9 ]/g, '')
+        .split(' ')
+        .filter((s) => s.length > 0)
+        .join('-') + Date.now()
+    }-${Date.now()}`;
+    const fileMeta = {
+      filename,
+      fileExtname: '.pdf',
+      filesizeBytes: reportPdfBuffer.byteLength.toString(),
+      mimeType: 'application/pdf',
+    };
+
+    let uploadRes: Awaited<
+      ReturnType<CloudinaryService['signedUploadFileFromMetadata']>
+    > = null;
+
+    try {
+      uploadRes = await this.cloudinaryService.signedUploadFileFromMetadata(
+        'user_reports',
+        fileMeta,
+        reportPdfBuffer,
+      );
+
+      if (!uploadRes)
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
+
+      const shareToken = randomUUID();
+
+      const shareableLinkExpiresAt = new Date();
+      shareableLinkExpiresAt.setDate(shareableLinkExpiresAt.getDate() + 7);
+
+      const fullUploadedReport = {
+        ...uploadRes,
+        reportId: report.id,
+        report,
+        user: report.user,
+        userId: report.userId,
+        shareToken,
+        shareableLinkExpiresAt,
+      };
+
+      const { uploadedReport, existingUploadedReport } =
+        await this.uploadedReportModelAction.upsertUploadedReport(
+          report.id,
+          fullUploadedReport,
+        );
+
+      const oldJobId =
+        existingUploadedReport?.deleteJobId ?? uploadedReport.deleteJobId;
+      if (oldJobId) {
+        await this.reportQueue.remove(oldJobId).catch(() => {
+          this.logger.debug(`Job ${oldJobId} already removed or not found`);
+        });
+      }
+
+      const oldPublicId = existingUploadedReport?.cloudinaryPublicId;
+      if (oldPublicId && oldPublicId !== uploadedReport.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(oldPublicId);
+      }
+
+      // Job that deletes at the right time;
+      if (uploadedReport.shareableLinkExpiresAt) {
+        const delay =
+          uploadedReport.shareableLinkExpiresAt.getTime() - Date.now();
+        const jobId = randomUUID();
+        await this.reportQueue.add(
+          REPORT_JOBS.DELETE_REPORT,
+          {
+            reportId: uploadedReport.reportId,
+            publicId: uploadedReport.cloudinaryPublicId,
+          } satisfies DeleteUploadedReportJobData,
+          {
+            jobId,
+            delay,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+          },
+        );
+
+        if (delay > 0) {
+          await this.uploadedReportModelAction.update({
+            ...noTransaction(),
+            identifierOptions: { shareToken: uploadedReport.shareToken },
+            updatePayload: {
+              deleteJobId: jobId,
+            },
+          });
+        }
+      }
+
+      return uploadedReport;
+    } catch (err) {
+      if (uploadRes?.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(
+          uploadRes.cloudinaryPublicId,
+        );
+      }
+      this.logger.error(
+        `Failed to upload report ${report.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
+    }
+  }
+
   private validateDtoDates(dto: ReportsDto) {
     if (dto.mode === GenerateReportMode.CUSTOM_RANGE) {
       if (!dto.startDate)
@@ -594,5 +782,27 @@ export class ReportsService {
     docDefinition: Parameters<typeof pdfmake.createPdf>[0],
   ): Promise<Buffer> {
     return pdfmake.createPdf(docDefinition).getBuffer();
+  }
+
+  async deleteRemoteReport(
+    reportId: string,
+    publicId: string,
+  ): Promise<boolean> {
+    // This throws if report does not exist
+    await this.getReportById(reportId);
+    const remoteReport = await this.getUploadedReportById(reportId);
+
+    if (remoteReport.cloudinaryPublicId !== publicId)
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+
+    const deleted = await this.cloudinaryService.deleteByPublicId(publicId);
+    if (!deleted) {
+      throw new ServiceUnavailableException(SYS_MSG.INTERNAL_SERVER_ERROR);
+    }
+    await this.uploadedReportModelAction.delete({
+      ...noTransaction(),
+      identifierOptions: { reportId, cloudinaryPublicId: publicId },
+    });
+    return true;
   }
 }

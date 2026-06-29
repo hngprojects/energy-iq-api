@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -20,6 +19,8 @@ import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
 import { GetReportsDto } from './dto/get-reports.dto';
 import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import { Public } from '../../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -88,6 +89,19 @@ export class ReportsController {
     return this.reportsService.getReportTypesSummary(id);
   }
 
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Get('share/:token')
+  @ApiOperation({
+    summary: 'Get the main cloudinary link for a report',
+    description:
+      'Get the cloudinary link for a report to view it on browser without having to download it',
+  })
+  @HttpCode(HttpStatus.OK)
+  accessShareableLink(@Param('token') token: string) {
+    return this.reportsService.accessShareableLink(token);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single report' })
   @HttpCode(HttpStatus.OK)
@@ -119,6 +133,10 @@ export class ReportsController {
   }
 
   @Get(':id/download')
+  @ApiOperation({
+    summary: 'download a report',
+    description: 'Get a downloadable file for a report',
+  })
   @HttpCode(HttpStatus.OK)
   async downloadReport(
     @Param('id') id: string,
@@ -129,6 +147,9 @@ export class ReportsController {
   }
 
   @Post(':id/email-report')
+  @ApiOperation({
+    summary: 'Get a report sent to your email',
+  })
   @HttpCode(HttpStatus.OK)
   triggerReportEmail(
     @Param('id') id: string,
@@ -138,10 +159,26 @@ export class ReportsController {
   }
 
   @Post(':id/generate-link')
+  @ApiOperation({
+    summary: 'Generate a shareable link for a particular report',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  generateShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.generateShareableLink(id, userId);
+  }
+
+  @Get(':id/shareable-link')
+  @ApiOperation({
+    summary: 'Get the generated shareable link for a particular report',
+  })
   @HttpCode(HttpStatus.OK)
-  generateShareableLink(@Param('id') id: string) {
-    throw new NotImplementedException(
-      `POST /reports/${id}/generate-link is not implemented yet`,
-    );
+  getShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.getShareableLink(id, userId);
   }
 }
