@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  NotImplementedException,
   Param,
   Patch,
   Post,
@@ -20,6 +19,8 @@ import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
 import { GetReportsDto } from './dto/get-reports.dto';
 import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import { Public } from '../../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -88,6 +89,14 @@ export class ReportsController {
     return this.reportsService.getReportTypesSummary(id);
   }
 
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Get('share/:shareToken')
+  @HttpCode(HttpStatus.OK)
+  accessShareableLink(@Param() shareToken: string) {
+    return this.reportsService.accessShareableLink(shareToken);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single report' })
   @HttpCode(HttpStatus.OK)
@@ -138,10 +147,20 @@ export class ReportsController {
   }
 
   @Post(':id/generate-link')
+  @HttpCode(HttpStatus.CREATED)
+  generateShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.generateShareableLink(id, userId);
+  }
+
+  @Get(':id/shareable-link')
   @HttpCode(HttpStatus.OK)
-  generateShareableLink(@Param('id') id: string) {
-    throw new NotImplementedException(
-      `POST /reports/${id}/generate-link is not implemented yet`,
-    );
+  getShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.getShareableLink(id, userId);
   }
 }
