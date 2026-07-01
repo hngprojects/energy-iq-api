@@ -23,7 +23,7 @@ import { SessionModelAction } from './actions/sessions.action';
     UserSettingsModelAction,
     ProfileImageModelAction,
     UsersService,
-    SessionModelAction
+    SessionModelAction,
   ],
   exports: [UsersService, UserModelAction, SessionModelAction],
 })

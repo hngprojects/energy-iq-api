@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -27,6 +28,9 @@ import fs from 'node:fs/promises';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import path from 'node:path';
 import { ProfileImageModelAction } from './actions/profile-img.action';
+import { Session } from './entities/sessions.entity';
+import { SessionModelAction } from './actions/sessions.action';
+import { CreateSessionDto } from '../auth/dto/create-session.dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -39,6 +43,7 @@ export class UsersService {
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
+    private readonly sessionModelAction: SessionModelAction,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -58,6 +63,43 @@ export class UsersService {
         onboardingComplete: false,
       },
     });
+  }
+
+  async createSession(
+    userId: string,
+    dto?: CreateSessionDto,
+  ): Promise<Session> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return this.sessionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId,
+        ...(dto && dto.deviceName && { deviceName: dto.deviceName }),
+        ...(dto && dto.ipAddress && { ipAddress: dto.ipAddress }),
+        ...(dto && dto.platform && { platform: dto.platform }),
+        ...(dto && dto.userAgent && { userAgent: dto.userAgent }),
+        expiresAt,
+      },
+    });
+  }
+
+  async findSessionById(sessionId: string): Promise<Session> {
+    const session = await this.sessionModelAction.findById(sessionId);
+    if (!session) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
+
+    if (!session.isActive)
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    if (session.expiresAt && Date.now() > session.expiresAt.getTime()) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: {
+          isActive: false,
+        },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+    return session;
   }
 
   async findOrCreateByGoogle(dto: GoogleOAuthDto): Promise<User> {
@@ -140,11 +182,38 @@ export class UsersService {
     });
   }
 
-  async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
-    await this.userModelAction.update({
+  async setRefreshTokenHash(
+    sessionId: string,
+    hash: string | null,
+  ): Promise<void> {
+    const updated = await this.sessionModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: sessionId },
+      updatePayload: {
+        refreshTokenHash: hash,
+        lastActivityAt: new Date(),
+        ...(hash === null && { isActive: false }),
+        ...(hash !== null && {
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.SESSION_UPDATE_FAILED);
+  }
+
+  async deactivateSession(id: string): Promise<void> {
+    const session = await this.sessionModelAction.findById(id);
+
+    if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
+    await this.sessionModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
-      updatePayload: { refreshTokenHash: hash },
+      updatePayload: {
+        isActive: false,
+        refreshTokenHash: null,
+        lastActivityAt: new Date(),
+      },
     });
   }
 
