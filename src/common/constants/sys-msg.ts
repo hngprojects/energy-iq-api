@@ -16,6 +16,9 @@ export const SYS_MSG = {
   INVALID_CREDENTIALS: 'The provided email or password is incorrect',
   INVALID_REFRESH_TOKEN:
     'The refresh token is invalid, expired, or cannot be used',
+  INVALID_SESSION_ID: 'The session id is invalid or does not exist',
+  SESSION_EXPIRED: 'Session expired or inactive',
+  SESSION_UPDATE_FAILED: 'Failed to update session',
   INVALID_OTP: 'The verification code is invalid or has expired',
   OTP_ATTEMPTS_EXCEEDED: 'Too many verification attempts. Try again later',
   EMAIL_NOT_VERIFIED: 'This user email is not verified',
