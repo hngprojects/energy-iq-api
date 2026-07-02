@@ -39,7 +39,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     const session = await this.usersService.findSessionById(payload.sessionId);
 
-    if (!session.isActive && session.expiresAt && session.expiresAt.getTime() < Date.now()) {
+    if (
+      !session.isActive &&
+      session.expiresAt &&
+      session.expiresAt.getTime() < Date.now()
+    ) {
       throw new UnauthorizedException(SYS_MSG.INVALID_TOKEN);
     }
 

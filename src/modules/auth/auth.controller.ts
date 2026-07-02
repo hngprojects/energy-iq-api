@@ -172,6 +172,6 @@ export class AuthController {
       userAgent: req.headers['user-agent'],
       platform: req.headers['sec-ch-ua-platform']?.toString(),
       deviceName: req.headers['sec-ch-ua-model']?.toString(),
-    }
+    };
   }
 }
