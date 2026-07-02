@@ -171,6 +171,7 @@ export class AuthService {
       return res.json({
         accessToken: authResponse.accessToken,
         refreshToken: authResponse.refreshToken,
+        sessionId: authResponse.sessionId,
         user: authResponse.user,
       });
     }
@@ -372,19 +373,18 @@ export class AuthService {
     if (!matches)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const { refreshToken: newRefreshToken, ...tokens } = await this.signTokens(
-      user,
-      session,
-    );
-    await this.persistRefreshToken(session.id, newRefreshToken);
+    const tokens = await this.signTokens(user, session);
+    const newHash = await bcrypt.hash(tokens.refreshToken, 10);
 
-    res.cookie('refresh_token', newRefreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth/refresh',
-    });
+    // Atomic compare-and-swap: only succeeds if no concurrent request has
+    // already rotated the token since we read it above.
+    const swapped = await this.usersService.compareAndSwapRefreshToken(
+      session.id,
+      session.refreshTokenHash,
+      newHash,
+    );
+    if (!swapped)
+      throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
     return tokens;
   }

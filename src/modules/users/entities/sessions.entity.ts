@@ -1,8 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { User } from './user.entity';
 
 @Entity('user_sessions')
+@Index(['userId'])
 export class Session extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   userId: string;

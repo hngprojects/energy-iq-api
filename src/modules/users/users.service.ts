@@ -74,10 +74,10 @@ export class UsersService {
       ...noTransaction(),
       createPayload: {
         userId,
-        ...(dto && dto.deviceName && { deviceName: dto.deviceName }),
-        ...(dto && dto.ipAddress && { ipAddress: dto.ipAddress }),
-        ...(dto && dto.platform && { platform: dto.platform }),
-        ...(dto && dto.userAgent && { userAgent: dto.userAgent }),
+        ...(dto?.deviceName && { deviceName: dto.deviceName.slice(0, 100) }),
+        ...(dto?.ipAddress && { ipAddress: dto.ipAddress.slice(0, 45) }),
+        ...(dto?.platform && { platform: dto.platform.slice(0, 20) }),
+        ...(dto?.userAgent && { userAgent: dto.userAgent }),
         expiresAt,
       },
     });
@@ -202,11 +202,25 @@ export class UsersService {
       throw new InternalServerErrorException(SYS_MSG.SESSION_UPDATE_FAILED);
   }
 
-  async deactivateSession(id: string): Promise<void> {
-    const session = await this.sessionModelAction.findById(id);
+  /**
+   * Atomically swaps the refresh token hash only if the current stored hash
+   * matches expectedHash. Returns false if the swap lost the race (another
+   * request already rotated the token), true on success.
+   */
+  async compareAndSwapRefreshToken(
+    sessionId: string,
+    expectedHash: string,
+    newHash: string,
+  ): Promise<boolean> {
+    return this.sessionModelAction.compareAndSwapRefreshTokenHash(
+      sessionId,
+      expectedHash,
+      newHash,
+    );
+  }
 
-    if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
-    await this.sessionModelAction.update({
+  async deactivateSession(id: string): Promise<void> {
+    const updated = await this.sessionModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
       updatePayload: {
@@ -215,6 +229,7 @@ export class UsersService {
         lastActivityAt: new Date(),
       },
     });
+    if (!updated) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
   }
 
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {

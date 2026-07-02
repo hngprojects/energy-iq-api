@@ -47,14 +47,6 @@ export class User extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phoneNumber?: string;
 
-  // @Exclude()
-  // @Column({
-  //   type: 'varchar',
-  //   length: 500,
-  //   nullable: true,
-  // })
-  // refreshTokenHash: string | null;
-
   @OneToOne(() => UserSettings, (settings) => settings.user)
   settings: UserSettings;
 

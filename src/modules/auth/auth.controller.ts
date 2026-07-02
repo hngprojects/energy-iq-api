@@ -61,12 +61,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const sessionDto: CreateSessionDto = {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      platform: req.headers['sec-ch-ua-platform']?.toString(),
-      deviceName: req.headers['sec-ch-ua-model']?.toString(),
-    };
+    const sessionDto = this.buildSessionDto(req);
     return this.authService.login(dto, sessionDto, res);
   }
 
@@ -80,12 +75,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const sessionDto: CreateSessionDto = {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      platform: req.headers['sec-ch-ua-platform']?.toString(),
-      deviceName: req.headers['sec-ch-ua-model']?.toString(),
-    };
+    const sessionDto = this.buildSessionDto(req);
     return this.authService.verifyEmail(dto, sessionDto, res);
   }
 
@@ -128,12 +118,7 @@ export class AuthController {
       'local application tokens.',
   })
   async googleMobile(@Body() dto: GoogleMobileLoginDto, @Req() req: Request) {
-    const sessionDto: CreateSessionDto = {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      platform: req.headers['sec-ch-ua-platform']?.toString(),
-      deviceName: req.headers['sec-ch-ua-model']?.toString(),
-    };
+    const sessionDto = this.buildSessionDto(req);
     return this.authService.googleMobileLogin(dto, sessionDto);
   }
 
@@ -198,5 +183,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Set password after requesting reset' })
   resetPasword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  private buildSessionDto(req: Request): CreateSessionDto {
+    return {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      platform: req.headers['sec-ch-ua-platform']?.toString(),
+      deviceName: req.headers['sec-ch-ua-model']?.toString(),
+    };
   }
 }
