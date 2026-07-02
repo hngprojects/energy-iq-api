@@ -86,14 +86,14 @@ export class UsersService {
 
   async findSessionById(sessionId: string): Promise<Session> {
     const session = await this.sessionModelAction.findById(sessionId);
-    if (!session) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
+    if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
 
     if (!session.isActive)
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
 
     const now = Date.now();
 
-    // Absolute lifetime cap — sessions cannot outlive 30 days from creation
+    // Absolute lifetime cap - sessions cannot outlive 30 days from creation
     const absoluteExpiry =
       session.createdAt.getTime() + SESSION_ABSOLUTE_MAX_MS;
     if (now > absoluteExpiry) {

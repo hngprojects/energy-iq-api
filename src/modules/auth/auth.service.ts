@@ -89,7 +89,8 @@ export class AuthService {
   async login(
     dto: LoginDto,
     sessionDto: CreateSessionDto,
-  ): Promise<AuthResponse> {
+    res: Response,
+  ): Promise<Omit<AuthResponse, 'refreshToken'>> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
 
@@ -103,7 +104,17 @@ export class AuthService {
 
     const session = await this.usersService.createSession(user.id, sessionDto);
 
-    return this.issueTokens(user, session);
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
+    return tokens;
   }
 
   async googleMobileLogin(
@@ -156,10 +167,17 @@ export class AuthService {
     res: Response,
     authResponse: AuthResponse,
   ) {
+    res.cookie('refresh_token', authResponse.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
     if (state === 'mobile') {
       return res.json({
         accessToken: authResponse.accessToken,
-        refreshToken: authResponse.refreshToken,
         sessionId: authResponse.sessionId,
         user: authResponse.user,
       });
@@ -181,13 +199,16 @@ export class AuthService {
 
     const redirectUrl = `${redirectBase}/onboarding`;
     ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
-    return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
+    return res.redirect(
+      `${redirectUrl}#token=${authResponse.accessToken}&sessionId=${authResponse.sessionId}`,
+    );
   }
 
   async verifyEmail(
     dto: VerifyEmailDto,
     sessionDto: CreateSessionDto,
-  ): Promise<AuthResponse | PublicUser> {
+    res: Response,
+  ): Promise<Omit<AuthResponse, 'refreshToken'> | PublicUser> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_OTP);
 
@@ -216,8 +237,19 @@ export class AuthService {
     const session = await this.usersService.createSession(user.id, sessionDto);
 
     user.emailVerified = true;
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
     await this.sendWelcomeEmail(user);
-    return this.issueTokens(user, session);
+
+    return tokens;
   }
 
   async resendVerificationEmail(dto: ResendVerificationDto) {
@@ -321,7 +353,11 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
-  async refresh(refreshToken: string, sessionId: string): Promise<AuthTokens> {
+  async refresh(
+    refreshToken: string,
+    sessionId: string,
+    res: Response,
+  ): Promise<Omit<AuthTokens, 'refreshToken'>> {
     const session = await this.usersService.findSessionById(sessionId);
 
     const user = await this.usersService.findOne(session.userId);
@@ -350,21 +386,31 @@ export class AuthService {
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
+    res.cookie('refresh_token', tokens.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
     return tokens;
   }
 
   async logout(sessionId: string, accessToken: string): Promise<void> {
-    const decoded: JwtPayload & { exp: number } =
-      this.jwtService.decode(accessToken);
+    try {
+      const decoded: JwtPayload & { exp: number } =
+        this.jwtService.decode(accessToken);
 
-    if (decoded.jti && decoded.exp) {
-      const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-      if (ttl > 0) {
-        await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+      if (decoded.jti && decoded.exp) {
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+        if (ttl > 0) {
+          await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+        }
       }
+    } finally {
+      await this.usersService.deactivateSession(sessionId);
     }
-
-    await this.usersService.deactivateSession(sessionId);
   }
 
   async getProfile(userId: string): Promise<User> {

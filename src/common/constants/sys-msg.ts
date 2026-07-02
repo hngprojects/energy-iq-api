@@ -14,6 +14,7 @@ export const SYS_MSG = {
   VALIDATION_FAILED: 'Request validation failed',
   INTERNAL_SERVER_ERROR: 'An unexpected server error occurred',
   INVALID_CREDENTIALS: 'The provided email or password is incorrect',
+  MISSING_REFRESH_TOKEN: 'Missing refresh token',
   INVALID_REFRESH_TOKEN:
     'The refresh token is invalid, expired, or cannot be used',
   INVALID_SESSION_ID: 'The session id is invalid or does not exist',

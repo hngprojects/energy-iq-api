@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { type Request, type Response } from 'express';
@@ -31,6 +32,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { SYS_MSG } from '../../common/constants/sys-msg';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -54,9 +56,13 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email and password' })
-  login(@Body() dto: LoginDto, @Req() req: Request) {
+  login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const sessionDto = this.buildSessionDto(req);
-    return this.authService.login(dto, sessionDto);
+    return this.authService.login(dto, sessionDto, res);
   }
 
   @Public()
@@ -64,9 +70,13 @@ export class AuthController {
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify a user email address' })
-  verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
+  verifyEmail(
+    @Body() dto: VerifyEmailDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const sessionDto = this.buildSessionDto(req);
-    return this.authService.verifyEmail(dto, sessionDto);
+    return this.authService.verifyEmail(dto, sessionDto, res);
   }
 
   @Public()
@@ -117,8 +127,15 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Issue a new access token from a refresh token' })
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto.refreshToken, dto.sessionId);
+  refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies['refresh_token'] as string;
+    if (!refreshToken)
+      throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN);
+    return this.authService.refresh(refreshToken, dto.sessionId, res);
   }
 
   @Post('logout')
@@ -128,8 +145,10 @@ export class AuthController {
   logout(
     @CurrentUser('sessionId') sessionId: string,
     @Headers('authorization') authHeader: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const accessToken = authHeader.replace('Bearer ', '');
+    res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
     return this.authService.logout(sessionId, accessToken);
   }
 
