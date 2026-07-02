@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -27,8 +28,12 @@ import fs from 'node:fs/promises';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import path from 'node:path';
 import { ProfileImageModelAction } from './actions/profile-img.action';
+import { Session } from './entities/sessions.entity';
+import { SessionModelAction } from './actions/sessions.action';
+import { CreateSessionDto } from '../auth/dto/create-session.dto';
 
 const BCRYPT_ROUNDS = 10;
+const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @Injectable()
 export class UsersService {
@@ -39,6 +44,7 @@ export class UsersService {
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
+    private readonly sessionModelAction: SessionModelAction,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -58,6 +64,58 @@ export class UsersService {
         onboardingComplete: false,
       },
     });
+  }
+
+  async createSession(
+    userId: string,
+    dto?: CreateSessionDto,
+  ): Promise<Session> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return this.sessionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId,
+        ...(dto?.deviceName && { deviceName: dto.deviceName.slice(0, 100) }),
+        ...(dto?.ipAddress && { ipAddress: dto.ipAddress.slice(0, 45) }),
+        ...(dto?.platform && { platform: dto.platform.slice(0, 20) }),
+        ...(dto?.userAgent && { userAgent: dto.userAgent }),
+        expiresAt,
+      },
+    });
+  }
+
+  async findSessionById(sessionId: string): Promise<Session> {
+    const session = await this.sessionModelAction.findById(sessionId);
+    if (!session) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
+
+    if (!session.isActive)
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+
+    const now = Date.now();
+
+    // Absolute lifetime cap — sessions cannot outlive 30 days from creation
+    const absoluteExpiry =
+      session.createdAt.getTime() + SESSION_ABSOLUTE_MAX_MS;
+    if (now > absoluteExpiry) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    // Sliding window expiry
+    if (session.expiresAt && now > session.expiresAt.getTime()) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    return session;
   }
 
   async findOrCreateByGoogle(dto: GoogleOAuthDto): Promise<User> {
@@ -140,12 +198,56 @@ export class UsersService {
     });
   }
 
-  async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
-    await this.userModelAction.update({
+  async setRefreshTokenHash(
+    sessionId: string,
+    hash: string | null,
+  ): Promise<void> {
+    const updated = await this.sessionModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: sessionId },
+      updatePayload: {
+        refreshTokenHash: hash,
+        lastActivityAt: new Date(),
+        ...(hash === null && { isActive: false }),
+        ...(hash !== null && {
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.SESSION_UPDATE_FAILED);
+  }
+
+  /**
+   * Atomically swaps the refresh token hash only if the current stored hash
+   * matches expectedHash. Returns false if the swap lost the race (another
+   * request already rotated the token), true on success.
+   */
+  async compareAndSwapRefreshToken(
+    sessionId: string,
+    expectedHash: string,
+    newHash: string,
+    createdAt: Date,
+  ): Promise<boolean> {
+    return this.sessionModelAction.compareAndSwapRefreshTokenHash(
+      sessionId,
+      expectedHash,
+      newHash,
+      createdAt,
+    );
+  }
+
+  async deactivateSession(id: string): Promise<void> {
+    const updated = await this.sessionModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
-      updatePayload: { refreshTokenHash: hash },
+      updatePayload: {
+        isActive: false,
+        refreshTokenHash: null,
+        lastActivityAt: new Date(),
+      },
     });
+    if (!updated) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
   }
 
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {

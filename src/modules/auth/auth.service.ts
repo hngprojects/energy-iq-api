@@ -33,6 +33,9 @@ import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import type { Response } from 'express';
 import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
+import { Session } from '../users/entities/sessions.entity';
+import { randomBytes, randomUUID } from 'crypto';
+import { CreateSessionDto } from './dto/create-session.dto';
 
 export interface AuthTokens {
   accessToken: string;
@@ -41,6 +44,7 @@ export interface AuthTokens {
 
 export interface AuthResponse extends AuthTokens {
   user: PublicUser;
+  sessionId: string;
 }
 
 @Injectable()
@@ -78,10 +82,14 @@ export class AuthService {
     dto: GoogleOAuthDto,
   ): Promise<AuthResponse> {
     const user = await this.usersService.findOrCreateByGoogle(dto);
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id);
+    return this.issueTokens(user, session);
   }
 
-  async login(dto: LoginDto): Promise<AuthResponse> {
+  async login(
+    dto: LoginDto,
+    sessionDto: CreateSessionDto,
+  ): Promise<AuthResponse> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
 
@@ -93,10 +101,15 @@ export class AuthService {
       throw new ForbiddenException(SYS_MSG.EMAIL_NOT_VERIFIED);
     }
 
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
+    return this.issueTokens(user, session);
   }
 
-  async googleMobileLogin(dto: GoogleMobileLoginDto): Promise<AuthResponse> {
+  async googleMobileLogin(
+    dto: GoogleMobileLoginDto,
+    sessionDto: CreateSessionDto,
+  ): Promise<AuthResponse> {
     let payload: TokenPayload | undefined;
     try {
       const ticket = await this.googleClient.verifyIdToken({
@@ -134,7 +147,8 @@ export class AuthService {
 
     const user = await this.usersService.findOrCreateByGoogle(googleOAuthDto);
 
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id, sessionDto);
+    return this.issueTokens(user, session);
   }
 
   googleCallbackRedirect(
@@ -146,6 +160,7 @@ export class AuthService {
       return res.json({
         accessToken: authResponse.accessToken,
         refreshToken: authResponse.refreshToken,
+        sessionId: authResponse.sessionId,
         user: authResponse.user,
       });
     }
@@ -169,7 +184,10 @@ export class AuthService {
     return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
   }
 
-  async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse | PublicUser> {
+  async verifyEmail(
+    dto: VerifyEmailDto,
+    sessionDto: CreateSessionDto,
+  ): Promise<AuthResponse | PublicUser> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_OTP);
 
@@ -195,9 +213,11 @@ export class AuthService {
     await this.redis.delete(dto.email, 'otp');
     await this.redis.delete(attemptKey, 'otp_attempts');
 
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
     user.emailVerified = true;
     await this.sendWelcomeEmail(user);
-    return this.issueTokens(user);
+    return this.issueTokens(user, session);
   }
 
   async resendVerificationEmail(dto: ResendVerificationDto) {
@@ -301,65 +321,87 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
-  async refresh(refreshToken: string): Promise<AuthTokens> {
-    let payload: JwtPayload;
-    try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken, {
-        secret: this.jwtCfg.refreshSecret,
-      });
-    } catch {
-      throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
-    }
+  async refresh(refreshToken: string, sessionId: string): Promise<AuthTokens> {
+    const session = await this.usersService.findSessionById(sessionId);
 
-    const user = await this.usersService.findOne(payload.sub);
-    if (!user.refreshTokenHash)
+    const user = await this.usersService.findOne(session.userId);
+
+    if (!session.refreshTokenHash)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const matches = await bcrypt.compare(refreshToken, user.refreshTokenHash);
+    const matches = await bcrypt.compare(
+      refreshToken,
+      session.refreshTokenHash,
+    );
     if (!matches)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
+    const tokens = await this.signTokens(user, session);
+    const newHash = await bcrypt.hash(tokens.refreshToken, 10);
+
+    // Atomic compare-and-swap: only succeeds if no concurrent request has
+    // already rotated the token since we read it above.
+    const swapped = await this.usersService.compareAndSwapRefreshToken(
+      session.id,
+      session.refreshTokenHash,
+      newHash,
+      session.createdAt,
+    );
+    if (!swapped)
+      throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
+
     return tokens;
   }
 
-  async logout(userId: string): Promise<void> {
-    await this.usersService.setRefreshTokenHash(userId, null);
+  async logout(sessionId: string, accessToken: string): Promise<void> {
+    const decoded: JwtPayload & { exp: number } =
+      this.jwtService.decode(accessToken);
+
+    if (decoded.jti && decoded.exp) {
+      const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+      if (ttl > 0) {
+        await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+      }
+    }
+
+    await this.usersService.deactivateSession(sessionId);
   }
 
   async getProfile(userId: string): Promise<User> {
     return this.usersService.findOne(userId);
   }
 
-  private async issueTokens(user: User): Promise<AuthResponse> {
-    const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
+  private async issueTokens(
+    user: User,
+    session: Session,
+  ): Promise<AuthResponse> {
+    const tokens = await this.signTokens(user, session);
+    await this.persistRefreshToken(session.id, tokens.refreshToken);
 
-    return { ...tokens, user: this.toPublicUser(user) };
+    return { ...tokens, user: this.toPublicUser(user), sessionId: session.id };
   }
 
-  private async signTokens(user: User): Promise<AuthTokens> {
-    const payload: JwtPayload = { sub: user.id, email: user.email };
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtCfg.accessSecret,
-        expiresIn: this.jwtCfg.accessExpiresIn as StringValue,
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtCfg.refreshSecret,
-        expiresIn: this.jwtCfg.refreshExpiresIn as StringValue,
-      }),
-    ]);
+  private async signTokens(user: User, session: Session): Promise<AuthTokens> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      sessionId: session.id,
+      jti: randomUUID(),
+    };
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.jwtCfg.accessSecret,
+      expiresIn: this.jwtCfg.accessExpiresIn as StringValue,
+    });
+    const refreshToken = randomBytes(32).toString('hex');
     return { accessToken, refreshToken };
   }
 
   private async persistRefreshToken(
-    userId: string,
+    sessionId: string,
     refreshToken: string,
   ): Promise<void> {
     const hash = await bcrypt.hash(refreshToken, 10);
-    await this.usersService.setRefreshTokenHash(userId, hash);
+    await this.usersService.setRefreshTokenHash(sessionId, hash);
   }
 
   private toPublicUser(user: User): PublicUser {

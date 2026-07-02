@@ -9,10 +9,12 @@ import { UserSettings } from './entities/user-settings.entity';
 import { UserSettingsModelAction } from './actions/user-settings.action';
 import { ProfileImage } from './entities/profile-img.entity';
 import { ProfileImageModelAction } from './actions/profile-img.action';
+import { Session } from './entities/sessions.entity';
+import { SessionModelAction } from './actions/sessions.action';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserSettings, ProfileImage]),
+    TypeOrmModule.forFeature([User, UserSettings, ProfileImage, Session]),
     InvertersModule,
   ],
   controllers: [UsersController],
@@ -21,7 +23,8 @@ import { ProfileImageModelAction } from './actions/profile-img.action';
     UserSettingsModelAction,
     ProfileImageModelAction,
     UsersService,
+    SessionModelAction,
   ],
-  exports: [UsersService, UserModelAction],
+  exports: [UsersService, UserModelAction, SessionModelAction],
 })
 export class UsersModule {}
