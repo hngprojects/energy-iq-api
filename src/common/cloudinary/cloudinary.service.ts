@@ -10,9 +10,8 @@ import {
   UploadApiOptions,
   UploadApiResponse,
 } from 'cloudinary';
-import { FileUploadStatus } from '../../common/enums';
-import { UploadedImage } from './entities/uploaded-img.entity';
 import { cloudinaryConfig } from '../../config/cloudinary.config';
+import { CloudinaryFileEntity } from '../../database/entities/cloudinary-file.entity';
 
 @Injectable()
 export class CloudinaryService implements OnApplicationBootstrap {
@@ -33,42 +32,62 @@ export class CloudinaryService implements OnApplicationBootstrap {
   generateThumbnailUrl(res: UploadApiResponse): string {
     const cloudName = this.cfg.cloudName;
     const resourceUrl = this.cfg.resourceURL;
-    return `${resourceUrl}/${cloudName}/image/upload/c_thumb,w_200,h_200/${res.public_id}.jpg`;
+    const format = res.format;
+    return `${resourceUrl}/${cloudName}/image/upload/v${res.version}/c_thumb,w_200,h_200/${res.public_id}.${format}`;
   }
 
-  generateAdditionalProperties(res: UploadApiResponse): Partial<UploadedImage> {
-    const props: Partial<UploadedImage> = {
-      uploadStatus: FileUploadStatus.COMPLETE,
-      uploadUrl: res.secure_url,
-      thumbnail: this.generateThumbnailUrl(res),
-      publicId: res.public_id,
+  generateAdditionalProperties(
+    res: UploadApiResponse,
+  ): Pick<
+    CloudinaryFileEntity,
+    | 'thumbnailUrl'
+    | 'cloudinaryPublicId'
+    | 'format'
+    | 'cloudinaryUrl'
+    | 'resourceType'
+    | 'metadata'
+    | 'version'
+  > {
+    const props = {
+      thumbnailUrl: this.generateThumbnailUrl(res),
+      cloudinaryPublicId: res.public_id,
+      format: res.format,
+      cloudinaryUrl: res.secure_url,
+      resourceType: res.resource_type,
+      version: res.version,
+      metadata: {
+        uploadedAt: res.created_at,
+        etag: res.etag,
+        versionId: res['version_id'] as string,
+        assetFolder: res['asset_folder'] as string,
+      },
     };
 
     return props;
   }
 
   async signedUploadFileFromMetadata(
-    data: UploadedImage,
+    folder: string,
+    data: Pick<
+      CloudinaryFileEntity,
+      'fileExtname' | 'filename' | 'filesizeBytes' | 'mimeType'
+    >,
     buffer: Buffer,
-  ): Promise<UploadedImage | null> {
+  ): Promise<Omit<
+    CloudinaryFileEntity,
+    'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
+  > | null> {
     const options: UploadApiOptions = {
-      folder: 'user_images',
-      public_id: data.filename!.replace(/\.[^/.]+$/, ''),
+      folder,
+      // public_id: data.filename!.replace(/\.[^/.]+$/, ''),
       use_filename: true,
-      unique_filename: false,
+      unique_filename: true,
       overwrite: true,
       resource_type: 'auto',
     };
 
     try {
-      const mimeType =
-        data.fileExtname === '.jpg' || data.fileExtname === '.jpeg'
-          ? 'image/jpeg'
-          : data.fileExtname === '.png'
-            ? 'image/png'
-            : data.fileExtname === '.webp'
-              ? 'image/webp'
-              : 'application/octet-stream';
+      const mimeType = data.mimeType ?? 'application/octet-stream';
       const result = await cloudinary.uploader.upload(
         `data:${mimeType};base64,${buffer.toString('base64')}`,
         options,
@@ -76,14 +95,14 @@ export class CloudinaryService implements OnApplicationBootstrap {
 
       const additionalProperties = this.generateAdditionalProperties(result);
 
-      const uploadedImage: UploadedImage = {
+      const fileEntity = {
         ...data,
         ...additionalProperties,
       };
 
-      return uploadedImage;
+      return fileEntity;
     } catch (err) {
-      const errorMessage = 'An error occured uploading image';
+      const errorMessage = 'An error occured uploading file';
       const errorStack =
         err instanceof Error ? err.stack : JSON.stringify(err, null, 2);
 

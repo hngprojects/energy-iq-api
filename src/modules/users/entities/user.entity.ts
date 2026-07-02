@@ -3,7 +3,7 @@ import { Column, Entity, OneToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { UserRole } from '../../../common/enums';
 import { UserSettings } from './user-settings.entity';
-import { UploadedImage } from './uploaded-img.entity';
+import { ProfileImage } from './profile-img.entity';
 
 @Entity('users')
 export class User extends AbstractBaseEntity {
@@ -47,17 +47,9 @@ export class User extends AbstractBaseEntity {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phoneNumber?: string;
 
-  @Exclude()
-  @Column({
-    type: 'varchar',
-    length: 500,
-    nullable: true,
-  })
-  refreshTokenHash: string | null;
-
   @OneToOne(() => UserSettings, (settings) => settings.user)
   settings: UserSettings;
 
-  @OneToOne(() => UploadedImage, (img) => img.user)
-  uploadedImg: UploadedImage;
+  @OneToOne(() => ProfileImage, (img) => img.user)
+  profileImage: ProfileImage;
 }

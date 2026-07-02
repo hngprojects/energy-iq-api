@@ -15,9 +15,12 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ReportsDto } from './dto/reports.dto';
 import { GetReportsDto } from './dto/get-reports.dto';
+import { ReportStatus, ReportType } from '../../common/enums/reports.type';
+import { Public } from '../../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiBearerAuth()
 @Controller('reports')
@@ -25,7 +28,6 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post('')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate a report' })
   @HttpCode(HttpStatus.CREATED)
   generateReport(
@@ -36,15 +38,71 @@ export class ReportsController {
   }
 
   @Get('')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all reports for a user' })
+  @ApiQuery({
+    name: 'reportType',
+    required: false,
+    enum: ReportType,
+  })
+  @ApiQuery({
+    name: 'pageNumber',
+    required: false,
+    type: 'integer',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    example: '2026-05-26',
+    description: 'Start date for the reports to fetch',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    example: '2026-05-26',
+    description: 'End date for the reports to fetch',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ReportStatus,
+  })
+  @ApiQuery({
+    name: 'seriesId',
+    required: false,
+    type: 'string',
+    format: 'uuid',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: 'integer',
+  })
   @HttpCode(HttpStatus.OK)
   getReports(@CurrentUser('sub') id: string, @Query() query: GetReportsDto) {
     return this.reportsService.getReports(query, id);
   }
 
+  @Get('summary')
+  @ApiOperation({ summary: "Get a summary of a user's reports" })
+  @HttpCode(HttpStatus.OK)
+  getReportsSummary(@CurrentUser('sub') id: string) {
+    return this.reportsService.getReportTypesSummary(id);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Get('share/:token')
+  @ApiOperation({
+    summary: 'Get the main cloudinary link for a report',
+    description:
+      'Get the cloudinary link for a report to view it on browser without having to download it',
+  })
+  @HttpCode(HttpStatus.OK)
+  accessShareableLink(@Param('token') token: string) {
+    return this.reportsService.accessShareableLink(token);
+  }
+
   @Get(':id')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a single report' })
   @HttpCode(HttpStatus.OK)
   getSingleReport(
@@ -55,7 +113,6 @@ export class ReportsController {
   }
 
   @Delete(':id')
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a report' })
   @HttpCode(HttpStatus.OK)
   deleteReport(
@@ -65,16 +122,7 @@ export class ReportsController {
     return this.reportsService.deleteReports(reportId, userId);
   }
 
-  @Get('summary')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: "Get a summary of a user's reports" })
-  @HttpCode(HttpStatus.OK)
-  getReportsSummary(@CurrentUser('sub') id: string) {
-    return this.reportsService.getReportTypesSummary(id);
-  }
-
-  @Patch('cancel/:id')
-  @ApiBearerAuth()
+  @Patch(':id/cancel')
   @ApiOperation({ summary: 'Cancel a pending report' })
   @HttpCode(HttpStatus.OK)
   cancelReport(
@@ -84,7 +132,11 @@ export class ReportsController {
     return this.reportsService.cancelReports(reportId, userId);
   }
 
-  @Get('download/:id')
+  @Get(':id/download')
+  @ApiOperation({
+    summary: 'download a report',
+    description: 'Get a downloadable file for a report',
+  })
   @HttpCode(HttpStatus.OK)
   async downloadReport(
     @Param('id') id: string,
@@ -94,12 +146,39 @@ export class ReportsController {
     return file;
   }
 
-  @Post('email-report/:id')
+  @Post(':id/email-report')
+  @ApiOperation({
+    summary: 'Get a report sent to your email',
+  })
   @HttpCode(HttpStatus.OK)
   triggerReportEmail(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reportsService.triggerReportEmail(id, user.sub);
+  }
+
+  @Post(':id/generate-link')
+  @ApiOperation({
+    summary: 'Generate a shareable link for a particular report',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  generateShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.generateShareableLink(id, userId);
+  }
+
+  @Get(':id/shareable-link')
+  @ApiOperation({
+    summary: 'Get the generated shareable link for a particular report',
+  })
+  @HttpCode(HttpStatus.OK)
+  getShareableLink(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.reportsService.getShareableLink(id, userId);
   }
 }

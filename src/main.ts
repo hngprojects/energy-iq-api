@@ -13,6 +13,7 @@ import { Logtail } from '@logtail/node';
 import * as winston from 'winston';
 import { LogtailTransport } from '@logtail/winston';
 import { WinstonModule } from 'nest-winston';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   // create logtail client
@@ -61,6 +62,7 @@ async function bootstrap() {
     origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN.split(','),
     credentials: true,
   });
+  app.use(cookieParser());
   app.enableVersioning({
     type: VersioningType.URI,
     prefix: 'v',

@@ -34,6 +34,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { whatsAppConfig } from './config/whatsapp.config';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { NotificationModule } from './modules/notification/notification.module';
 
 @Module({
@@ -76,6 +77,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     WhatsappModule,
     WaitlistModule,
     ReportsModule,
+    CloudinaryModule,
     NotificationModule,
   ],
   providers: [

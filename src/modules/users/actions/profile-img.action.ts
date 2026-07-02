@@ -1,29 +1,29 @@
 import { AbstractModelAction } from '@hng-sdk/orm';
+import { ProfileImage } from '../entities/profile-img.entity';
 import {
-  Injectable,
+  InternalServerErrorException,
   Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { UploadedImage } from '../entities/uploaded-img.entity';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { CloudinaryService } from '../../../common/cloudinary/cloudinary.service';
 import { User } from '../entities/user.entity';
 import { SYS_MSG } from '../../../common/constants/sys-msg';
-import { CloudinaryService } from '../cloudinary.service';
 
-@Injectable()
-export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
-  private readonly logger = new Logger(UploadedImgModelAction.name);
+export class ProfileImageModelAction extends AbstractModelAction<ProfileImage> {
+  private readonly logger = new Logger(ProfileImageModelAction.name);
+
   constructor(
-    @InjectRepository(UploadedImage) repository: Repository<UploadedImage>,
+    @InjectRepository(ProfileImage) repository: Repository<ProfileImage>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly cloudinaryService: CloudinaryService,
   ) {
-    super(repository, UploadedImage);
+    super(repository, ProfileImage);
   }
 
-  async findByUserId(userId: string): Promise<UploadedImage | null> {
+  async findByUserId(userId: string): Promise<ProfileImage | null> {
     return this.repository.findOne({
       where: { user: { id: userId } },
     });
@@ -31,8 +31,8 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
 
   async upsertUserPorfileImg(
     userId: string,
-    fileMeta: Partial<UploadedImage>,
-  ): Promise<UploadedImage> {
+    fileMeta: Partial<ProfileImage>,
+  ): Promise<ProfileImage> {
     const queryRunner = this.dataSource.createQueryRunner();
 
     await queryRunner.connect();
@@ -44,15 +44,15 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
     await queryRunner.startTransaction();
     try {
       const existing = await queryRunner.manager
-        .createQueryBuilder(UploadedImage, 'img')
+        .createQueryBuilder(ProfileImage, 'img')
         .setLock('pessimistic_write')
         .where('img.user.id = :userId', { userId })
         .getOne();
 
       await queryRunner.manager
-        .createQueryBuilder(UploadedImage, 'img')
+        .createQueryBuilder(ProfileImage, 'img')
         .insert()
-        .into(UploadedImage)
+        .into(ProfileImage)
         .values({
           ...fileMeta,
           user: { id: userId },
@@ -62,29 +62,40 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
             'file_extname',
             'filename',
             'filesize_bytes',
-            'upload_status',
-            'upload_url',
-            'thumbnail',
-            'public_id',
-            'uploaded_by_email',
+            'mime_type',
+            'cloudinary_public_id',
+            'cloudinary_url',
+            'thumbnail_url',
+            'format',
+            'resource_type',
+            'version',
+            'metadata',
           ],
           ['user_id'],
         )
-        .returning('public_id')
+        .returning('cloudinary_public_id')
         .execute();
 
-      const saved = await queryRunner.manager.findOne(UploadedImage, {
+      const saved = await queryRunner.manager.findOne(ProfileImage, {
         where: { user: { id: userId } },
       });
 
       if (!saved)
-        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+        throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
 
-      if (existing?.publicId && existing.publicId !== fileMeta.publicId) {
-        await this.cloudinaryService.deleteByPublicId(existing.publicId);
-      }
+      const oldCloudinaryPublicIdToDelete =
+        existing?.cloudinaryPublicId &&
+        existing.cloudinaryPublicId !== fileMeta.cloudinaryPublicId
+          ? existing.cloudinaryPublicId
+          : undefined;
 
       await queryRunner.commitTransaction();
+
+      if (oldCloudinaryPublicIdToDelete) {
+        await this.cloudinaryService.deleteByPublicId(
+          oldCloudinaryPublicIdToDelete,
+        );
+      }
 
       return saved;
     } catch (err) {
@@ -93,7 +104,7 @@ export class UploadedImgModelAction extends AbstractModelAction<UploadedImage> {
         'Error uploading img',
         err instanceof Error ? err.stack : JSON.stringify(err),
       );
-      throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
+      throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
     } finally {
       await queryRunner.release();
     }

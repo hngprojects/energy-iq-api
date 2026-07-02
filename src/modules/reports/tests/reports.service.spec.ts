@@ -20,6 +20,8 @@ import { Report } from '../entities/report.entity';
 import { getQueueToken } from '@nestjs/bullmq';
 import { QUEUES } from '../../../common/constants/queue';
 import { appConfig } from '../../../config/app.config';
+import { CloudinaryService } from '../../../common/cloudinary/cloudinary.service';
+import { UploadedReportModelAction } from '../action/uploaded-report.action';
 
 const mockInvertersService = {};
 const mockUsersService = {};
@@ -36,9 +38,21 @@ const mockReportModelAction = {
 const mockAlertsService = {
   getAlertReport: jest.fn(),
 };
+const mockCloudinaryService = {
+  generateThumbnailUrl: jest.fn(),
+  generateAdditionalProperties: jest.fn(),
+  signedUploadFileFromMetadata: jest.fn(),
+  deleteByPublicId: jest.fn(),
+};
+const mockUploadedReportModelAction = {
+  findByReportId: jest.fn(),
+  findByShareToken: jest.fn(),
+  upsertUploadedReport: jest.fn(),
+};
 
 const mockQueue = {
   add: jest.fn(),
+  remove: jest.fn(),
 };
 
 describe('ReportsService', () => {
@@ -74,6 +88,11 @@ describe('ReportsService', () => {
         {
           provide: appConfig.KEY,
           useValue: { clientUrl: 'https://example.com' },
+        },
+        { provide: CloudinaryService, useValue: mockCloudinaryService },
+        {
+          provide: UploadedReportModelAction,
+          useValue: mockUploadedReportModelAction,
         },
       ],
     }).compile();

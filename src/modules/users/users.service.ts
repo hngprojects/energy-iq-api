@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { noTransaction } from '../../common/constants/transaction-options';
@@ -23,29 +24,27 @@ import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settin
 import { UserSettings } from './entities/user-settings.entity';
 import { GeneratorFuelType } from '../../common/enums/generator';
 import { UploadProfileImgDto } from './dto/upload-profile-img.dto';
-import { UploadedImage } from './entities/uploaded-img.entity';
-import { CloudinaryService } from './cloudinary.service';
-import path from 'node:path';
 import fs from 'node:fs/promises';
-import { FileUploadStatus } from '../../common/enums';
-import { UploadedImgModelAction } from './actions/uploaded-img.action';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
+import path from 'node:path';
+import { ProfileImageModelAction } from './actions/profile-img.action';
+import { Session } from './entities/sessions.entity';
+import { SessionModelAction } from './actions/sessions.action';
+import { CreateSessionDto } from '../auth/dto/create-session.dto';
 
 const BCRYPT_ROUNDS = 10;
-
-export type IntermediateUploadedImg = Omit<
-  UploadedImage,
-  'id' | 'createdAt' | 'updatedAt' | 'deletedAt'
->;
+const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   constructor(
     private readonly cloudinaryService: CloudinaryService,
-    private readonly uploadedImageAction: UploadedImgModelAction,
+    private readonly profileImageAction: ProfileImageModelAction,
     private readonly userModelAction: UserModelAction,
     private readonly userSettingsModelAction: UserSettingsModelAction,
     private readonly invertersService: InvertersService,
+    private readonly sessionModelAction: SessionModelAction,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -65,6 +64,58 @@ export class UsersService {
         onboardingComplete: false,
       },
     });
+  }
+
+  async createSession(
+    userId: string,
+    dto?: CreateSessionDto,
+  ): Promise<Session> {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    return this.sessionModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        userId,
+        ...(dto?.deviceName && { deviceName: dto.deviceName.slice(0, 100) }),
+        ...(dto?.ipAddress && { ipAddress: dto.ipAddress.slice(0, 45) }),
+        ...(dto?.platform && { platform: dto.platform.slice(0, 20) }),
+        ...(dto?.userAgent && { userAgent: dto.userAgent }),
+        expiresAt,
+      },
+    });
+  }
+
+  async findSessionById(sessionId: string): Promise<Session> {
+    const session = await this.sessionModelAction.findById(sessionId);
+    if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
+
+    if (!session.isActive)
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+
+    const now = Date.now();
+
+    // Absolute lifetime cap - sessions cannot outlive 30 days from creation
+    const absoluteExpiry =
+      session.createdAt.getTime() + SESSION_ABSOLUTE_MAX_MS;
+    if (now > absoluteExpiry) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    // Sliding window expiry
+    if (session.expiresAt && now > session.expiresAt.getTime()) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
+    return session;
   }
 
   async findOrCreateByGoogle(dto: GoogleOAuthDto): Promise<User> {
@@ -147,12 +198,56 @@ export class UsersService {
     });
   }
 
-  async setRefreshTokenHash(id: string, hash: string | null): Promise<void> {
-    await this.userModelAction.update({
+  async setRefreshTokenHash(
+    sessionId: string,
+    hash: string | null,
+  ): Promise<void> {
+    const updated = await this.sessionModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: sessionId },
+      updatePayload: {
+        refreshTokenHash: hash,
+        lastActivityAt: new Date(),
+        ...(hash === null && { isActive: false }),
+        ...(hash !== null && {
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
+      },
+    });
+    if (!updated)
+      throw new InternalServerErrorException(SYS_MSG.SESSION_UPDATE_FAILED);
+  }
+
+  /**
+   * Atomically swaps the refresh token hash only if the current stored hash
+   * matches expectedHash. Returns false if the swap lost the race (another
+   * request already rotated the token), true on success.
+   */
+  async compareAndSwapRefreshToken(
+    sessionId: string,
+    expectedHash: string,
+    newHash: string,
+    createdAt: Date,
+  ): Promise<boolean> {
+    return this.sessionModelAction.compareAndSwapRefreshTokenHash(
+      sessionId,
+      expectedHash,
+      newHash,
+      createdAt,
+    );
+  }
+
+  async deactivateSession(id: string): Promise<void> {
+    const updated = await this.sessionModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
-      updatePayload: { refreshTokenHash: hash },
+      updatePayload: {
+        isActive: false,
+        refreshTokenHash: null,
+        lastActivityAt: new Date(),
+      },
     });
+    if (!updated) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
   }
 
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {
@@ -201,39 +296,50 @@ export class UsersService {
 
   async uploadProfileImage(dto: UploadProfileImgDto, userId: string) {
     const user = await this.findOne(userId);
-
-    const fileMeta: UploadedImage = {
-      user,
-      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+    const fileMeta = {
       filename: dto.file.originalname.toLowerCase(),
-      filesizeBytes: dto.file.size,
-      uploadStatus: FileUploadStatus.COMPLETE,
-      uploadedByEmail: dto.userEmail,
-    } as UploadedImage;
+      fileExtname: path.extname(dto.file.originalname).toLowerCase(),
+      filesizeBytes: dto.file.size.toString(),
+      mimeType: dto.file.mimetype,
+    };
+
+    let uploadRes: Awaited<
+      ReturnType<CloudinaryService['signedUploadFileFromMetadata']>
+    > = null;
 
     try {
-      const uploadRes =
-        await this.cloudinaryService.signedUploadFileFromMetadata(
-          fileMeta,
-          dto.file.buffer,
-        );
-
-      if (!uploadRes) {
-        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_IMAGE);
-      }
-
-      const { uploadUrl, thumbnail, publicId } = uploadRes;
-
-      fileMeta.uploadUrl = uploadUrl;
-      fileMeta.thumbnail = thumbnail;
-      fileMeta.publicId = publicId;
-
-      const returnValue = this.uploadedImageAction.upsertUserPorfileImg(
-        userId,
+      uploadRes = await this.cloudinaryService.signedUploadFileFromMetadata(
+        'user_profile_images',
         fileMeta,
+        dto.file.buffer,
       );
 
-      return returnValue;
+      if (!uploadRes)
+        throw new ServiceUnavailableException(SYS_MSG.ERROR_UPLOADING_FILE);
+
+      const fullImg = {
+        ...uploadRes,
+        user,
+        userId,
+      };
+
+      const profileImage = await this.profileImageAction.upsertUserPorfileImg(
+        userId,
+        fullImg,
+      );
+
+      return profileImage;
+    } catch (err) {
+      if (uploadRes?.cloudinaryPublicId) {
+        await this.cloudinaryService.deleteByPublicId(
+          uploadRes.cloudinaryPublicId,
+        );
+      }
+      this.logger.error(
+        `Failed to upload user image: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      if (err instanceof ServiceUnavailableException) throw err;
+      throw new InternalServerErrorException(SYS_MSG.ERROR_UPLOADING_FILE);
     } finally {
       if (dto.file.path) {
         await this.deleteFile(dto.file.path);

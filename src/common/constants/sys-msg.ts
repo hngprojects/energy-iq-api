@@ -14,8 +14,12 @@ export const SYS_MSG = {
   VALIDATION_FAILED: 'Request validation failed',
   INTERNAL_SERVER_ERROR: 'An unexpected server error occurred',
   INVALID_CREDENTIALS: 'The provided email or password is incorrect',
+  MISSING_REFRESH_TOKEN: 'Missing refresh token',
   INVALID_REFRESH_TOKEN:
     'The refresh token is invalid, expired, or cannot be used',
+  INVALID_SESSION_ID: 'The session id is invalid or does not exist',
+  SESSION_EXPIRED: 'Session expired or inactive',
+  SESSION_UPDATE_FAILED: 'Failed to update session',
   INVALID_OTP: 'The verification code is invalid or has expired',
   OTP_ATTEMPTS_EXCEEDED: 'Too many verification attempts. Try again later',
   EMAIL_NOT_VERIFIED: 'This user email is not verified',
@@ -44,8 +48,11 @@ export const SYS_MSG = {
   ALERT_NOT_FOUND: 'Alert not found',
   NOT_INVERTER_OWNER: 'User does not own inverter',
   NO_FUEL_TYPE_ENTRY: 'No fuel price entry found for selected type',
-  ERROR_UPLOADING_IMAGE: 'Error occurred uploading image.',
+  ERROR_UPLOADING_FILE: 'Error occurred uploading file.',
+  ERROR_GENERATING_SHAREABLE: 'Failed to generate shareable link',
   UPDATE_IMAGE_ERROR: 'Failed to update image',
   RECURRING_REPORTS_INVALID_COMBINATION:
     'Recurring reports must use a period (weekly/monthly), not a custom date range.',
+  SHAREABLE_LINK_EXPIRED:
+    'This shareable link has expired. Please generate a new one.',
 } as const;
