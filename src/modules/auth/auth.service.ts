@@ -345,6 +345,7 @@ export class AuthService {
       session.id,
       session.refreshTokenHash,
       newHash,
+      session.createdAt,
     );
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);

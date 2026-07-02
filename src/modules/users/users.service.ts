@@ -33,6 +33,7 @@ import { SessionModelAction } from './actions/sessions.action';
 import { CreateSessionDto } from '../auth/dto/create-session.dto';
 
 const BCRYPT_ROUNDS = 10;
+const SESSION_ABSOLUTE_MAX_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 @Injectable()
 export class UsersService {
@@ -89,16 +90,31 @@ export class UsersService {
 
     if (!session.isActive)
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
-    if (session.expiresAt && Date.now() > session.expiresAt.getTime()) {
+
+    const now = Date.now();
+
+    // Absolute lifetime cap — sessions cannot outlive 30 days from creation
+    const absoluteExpiry =
+      session.createdAt.getTime() + SESSION_ABSOLUTE_MAX_MS;
+    if (now > absoluteExpiry) {
       await this.sessionModelAction.update({
         ...noTransaction(),
         identifierOptions: { id: sessionId },
-        updatePayload: {
-          isActive: false,
-        },
+        updatePayload: { isActive: false },
       });
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
     }
+
+    // Sliding window expiry
+    if (session.expiresAt && now > session.expiresAt.getTime()) {
+      await this.sessionModelAction.update({
+        ...noTransaction(),
+        identifierOptions: { id: sessionId },
+        updatePayload: { isActive: false },
+      });
+      throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
+    }
+
     return session;
   }
 
@@ -211,11 +227,13 @@ export class UsersService {
     sessionId: string,
     expectedHash: string,
     newHash: string,
+    createdAt: Date,
   ): Promise<boolean> {
     return this.sessionModelAction.compareAndSwapRefreshTokenHash(
       sessionId,
       expectedHash,
       newHash,
+      createdAt,
     );
   }
 
