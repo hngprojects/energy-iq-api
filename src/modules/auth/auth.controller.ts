@@ -57,9 +57,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email and password' })
   login(
-    @Body() dto: LoginDto, 
+    @Body() dto: LoginDto,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const sessionDto: CreateSessionDto = {
       ipAddress: req.ip,
@@ -76,9 +76,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify a user email address' })
   verifyEmail(
-    @Body() dto: VerifyEmailDto, 
+    @Body() dto: VerifyEmailDto,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const sessionDto: CreateSessionDto = {
       ipAddress: req.ip,
@@ -145,10 +145,11 @@ export class AuthController {
   refresh(
     @Body() dto: RefreshTokenDto,
     @Req() req: Request,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies['refresh_token'];
-    if (!refreshToken) throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN)
+    const refreshToken = req.cookies['refresh_token'] as string;
+    if (!refreshToken)
+      throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN);
     return this.authService.refresh(refreshToken, dto.sessionId, res);
   }
 
@@ -159,10 +160,10 @@ export class AuthController {
   logout(
     @CurrentUser('sessionId') sessionId: string,
     @Headers('authorization') authHeader: string,
-    @Res({ passthrough: true }) res: Response
+    @Res({ passthrough: true }) res: Response,
   ) {
     const accessToken = authHeader.replace('Bearer ', '');
-    res.clearCookie('refresh_token', { path: "/api/v1/auth/refresh" });
+    res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
     return this.authService.logout(sessionId, accessToken);
   }
 
