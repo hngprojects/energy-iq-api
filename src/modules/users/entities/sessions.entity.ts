@@ -1,6 +1,7 @@
 import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { AbstractBaseEntity } from '../../../database/entities/abstract-base.entity';
 import { User } from './user.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('user_sessions')
 @Index(['userId'])
@@ -8,6 +9,7 @@ export class Session extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
+  @Exclude()
   @Column({ type: 'varchar', length: 500, nullable: true })
   refreshTokenHash: string | null;
 

@@ -167,15 +167,6 @@ export class AuthService {
     res: Response,
     authResponse: AuthResponse,
   ) {
-    if (state === 'mobile') {
-      return res.json({
-        accessToken: authResponse.accessToken,
-        refreshToken: authResponse.refreshToken,
-        sessionId: authResponse.sessionId,
-        user: authResponse.user,
-      });
-    }
-
     res.cookie('refresh_token', authResponse.refreshToken, {
       httpOnly: true,
       secure: true,
@@ -183,6 +174,14 @@ export class AuthService {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
     });
+
+    if (state === 'mobile') {
+      return res.json({
+        accessToken: authResponse.accessToken,
+        sessionId: authResponse.sessionId,
+        user: authResponse.user,
+      });
+    }
 
     let redirectBase = this.appCfg.clientUrl;
 
@@ -238,8 +237,6 @@ export class AuthService {
     const session = await this.usersService.createSession(user.id, sessionDto);
 
     user.emailVerified = true;
-    await this.sendWelcomeEmail(user);
-
     const { refreshToken, ...tokens } = await this.issueTokens(user, session);
 
     res.cookie('refresh_token', refreshToken, {
@@ -249,6 +246,8 @@ export class AuthService {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
     });
+
+    await this.sendWelcomeEmail(user);
 
     return tokens;
   }
@@ -387,21 +386,31 @@ export class AuthService {
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
+    res.cookie('refresh_token', tokens.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
     return tokens;
   }
 
   async logout(sessionId: string, accessToken: string): Promise<void> {
-    const decoded: JwtPayload & { exp: number } =
-      this.jwtService.decode(accessToken);
+    try {
+      const decoded: JwtPayload & { exp: number } =
+        this.jwtService.decode(accessToken);
 
-    if (decoded.jti && decoded.exp) {
-      const ttl = decoded.exp - Math.floor(Date.now() / 1000);
-      if (ttl > 0) {
-        await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+      if (decoded.jti && decoded.exp) {
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+        if (ttl > 0) {
+          await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+        }
       }
+    } finally {
+      await this.usersService.deactivateSession(sessionId);
     }
-
-    await this.usersService.deactivateSession(sessionId);
   }
 
   async getProfile(userId: string): Promise<User> {
