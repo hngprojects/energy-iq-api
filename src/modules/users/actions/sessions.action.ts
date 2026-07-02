@@ -30,8 +30,9 @@ export class SessionModelAction extends AbstractModelAction<Session> {
     const SLIDING_MS = 7 * 24 * 60 * 60 * 1000;
     const ABSOLUTE_MS = 30 * 24 * 60 * 60 * 1000;
 
+    const now = new Date();
     const absoluteCap = new Date(createdAt.getTime() + ABSOLUTE_MS);
-    const slidingWindow = new Date(Date.now() + SLIDING_MS);
+    const slidingWindow = new Date(now.getTime() + SLIDING_MS);
     const newExpiresAt =
       slidingWindow < absoluteCap ? slidingWindow : absoluteCap;
 
@@ -40,13 +41,22 @@ export class SessionModelAction extends AbstractModelAction<Session> {
       .update(Session)
       .set({
         refreshTokenHash: newHash,
-        lastActivityAt: new Date(),
+        lastActivityAt: now,
         expiresAt: newExpiresAt,
       })
-      .where('id = :id AND refresh_token_hash = :expectedHash', {
-        id: sessionId,
-        expectedHash,
-      })
+      .where(
+        `id = :id
+         AND refresh_token_hash = :expectedHash
+         AND is_active = true
+         AND expires_at > :now
+         AND created_at > :absoluteFloor`,
+        {
+          id: sessionId,
+          expectedHash,
+          now,
+          absoluteFloor: new Date(now.getTime() - ABSOLUTE_MS),
+        },
+      )
       .execute();
 
     return (result.affected ?? 0) > 0;
