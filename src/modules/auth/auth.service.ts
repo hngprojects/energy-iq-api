@@ -372,8 +372,14 @@ export class AuthService {
     if (!matches)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const { refreshToken: newRefreshToken, ...tokens } = await this.signTokens(user, session);
-    const newHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+    const { refreshToken: newRefreshToken, ...tokens } = await this.signTokens(
+      user,
+      session,
+    );
+    const newHash = crypto
+      .createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
     // Atomic compare-and-swap: only succeeds if no concurrent request has
     // already rotated the token since we read it above.
     const swapped = await this.usersService.compareAndSwapRefreshToken(
