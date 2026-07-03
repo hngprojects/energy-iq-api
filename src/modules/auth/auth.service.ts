@@ -365,7 +365,7 @@ export class AuthService {
     if (!session.refreshTokenHash)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const matches = this.compareTokenHash(
+    const matches = this.compareRefreshTokenHash(
       refreshToken,
       session.refreshTokenHash,
     );
@@ -401,13 +401,16 @@ export class AuthService {
     return tokens;
   }
 
-  compareTokenHash(received: string, storedHash: string): boolean {
+  compareRefreshTokenHash(received: string, storedHash: string): boolean {
     const receivedHash = crypto
       .createHash('sha256')
       .update(received)
       .digest('hex');
 
-    return receivedHash === storedHash;
+    return crypto.timingSafeEqual(
+      Buffer.from(receivedHash, 'hex'),
+      Buffer.from(storedHash, 'hex'),
+    );
   }
 
   async logout(sessionId: string, accessToken: string): Promise<void> {
