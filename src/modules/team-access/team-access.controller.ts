@@ -19,15 +19,16 @@ import { TeamAccessService } from './team-access.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiBearerAuth()
 @UseGuards(InverterRoleGuard)
-@Controller('/inverters/:inverterId/team-access')
+@Controller('team-access')
 export class TeamAccessController {
   constructor(private readonly teamAccessService: TeamAccessService) {}
 
   @InverterRoles(InverterRole.ADMIN)
-  @Post('invite')
+  @Post(':inverterId/invite')
   @ApiOperation({ summary: 'invite member to view inverter' })
   @HttpCode(HttpStatus.CREATED)
   inviteMember(
@@ -39,7 +40,7 @@ export class TeamAccessController {
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Get('')
+  @Get(':inverterId')
   @ApiOperation({ summary: 'List members' })
   @HttpCode(HttpStatus.OK)
   listMembers(@Param('inverterId', ParseUUIDPipe) inverterId: string) {
@@ -47,7 +48,7 @@ export class TeamAccessController {
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Get(':userId')
+  @Get(':inverterId/:userId')
   @ApiOperation({ summary: 'Get one member' })
   @HttpCode(HttpStatus.OK)
   getMember(
@@ -58,7 +59,7 @@ export class TeamAccessController {
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Patch(':userId')
+  @Patch(':inverterId/:userId')
   @ApiOperation({ summary: 'update a user role' })
   @HttpCode(HttpStatus.OK)
   updateMemberRole(
@@ -74,7 +75,7 @@ export class TeamAccessController {
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Delete(':userId')
+  @Delete(':inverterId/:userId')
   @ApiOperation({ summary: "Revoke a user's access" })
   @HttpCode(HttpStatus.OK)
   revokeUserAccess(
@@ -82,5 +83,15 @@ export class TeamAccessController {
     @Param('userId', ParseUUIDPipe) userId: string,
   ) {
     return this.teamAccessService.revokeMemberAccess(inverterId, userId);
+  }
+
+  @Public()
+  @Get('invites')
+  @ApiOperation({ summary: 'Get all invites for a user' })
+  @HttpCode(HttpStatus.OK)
+  getUserInvites(
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.teamAccessService.getUserInvites(userId);
   }
 }

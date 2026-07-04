@@ -170,6 +170,22 @@ export class TeamAccessService {
     return member;
   }
 
+  async getUserInvites(userId: string): Promise<InverterMember[]> {
+    const invites = await this.inverterMemberModelAction.find({
+        ...noTransaction(),
+        findOptions: {
+            userId,
+            status: InverterMemberStatus.INVITED
+        },
+        paginationPayload: {
+            page: 1,
+            limit: 100,
+        },
+    });
+
+    return invites.payload
+  }
+
   async updateMemberRole(
     inverterId: string,
     userId: string,

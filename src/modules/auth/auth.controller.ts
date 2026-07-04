@@ -33,6 +33,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SYS_MSG } from '../../common/constants/sys-msg';
+import { registerFromInviteDto } from './dto/register-from-invite.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -49,6 +51,19 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Post('invite-register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user from am invite' })
+  registerFromInvite(
+    @Body() dto: registerFromInviteDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionDto = this.buildSessionDto(req)
+    return this.authService.registerFromInvite(dto, res, sessionDto)
   }
 
   @Public()
@@ -157,6 +172,16 @@ export class AuthController {
   @ApiBearerAuth()
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user.sub);
+  }
+
+  @Post('accept-invite')
+  @ApiOperation({ summary: '' })
+  @ApiBearerAuth()
+  acceptInvite(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: AcceptInviteDto,
+  ) {
+    return this.authService.existingUserAcceptInvite(dto.inviteToken, userId);
   }
 
   @Public()
