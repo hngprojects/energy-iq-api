@@ -55,4 +55,6 @@ export const SYS_MSG = {
     'Recurring reports must use a period (weekly/monthly), not a custom date range.',
   SHAREABLE_LINK_EXPIRED:
     'This shareable link has expired. Please generate a new one.',
+  INVERTER_MEMBERSHIP_NOT_FOUND:
+    'The requested inverter membership does not exist or has been deactivated',
 } as const;
