@@ -35,6 +35,7 @@ import { whatsAppConfig } from './config/whatsapp.config';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
+import { TeamAccessModule } from './modules/team-access/team-access.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
     WaitlistModule,
     ReportsModule,
     CloudinaryModule,
+    TeamAccessModule,
   ],
   providers: [
     {
