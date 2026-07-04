@@ -15,6 +15,8 @@ import {
   AlertNotificationJobData,
   WaitlistJoinedJobData,
   SendReportJobData,
+  TeamInviteNewUserJobData,
+  TeamInviteExistingUserJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -65,6 +67,10 @@ export class EmailProcessor extends WorkerHost {
         return this.handleWaitlistJoined(job as Job<WaitlistJoinedJobData>);
       case EMAIL_JOBS.SEND_REPORT:
         return this.handleSendReport(job as Job<SendReportJobData>);
+      case EMAIL_JOBS.TEAM_INVITE_NEW_USER:
+        return this.handleInviteNewUser(job as Job<TeamInviteNewUserJobData>);
+      case EMAIL_JOBS.TEAM_INVITE_EXISTING_USER:
+        return this.handleInviteExistingUser(job as Job<TeamInviteExistingUserJobData>);
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -438,6 +444,14 @@ export class EmailProcessor extends WorkerHost {
     }
 
     this.logger.log(`Pdf report successfully sent to ${this.maskEmail(to)}`);
+  }
+
+  private async handleInviteNewUser(job: Job<TeamInviteNewUserJobData>): Promise<void> {
+    
+  }
+
+  private async handleInviteExistingUser(job: Job<TeamInviteExistingUserJobData>): Promise<void> {
+    
   }
 
   private renderTemplate(

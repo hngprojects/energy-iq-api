@@ -10,6 +10,8 @@ export const EMAIL_JOBS = {
   ALERT_ALERT: 'alert-notification',
   WAITLIST_JOINED: 'waitlist-joined',
   SEND_REPORT: 'send-report',
+  TEAM_INVITE_NEW_USER: 'team-invite-new-user',
+  TEAM_INVITE_EXISTING_USER: 'team-invite-existing-user',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -90,6 +92,23 @@ export interface SendReportJobData {
   firstName: string;
 }
 
+export interface TeamInviteNewUserJobData {
+  to: string;
+  inviterName: string;
+  inverterName: string;
+  role: string;
+  inviteToken: string;
+}
+
+export interface TeamInviteExistingUserJobData {
+  to: string;
+  firstName: string;
+  inviterName: string;
+  inverterName: string;
+  role: string;
+  inviteToken: string;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
@@ -98,4 +117,6 @@ export type EmailJobData =
   | LinkExpiredJobData
   | ContactUsJobData
   | AlertNotificationJobData
-  | SendReportJobData;
+  | SendReportJobData
+  | TeamInviteNewUserJobData
+  | TeamInviteExistingUserJobData;
