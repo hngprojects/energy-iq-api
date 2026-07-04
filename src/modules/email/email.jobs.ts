@@ -10,6 +10,8 @@ export const EMAIL_JOBS = {
   ALERT_ALERT: 'alert-notification',
   WAITLIST_JOINED: 'waitlist-joined',
   SEND_REPORT: 'send-report',
+  TEAM_INVITE_NEW_USER: 'team-invite-new-user',
+  TEAM_INVITE_EXISTING_USER: 'team-invite-existing-user',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -90,6 +92,36 @@ export interface SendReportJobData {
   firstName: string;
 }
 
+/**
+ * Sent to a brand-new user who doesn't have an EnergyIQ account yet.
+ * Contains their temporary credentials and an invite token so they can
+ * complete registration via the invite flow.
+ */
+export interface TeamInviteNewUserJobData {
+  to: string;
+  inviterName: string;
+  inverterName: string;
+  role: string;
+  /** Full URL: clientUrl + /accept-invite?token=<inviteToken> */
+  acceptInviteUrl: string;
+  /** Pre-filled email so they know which address to use */
+  email: string;
+}
+
+/**
+ * Sent to an existing EnergyIQ user who has just been granted access
+ * to someone's inverter. No registration needed — they just log in.
+ */
+export interface TeamInviteExistingUserJobData {
+  to: string;
+  firstName: string;
+  inviterName: string;
+  inverterName: string;
+  role: string;
+  /** Link straight to the inverter dashboard */
+  dashboardUrl: string;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
@@ -98,4 +130,6 @@ export type EmailJobData =
   | LinkExpiredJobData
   | ContactUsJobData
   | AlertNotificationJobData
-  | SendReportJobData;
+  | SendReportJobData
+  | TeamInviteNewUserJobData
+  | TeamInviteExistingUserJobData;

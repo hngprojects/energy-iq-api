@@ -251,12 +251,48 @@ export class UsersService {
   }
 
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {
+    const user = await this.findOne(id);
+
+    // Invited users skip the "connect inverter" step — they're done after
+    // email verification since an inverter already exists for them.
+    const isInvited = user.isInvitedUser;
+
     await this.userModelAction.update({
       ...noTransaction(),
       identifierOptions: { id },
       updatePayload: {
         emailVerified,
-        onboardingStep: emailVerified ? 2 : 1,
+        onboardingStep: emailVerified ? (isInvited ? 3 : 2) : 1,
+        onboardingComplete: isInvited ? emailVerified : false,
+      },
+    });
+  }
+
+  /**
+   * Creates a new user account on behalf of an inverter member invite.
+   * The account is marked as an invited user so the onboarding flow
+   * skips the "connect inverter" step after email verification.
+   */
+  async createInvitedUser(dto: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+  }): Promise<User> {
+    const existing = await this.userModelAction.findByEmail(dto.email);
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        isInvitedUser: true,
+        onboardingStep: 1,
+        onboardingComplete: false,
       },
     });
   }

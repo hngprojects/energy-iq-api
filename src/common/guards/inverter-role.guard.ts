@@ -46,8 +46,7 @@ export class InverterRoleGuard implements CanActivate {
       },
     });
 
-    if (!inverterMember)
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    if (!inverterMember) throw new ForbiddenException(SYS_MSG.FORBIDDEN);
 
     const requiredRoles = this.reflector.getAllAndOverride<InverterRole[]>(
       INVERTER_ROLES_KEY,

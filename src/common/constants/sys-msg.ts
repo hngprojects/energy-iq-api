@@ -57,4 +57,9 @@ export const SYS_MSG = {
     'This shareable link has expired. Please generate a new one.',
   INVERTER_MEMBERSHIP_NOT_FOUND:
     'The requested inverter membership does not exist or has been deactivated',
+  INVITE_TOKEN_EXPIRED:
+    'This invite link has expired. Please request a new one.',
+  INVITE_TOKEN_INVALID: 'This invite link is invalid.',
+  INVITE_ALREADY_ACCEPTED: 'This invite has already been accepted.',
+  MEMBER_INVITE_SENT: 'Invitation sent successfully',
 } as const;

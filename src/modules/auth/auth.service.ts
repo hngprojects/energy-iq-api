@@ -35,6 +35,8 @@ import type { Response } from 'express';
 import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { Session } from '../users/entities/sessions.entity';
 import { randomBytes, randomUUID } from 'crypto';
+import { TeamAccessService } from '../team-access/team-access.service';
+import { registerFromInviteDto } from './dto/register-from-invite.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 
 export interface AuthTokens {
@@ -62,6 +64,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
+    private readonly teamAccessService: TeamAccessService,
   ) {
     this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
   }
@@ -76,6 +79,49 @@ export class AuthService {
 
     await this.sendVerificationEmail(user);
     return this.toPublicUser(user);
+  }
+
+  /**
+   * Path A invite acceptance: the invited user had no prior account.
+   *
+   * Flow:
+   * 1. Validate invite token (not expired, not already accepted).
+   * 2. Update the pre-created User with real name + new password hash.
+   * 3. Send an OTP verification email — same flow as normal registration.
+   *
+   * The member row status stays INVITED until the user verifies their email.
+   * verifyEmail() will call activateMembership() after OTP confirmation.
+   */
+  async registerFromInvite(
+    dto: registerFromInviteDto,
+  ): Promise<Omit<AuthResponse, 'refreshToken'> | PublicUser> {
+    const member = await this.teamAccessService.getValidInviteByToken(
+      dto.inviteToken,
+    );
+
+    // The user account was pre-created by the invite service
+    const user = await this.usersService.findByEmail(member.email);
+    if (!user) throw new NotFoundException(SYS_MSG.USER_NOT_FOUND);
+
+    // Update name and password from what the user chose on the invite screen
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    // await this.usersService.update(user.id, {
+    //   firstName: dto.firstName,
+    //   lastName: dto.lastName,
+    // });
+    (await this,
+      this.usersService.update(user.id, {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phoneNumber: user.phoneNumber ?? '',
+      }));
+    await this.usersService.updatePasswordHash(user.id, passwordHash);
+
+    // Trigger email verification — same path as normal register
+    const updatedUser = await this.usersService.findOne(user.id);
+    await this.sendVerificationEmail(updatedUser);
+
+    return this.toPublicUser(updatedUser);
   }
 
   async findOrCreateGoogleOAuthUser(
@@ -459,6 +505,9 @@ export class AuthService {
       role: user.role,
       lastLoginAt: user.lastLoginAt ?? undefined,
       emailVerified: user.emailVerified ?? false,
+      onboardingStep: user.onboardingStep,
+      onboardingComplete: user.onboardingComplete,
+      isInvitedUser: user.isInvitedUser,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

@@ -14,6 +14,8 @@ import {
   AlertStat,
   WaitlistJoinedJobData,
   SendReportJobData,
+  TeamInviteNewUserJobData,
+  TeamInviteExistingUserJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
 
@@ -145,8 +147,22 @@ export class EmailService {
       to,
       clientUrl,
       firstName,
-      // reportType,
-      // dateDelivered,
     } satisfies SendReportJobData);
   }
+
+  // async sendTeamInviteNewUser(data: TeamInviteNewUserJobData): Promise<void> {
+  //   await this.emailQueue.add(
+  //     EMAIL_JOBS.TEAM_INVITE_NEW_USER,
+  //     data satisfies TeamInviteNewUserJobData,
+  //   );
+  // }
+
+  // async sendTeamInviteExistingUser(
+  //   data: TeamInviteExistingUserJobData,
+  // ): Promise<void> {
+  //   await this.emailQueue.add(
+  //     EMAIL_JOBS.TEAM_INVITE_EXISTING_USER,
+  //     data satisfies TeamInviteExistingUserJobData,
+  //   );
+  // }
 }

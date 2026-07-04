@@ -11,4 +11,13 @@ export class InverterMemberModelAction extends AbstractModelAction<InverterMembe
   ) {
     super(repository, InverterMember);
   }
+
+  async findByInverterIdAndEmail(inverterId: string, email: string) {
+    return this.get({
+      identifierOptions: {
+        inverterId,
+        email,
+      },
+    });
+  }
 }

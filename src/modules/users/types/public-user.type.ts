@@ -7,7 +7,16 @@ export type UserResponse = Omit<
 
 export type PublicUser = Pick<
   UserResponse,
-  'id' | 'email' | 'firstName' | 'lastName' | 'role' | 'createdAt' | 'updatedAt'
+  | 'id'
+  | 'email'
+  | 'firstName'
+  | 'lastName'
+  | 'role'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'onboardingStep'
+  | 'onboardingComplete'
+  | 'isInvitedUser'
 > & {
   lastLoginAt: Date | undefined;
   emailVerified: boolean;

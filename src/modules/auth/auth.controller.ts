@@ -22,6 +22,7 @@ import { AuthService, type AuthResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { registerFromInviteDto } from './dto/register-from-invite.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Throttle } from '@nestjs/throttler';
@@ -49,6 +50,25 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @Public()
+  @Post('register-from-invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Complete registration for an invited team member (Path A)',
+    description:
+      'Used when a user receives an invite but has no existing EnergyIQ account. ' +
+      'Validates the invite token, sets their chosen name/password, and triggers ' +
+      'email OTP verification. Membership activates automatically on OTP confirmation.',
+  })
+  registerFromInvite(
+    @Body() dto: registerFromInviteDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.registerFromInvite(dto, sessionDto, res);
   }
 
   @Public()
