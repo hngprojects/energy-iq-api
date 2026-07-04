@@ -12,6 +12,7 @@ export const EMAIL_JOBS = {
   SEND_REPORT: 'send-report',
   TEAM_INVITE_NEW_USER: 'team-invite-new-user',
   TEAM_INVITE_EXISTING_USER: 'team-invite-existing-user',
+  TEAM_INVITE_ACCEPTED: 'team-invite-accepted',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -109,6 +110,13 @@ export interface TeamInviteExistingUserJobData {
   inviteToken: string;
 }
 
+export interface TeamInviteAcceptedJobData {
+  to: string;
+  firstName: string;
+  inverterName: string;
+  role: string;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
@@ -119,4 +127,5 @@ export type EmailJobData =
   | AlertNotificationJobData
   | SendReportJobData
   | TeamInviteNewUserJobData
-  | TeamInviteExistingUserJobData;
+  | TeamInviteExistingUserJobData
+  | TeamInviteAcceptedJobData;

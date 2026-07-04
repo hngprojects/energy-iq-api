@@ -66,6 +66,28 @@ export class UsersService {
     });
   }
 
+  async createTeamInvitedUser(dto: CreateUserDto): Promise<User> {
+    const existing = await this.userModelAction.findByEmail(dto.email);
+    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    return this.userModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        email: dto.email,
+        passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        role: dto.role,
+        onboardingStep: 2,
+        onboardingComplete: true,
+        isInvitedUser: true,
+        isActive: true,
+        emailVerified: true,
+      },
+    });
+  }
+
   async createSession(
     userId: string,
     dto?: CreateSessionDto,

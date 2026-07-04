@@ -17,6 +17,7 @@ import {
   SendReportJobData,
   TeamInviteNewUserJobData,
   TeamInviteExistingUserJobData,
+  TeamInviteAcceptedJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -72,6 +73,10 @@ export class EmailProcessor extends WorkerHost {
       case EMAIL_JOBS.TEAM_INVITE_EXISTING_USER:
         return this.handleInviteExistingUser(
           job as Job<TeamInviteExistingUserJobData>,
+        );
+      case EMAIL_JOBS.TEAM_INVITE_ACCEPTED:
+        return this.handleTeamInviteAccepted(
+          job as Job<TeamInviteAcceptedJobData>,
         );
       default: {
         const message = `Unknown job type: ${job.name}`;
@@ -449,11 +454,15 @@ export class EmailProcessor extends WorkerHost {
   }
 
   private async handleInviteNewUser(
-    job: Job<TeamInviteNewUserJobData>,
+    _job: Job<TeamInviteNewUserJobData>,
   ): Promise<void> {}
 
   private async handleInviteExistingUser(
-    job: Job<TeamInviteExistingUserJobData>,
+    _job: Job<TeamInviteExistingUserJobData>,
+  ): Promise<void> {}
+
+  private async handleTeamInviteAccepted(
+    _job: Job<TeamInviteAcceptedJobData>,
   ): Promise<void> {}
 
   private renderTemplate(

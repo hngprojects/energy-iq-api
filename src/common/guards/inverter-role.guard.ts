@@ -3,7 +3,6 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';

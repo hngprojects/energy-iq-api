@@ -16,6 +16,7 @@ import {
   SendReportJobData,
   TeamInviteNewUserJobData,
   TeamInviteExistingUserJobData,
+  TeamInviteAcceptedJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
 import { InverterRole } from '../../common/enums/inverter-role.enum';
@@ -185,5 +186,19 @@ export class EmailService {
       role,
       inviteToken,
     } satisfies TeamInviteExistingUserJobData);
+  }
+
+  async sendTeamInviteAcceptedEmail(
+    to: string,
+    firstName: string,
+    inverterName: string,
+    role: InverterRole,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
+      to,
+      firstName,
+      inverterName,
+      role,
+    } satisfies TeamInviteAcceptedJobData);
   }
 }

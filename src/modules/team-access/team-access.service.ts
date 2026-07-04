@@ -103,4 +103,43 @@ export class TeamAccessService {
 
     return member;
   }
+
+  async findInviteByTokenAndEmail(
+    token: string,
+    email: string,
+  ): Promise<InverterMember> {
+    const member = await this.inverterMemberModelAction.findByTokenAndEmail(
+      token,
+      email,
+    );
+
+    if (!member)
+      throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
+    if (member.status !== InverterMemberStatus.INVITED)
+      throw new ConflictException(SYS_MSG.INVITE_ALREADY_ACCEPTED);
+    if (
+      member.inviteTokenExpiresAt &&
+      Date.now() > member.inviteTokenExpiresAt.getTime()
+    )
+      throw new ConflictException(SYS_MSG.INVITE_TOKEN_EXPIRED);
+
+    return member;
+  }
+
+  async activateMembership(invite: InverterMember): Promise<void> {
+    const updated = await this.inverterMemberModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: invite.id },
+      updatePayload: {
+        status: InverterMemberStatus.ACTIVE,
+        ...(invite.inviteTokenExpiresAt &&
+          Date.now() < invite.inviteTokenExpiresAt.getTime() && {
+            inviteTokenExpiresAt: new Date(Date.now()),
+          }),
+      },
+    });
+
+    if (!updated)
+      throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
+  }
 }

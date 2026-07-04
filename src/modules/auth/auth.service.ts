@@ -36,10 +36,18 @@ import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { Session } from '../users/entities/sessions.entity';
 import { randomBytes, randomUUID } from 'crypto';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { registerFromInviteDto } from './dto/register-from-invite.dto';
+import { TeamAccessService } from '../team-access/team-access.service';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
+}
+
+export interface InverterAccess {
+  inverterId: string;
+  role: InverterRole;
 }
 
 export interface AuthResponse extends AuthTokens {
@@ -62,6 +70,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
+    private readonly teamAccessService: TeamAccessService,
   ) {
     this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
   }
@@ -76,6 +85,79 @@ export class AuthService {
 
     await this.sendVerificationEmail(user);
     return this.toPublicUser(user);
+  }
+
+  async registerFromInvite(
+    dto: registerFromInviteDto,
+    res: Response,
+    sessionDto: CreateSessionDto,
+  ): Promise<Omit<AuthResponse, 'refreshToken'>> {
+    // ValidateInvite
+    const invite = await this.teamAccessService.findInviteByTokenAndEmail(
+      dto.inviteToken,
+      dto.email,
+    );
+    const user = await this.usersService.createTeamInvitedUser({
+      email: invite.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      password: dto.password,
+    });
+
+    /**
+     * A user getting the inviteToken from their email is equivalent
+     * to the user checking an OTP and verifying their email, it serves
+     * the same purpose. So we go straight to onboarding step 2
+     * (sending welcome email).
+     */
+    await this.sendWelcomeEmail(user);
+    // Send invite accept email
+    await this.emailService.sendTeamInviteAcceptedEmail(
+      user.email,
+      user.firstName,
+      '',
+      invite.role,
+    );
+    await this.teamAccessService.activateMembership(invite);
+
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
+    return tokens;
+  }
+
+  async existingUserAcceptInvite(
+    inviteToken: string,
+    userId: string,
+  ): Promise<InverterAccess> {
+    const user = await this.usersService.findOne(userId);
+    const invite = await this.teamAccessService.findInviteByTokenAndEmail(
+      inviteToken,
+      user.email,
+    );
+
+    await this.teamAccessService.activateMembership(invite);
+    // Send invite accept email
+    await this.emailService.sendTeamInviteAcceptedEmail(
+      user.email,
+      user.firstName,
+      '',
+      invite.role,
+    );
+
+    return {
+      inverterId: invite.inverterId,
+      role: invite.role,
+    };
   }
 
   async findOrCreateGoogleOAuthUser(
