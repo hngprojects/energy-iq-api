@@ -8,8 +8,8 @@ import { Inverter } from '../../inverters/entities/inverters.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('inverter_members')
-@Index(['inverter_id', 'email'])
-@Index(['invite_token', 'email'])
+@Index(['inverterId', 'email'])
+@Index(['inviteToken', 'email'])
 export class InverterMember extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   inverterId: string;

@@ -10,7 +10,10 @@ import { SYS_MSG } from '../../common/constants/sys-msg';
 import { InvertersService } from '../inverters/inverters.service';
 import { UsersService } from '../users/users.service';
 import { noTransaction } from '../../common/constants/transaction-options';
-import { InverterMemberStatus } from '../../common/enums/inverter-role.enum';
+import {
+  InverterMemberStatus,
+  InverterRole,
+} from '../../common/enums/inverter-role.enum';
 import { randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
 
@@ -141,5 +144,56 @@ export class TeamAccessService {
 
     if (!updated)
       throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
+  }
+
+  async listMembers(inverterId: string): Promise<InverterMember[]> {
+    const members = await this.inverterMemberModelAction.find({
+      ...noTransaction(),
+      findOptions: {
+        inverterId,
+      },
+      paginationPayload: {
+        page: 1,
+        limit: 100,
+      },
+    });
+
+    return members.payload;
+  }
+
+  async getMember(inverterId: string, userId: string): Promise<InverterMember> {
+    const member = await this.inverterMemberModelAction.get({
+      identifierOptions: { inverterId, userId },
+    });
+    if (!member)
+      throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
+    return member;
+  }
+
+  async updateMemberRole(
+    inverterId: string,
+    userId: string,
+    role: InverterRole,
+  ): Promise<InverterMember> {
+    const member = await this.getMember(inverterId, userId);
+
+    const updated = await this.inverterMemberModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: member.id },
+      updatePayload: { role },
+    });
+    if (!updated)
+      throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
+
+    return updated;
+  }
+
+  async revokeMemberAccess(inverterId: string, userId: string): Promise<void> {
+    const member = await this.getMember(inverterId, userId);
+    await this.inverterMemberModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: member.id },
+      updatePayload: { status: InverterMemberStatus.DEACTIVATED },
+    });
   }
 }
