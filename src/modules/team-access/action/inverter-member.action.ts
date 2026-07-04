@@ -12,20 +12,27 @@ export class InverterMemberModelAction extends AbstractModelAction<InverterMembe
     super(repository, InverterMember);
   }
 
-  findByInverterIdAndEmail(inverterId: string, email: string): Promise<InverterMember | null> {
+  findByInverterIdAndEmail(
+    inverterId: string,
+    email: string,
+  ): Promise<InverterMember | null> {
     return this.get({
       identifierOptions: {
-        inverterId, email
-      }
-    })
+        inverterId,
+        email,
+      },
+    });
   }
 
-  findByTokenAndEmail(token: string, email: string): Promise<InverterMember | null> {
+  findByTokenAndEmail(
+    token: string,
+    email: string,
+  ): Promise<InverterMember | null> {
     return this.get({
       identifierOptions: {
         inviteToken: token,
-        email
-      }
-    })
+        email,
+      },
+    });
   }
 }

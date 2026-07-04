@@ -70,7 +70,9 @@ export class EmailProcessor extends WorkerHost {
       case EMAIL_JOBS.TEAM_INVITE_NEW_USER:
         return this.handleInviteNewUser(job as Job<TeamInviteNewUserJobData>);
       case EMAIL_JOBS.TEAM_INVITE_EXISTING_USER:
-        return this.handleInviteExistingUser(job as Job<TeamInviteExistingUserJobData>);
+        return this.handleInviteExistingUser(
+          job as Job<TeamInviteExistingUserJobData>,
+        );
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -446,13 +448,13 @@ export class EmailProcessor extends WorkerHost {
     this.logger.log(`Pdf report successfully sent to ${this.maskEmail(to)}`);
   }
 
-  private async handleInviteNewUser(job: Job<TeamInviteNewUserJobData>): Promise<void> {
-    
-  }
+  private async handleInviteNewUser(
+    job: Job<TeamInviteNewUserJobData>,
+  ): Promise<void> {}
 
-  private async handleInviteExistingUser(job: Job<TeamInviteExistingUserJobData>): Promise<void> {
-    
-  }
+  private async handleInviteExistingUser(
+    job: Job<TeamInviteExistingUserJobData>,
+  ): Promise<void> {}
 
   private renderTemplate(
     name: string,

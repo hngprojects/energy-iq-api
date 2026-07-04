@@ -1,9 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsEnum,
-  MaxLength,
-} from 'class-validator';
+import { IsEmail, IsEnum, MaxLength } from 'class-validator';
 import { InverterRole } from '../../../common/enums/inverter-role.enum';
 
 export class InviteMemberDto {

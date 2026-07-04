@@ -43,7 +43,7 @@ export class InverterMember extends AbstractBaseEntity {
   @JoinColumn({ name: 'inverter_id' })
   inverter: Inverter;
 
-  @ManyToOne(() => User, { onDelete: 'SET NULL' } )
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

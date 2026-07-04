@@ -14,7 +14,7 @@ import { EmailModule } from '../email/email.module';
     InvertersModule,
     UsersModule,
     EmailModule,
-    InvertersModule
+    InvertersModule,
   ],
   providers: [TeamAccessService, InverterMemberModelAction],
   controllers: [TeamAccessController],

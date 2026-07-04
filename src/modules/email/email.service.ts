@@ -153,17 +153,30 @@ export class EmailService {
     } satisfies SendReportJobData);
   }
 
-  async sendTeamInviteNewUserEmail(to: string, inviterName: string, inverterName: string, role: InverterRole, inviteToken: string): Promise<void> {
+  async sendTeamInviteNewUserEmail(
+    to: string,
+    inviterName: string,
+    inverterName: string,
+    role: InverterRole,
+    inviteToken: string,
+  ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_NEW_USER, {
       to,
       inviterName,
       inverterName,
       role,
-      inviteToken
-    } satisfies TeamInviteNewUserJobData)
+      inviteToken,
+    } satisfies TeamInviteNewUserJobData);
   }
 
-  async sendTeamInviteExistingUserEmail(to: string, firstName: string, inviterName: string, inverterName: string, role: InverterRole, inviteToken: string): Promise<void> {
+  async sendTeamInviteExistingUserEmail(
+    to: string,
+    firstName: string,
+    inviterName: string,
+    inverterName: string,
+    role: InverterRole,
+    inviteToken: string,
+  ): Promise<void> {
     await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_EXISTING_USER, {
       to,
       firstName,
@@ -171,6 +184,6 @@ export class EmailService {
       inverterName,
       role,
       inviteToken,
-    } satisfies TeamInviteExistingUserJobData)
+    } satisfies TeamInviteExistingUserJobData);
   }
 }
