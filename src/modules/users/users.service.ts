@@ -110,6 +110,10 @@ export class UsersService {
     const session = await this.sessionModelAction.findById(sessionId);
     if (!session) throw new UnauthorizedException(SYS_MSG.INVALID_SESSION_ID);
 
+    return this.validateSession(session);
+  }
+
+  async validateSession(session: Session): Promise<Session> {
     if (!session.isActive)
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
 
@@ -121,7 +125,7 @@ export class UsersService {
     if (now > absoluteExpiry) {
       await this.sessionModelAction.update({
         ...noTransaction(),
-        identifierOptions: { id: sessionId },
+        identifierOptions: { id: session.id },
         updatePayload: { isActive: false },
       });
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);
@@ -131,7 +135,7 @@ export class UsersService {
     if (session.expiresAt && now > session.expiresAt.getTime()) {
       await this.sessionModelAction.update({
         ...noTransaction(),
-        identifierOptions: { id: sessionId },
+        identifierOptions: { id: session.id },
         updatePayload: { isActive: false },
       });
       throw new UnauthorizedException(SYS_MSG.SESSION_EXPIRED);

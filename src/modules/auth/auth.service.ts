@@ -34,7 +34,7 @@ import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import type { Response } from 'express';
 import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { Session } from '../users/entities/sessions.entity';
-import { randomBytes, randomUUID } from 'crypto';
+import * as crypto from 'crypto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { registerFromInviteDto } from './dto/register-from-invite.dto';
 import { TeamAccessService } from '../team-access/team-access.service';
@@ -190,7 +190,7 @@ export class AuthService {
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: this.appCfg.nodeEnv !== 'development',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
@@ -251,7 +251,7 @@ export class AuthService {
   ) {
     res.cookie('refresh_token', authResponse.refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: this.appCfg.nodeEnv !== 'development',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
@@ -323,7 +323,7 @@ export class AuthService {
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: this.appCfg.nodeEnv !== 'development',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
@@ -447,16 +447,21 @@ export class AuthService {
     if (!session.refreshTokenHash)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const matches = await bcrypt.compare(
+    const matches = this.compareRefreshTokenHash(
       refreshToken,
       session.refreshTokenHash,
     );
     if (!matches)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const tokens = await this.signTokens(user, session);
-    const newHash = await bcrypt.hash(tokens.refreshToken, 10);
-
+    const { refreshToken: newRefreshToken, ...tokens } = await this.signTokens(
+      user,
+      session,
+    );
+    const newHash = crypto
+      .createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
     // Atomic compare-and-swap: only succeeds if no concurrent request has
     // already rotated the token since we read it above.
     const swapped = await this.usersService.compareAndSwapRefreshToken(
@@ -468,15 +473,26 @@ export class AuthService {
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    res.cookie('refresh_token', tokens.refreshToken, {
+    res.cookie('refresh_token', newRefreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: this.appCfg.nodeEnv !== 'development',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
     });
-
     return tokens;
+  }
+
+  compareRefreshTokenHash(received: string, storedHash: string): boolean {
+    const receivedHash = crypto
+      .createHash('sha256')
+      .update(received)
+      .digest('hex');
+
+    return crypto.timingSafeEqual(
+      Buffer.from(receivedHash, 'hex'),
+      Buffer.from(storedHash, 'hex'),
+    );
   }
 
   async logout(sessionId: string, accessToken: string): Promise<void> {
@@ -514,13 +530,13 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       sessionId: session.id,
-      jti: randomUUID(),
+      jti: crypto.randomUUID(),
     };
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: this.jwtCfg.accessSecret,
       expiresIn: this.jwtCfg.accessExpiresIn as StringValue,
     });
-    const refreshToken = randomBytes(32).toString('hex');
+    const refreshToken = crypto.randomBytes(32).toString('hex');
     return { accessToken, refreshToken };
   }
 
@@ -528,7 +544,7 @@ export class AuthService {
     sessionId: string,
     refreshToken: string,
   ): Promise<void> {
-    const hash = await bcrypt.hash(refreshToken, 10);
+    const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     await this.usersService.setRefreshTokenHash(sessionId, hash);
   }
 
