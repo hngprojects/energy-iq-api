@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import {
   InverterMemberStatus,
   InverterRole,
@@ -8,12 +8,14 @@ import { Inverter } from '../../inverters/entities/inverters.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('inverter_members')
+@Index(['inverter_id', 'email'])
+@Index(['invite_token', 'email'])
 export class InverterMember extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
   inverterId: string;
 
   @Column({ type: 'uuid', nullable: true })
-  userId: string;
+  userId?: string;
 
   @Column({ type: 'citext' })
   email: string;
@@ -30,6 +32,12 @@ export class InverterMember extends AbstractBaseEntity {
 
   @Column({ type: 'uuid' })
   invitedById: string;
+
+  @Column({ type: 'uuid' })
+  inviteToken: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  inviteTokenExpiresAt?: Date;
 
   @ManyToOne(() => Inverter)
   @JoinColumn({ name: 'inverter_id' })
