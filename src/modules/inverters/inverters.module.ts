@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig } from '../../config/app.config';
@@ -11,12 +11,14 @@ import { VictronAdapter } from './adapters/victron.adapters';
 import { SandboxAdapter } from './adapters/sandbox.adapter';
 import { InverterModelAction } from './action/inverters.action';
 import { MetricsPubSubModule } from '../metrics-stream/pubsub/metrics-pubsub.module';
+import { TeamAccessModule } from '../team-access/team-access.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Inverter]),
     ConfigModule.forFeature(appConfig),
-    MetricsPubSubModule,
+    forwardRef(() => MetricsPubSubModule),
+    forwardRef(() => TeamAccessModule)
   ],
   controllers: [InvertersController],
   providers: [
