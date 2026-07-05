@@ -31,14 +31,14 @@ export class InverterRoleGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { user?: AuthenticatedUser }>();
 
-    const isInverterOutsider = this.reflector.getAllAndOverride<boolean>(IS_INVERTER_OUTSIDER_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const isInverterOutsider = this.reflector.getAllAndOverride<boolean>(
+      IS_INVERTER_OUTSIDER_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     if (isInverterOutsider) return true;
 
     const inverterId = request.params['inverterId'].toString();
-    console.log("InvertedId: ", inverterId);
+    console.log('InvertedId: ', inverterId);
     if (!inverterId) return false;
     const user = request.user;
     if (!user) return false;
@@ -66,8 +66,6 @@ export class InverterRoleGuard implements CanActivate {
     }
 
     const memberRank = INVERTER_ROLE_RANK[inverterMember.role];
-    return requiredRoles.some(
-      (role) => memberRank >= INVERTER_ROLE_RANK[role],
-    );
+    return requiredRoles.some((role) => memberRank >= INVERTER_ROLE_RANK[role]);
   }
 }

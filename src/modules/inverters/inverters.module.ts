@@ -18,7 +18,7 @@ import { TeamAccessModule } from '../team-access/team-access.module';
     TypeOrmModule.forFeature([Inverter]),
     ConfigModule.forFeature(appConfig),
     forwardRef(() => MetricsPubSubModule),
-    forwardRef(() => TeamAccessModule)
+    forwardRef(() => TeamAccessModule),
   ],
   controllers: [InvertersController],
   providers: [

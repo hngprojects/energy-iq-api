@@ -32,9 +32,7 @@ export class TeamAccessController {
   @Get('invites')
   @ApiOperation({ summary: 'Get all invites for a user' })
   @HttpCode(HttpStatus.OK)
-  getUserInvites(
-    @CurrentUser('sub') userId: string,
-  ) {
+  getUserInvites(@CurrentUser('sub') userId: string) {
     return this.teamAccessService.getUserInvites(userId);
   }
 
@@ -42,9 +40,7 @@ export class TeamAccessController {
   @Get('memberships')
   @ApiOperation({ summary: 'Get all invites for a user' })
   @HttpCode(HttpStatus.OK)
-  getUserMemberships(
-    @CurrentUser('sub') userId: string,
-  ) {
+  getUserMemberships(@CurrentUser('sub') userId: string) {
     return this.teamAccessService.getUserMemberships(userId);
   }
 

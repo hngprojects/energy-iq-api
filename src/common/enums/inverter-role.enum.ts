@@ -15,5 +15,5 @@ export const INVERTER_ROLE_RANK: Record<InverterRole, number> = {
   [InverterRole.OWNER]: 4,
   [InverterRole.ADMIN]: 3,
   [InverterRole.TECHNICIAN]: 2,
-  [InverterRole.VIEWER]: 1
-}
+  [InverterRole.VIEWER]: 1,
+};

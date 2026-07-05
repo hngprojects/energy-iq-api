@@ -500,7 +500,7 @@ export class EmailProcessor extends WorkerHost {
       `Sending existing-user invite email to ${this.maskEmail(to)}`,
     );
 
-    const dashboardUrl = `${this.appCfg.clientUrl}/dashboard`;
+    const dashboardUrl = `${this.appCfg.clientUrl}/invites/${inviteToken}`;
 
     const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_EXISTING_USER, {
       firstName,
@@ -541,7 +541,10 @@ export class EmailProcessor extends WorkerHost {
       `Sending invite-accepted confirmation email to ${this.maskEmail(to)}`,
     );
 
-    const roleDescriptions: Record<string, { label: string; description: string }> = {
+    const roleDescriptions: Record<
+      string,
+      { label: string; description: string }
+    > = {
       inverter_admin: {
         label: 'Admin',
         description:
@@ -559,11 +562,12 @@ export class EmailProcessor extends WorkerHost {
       },
     };
 
-    const { label: roleLabel, description: roleDescription } =
-      roleDescriptions[role] ?? {
-        label: role,
-        description: `You have been granted access as ${role}.`,
-      };
+    const { label: roleLabel, description: roleDescription } = roleDescriptions[
+      role
+    ] ?? {
+      label: role,
+      description: `You have been granted access as ${role}.`,
+    };
 
     const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
       firstName,

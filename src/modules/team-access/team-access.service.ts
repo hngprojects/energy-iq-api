@@ -39,7 +39,10 @@ export class TeamAccessService {
         dto.email,
       );
 
-    if (existing) throw new ConflictException("Pending invite or membership exists for this user");
+    if (existing)
+      throw new ConflictException(
+        'Pending invite or membership exists for this user',
+      );
 
     const inverter = await this.invertersService.findOne(inverterId);
     const inviter = await this.usersService.findOne(invitedById);
@@ -107,20 +110,30 @@ export class TeamAccessService {
     return member;
   }
 
-  async refreshUserInvite(inviteId: string, inverterId: string): Promise<InverterMember> {
-    console.log("Refreshing...")
+  async refreshUserInvite(
+    inviteId: string,
+    inverterId: string,
+  ): Promise<InverterMember> {
+    console.log('Refreshing...');
     const newToken = randomUUID();
 
     const updated = await this.inverterMemberModelAction.update({
       ...noTransaction(),
-      identifierOptions: { id: inviteId, status: InverterMemberStatus.INVITED, inverterId },
+      identifierOptions: {
+        id: inviteId,
+        status: InverterMemberStatus.INVITED,
+        inverterId,
+      },
       updatePayload: {
         inviteToken: newToken,
-        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS)
-      }
+        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
     });
 
-    if (!updated) throw new NotFoundException("No invite exists with this id or user already accepted");
+    if (!updated)
+      throw new NotFoundException(
+        'No invite exists with this id or user already accepted',
+      );
 
     return updated;
   }
@@ -147,7 +160,10 @@ export class TeamAccessService {
     return member;
   }
 
-  async activateMembership(invite: InverterMember, userId: string): Promise<void> {
+  async activateMembership(
+    invite: InverterMember,
+    userId: string,
+  ): Promise<void> {
     const updated = await this.inverterMemberModelAction.update({
       ...noTransaction(),
       identifierOptions: { id: invite.id },
@@ -180,7 +196,10 @@ export class TeamAccessService {
     return members.payload;
   }
 
-  async getMember(inverterId: string, memberId: string): Promise<InverterMember> {
+  async getMember(
+    inverterId: string,
+    memberId: string,
+  ): Promise<InverterMember> {
     const member = await this.inverterMemberModelAction.get({
       identifierOptions: { inverterId, id: memberId },
     });
@@ -191,34 +210,34 @@ export class TeamAccessService {
 
   async getUserInvites(userId: string): Promise<InverterMember[]> {
     const invites = await this.inverterMemberModelAction.find({
-        ...noTransaction(),
-        findOptions: {
-            userId,
-            status: InverterMemberStatus.INVITED
-        },
-        paginationPayload: {
-            page: 1,
-            limit: 100,
-        },
+      ...noTransaction(),
+      findOptions: {
+        userId,
+        status: InverterMemberStatus.INVITED,
+      },
+      paginationPayload: {
+        page: 1,
+        limit: 100,
+      },
     });
 
-    return invites.payload
+    return invites.payload;
   }
 
   async getUserMemberships(userId: string): Promise<InverterMember[]> {
     const invites = await this.inverterMemberModelAction.find({
-        ...noTransaction(),
-        findOptions: {
-            userId,
-            status: InverterMemberStatus.ACTIVE
-        },
-        paginationPayload: {
-            page: 1,
-            limit: 100,
-        },
+      ...noTransaction(),
+      findOptions: {
+        userId,
+        status: InverterMemberStatus.ACTIVE,
+      },
+      paginationPayload: {
+        page: 1,
+        limit: 100,
+      },
     });
 
-    return invites.payload
+    return invites.payload;
   }
 
   async updateMemberRole(
@@ -239,7 +258,10 @@ export class TeamAccessService {
     return updated;
   }
 
-  async revokeMemberAccess(inverterId: string, memberId: string): Promise<void> {
+  async revokeMemberAccess(
+    inverterId: string,
+    memberId: string,
+  ): Promise<void> {
     const member = await this.getMember(inverterId, memberId);
     await this.inverterMemberModelAction.update({
       ...noTransaction(),

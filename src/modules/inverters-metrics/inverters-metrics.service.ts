@@ -68,9 +68,14 @@ export class InvertersMetricsService {
         : 50;
   }
 
-  private async validateRequestingUser(inverter: Inverter, requestingUserId: string): Promise<void> {
+  private async validateRequestingUser(
+    inverter: Inverter,
+    requestingUserId: string,
+  ): Promise<void> {
     const members = await this.teamAccessService.listMembers(inverter.id);
-    let allowedUsers = members.map((m) => m.userId).filter((m) => m !== undefined);
+    let allowedUsers = members
+      .map((m) => m.userId)
+      .filter((m) => m !== undefined);
     allowedUsers = [...allowedUsers, inverter.userId];
 
     if (!allowedUsers.includes(requestingUserId)) {

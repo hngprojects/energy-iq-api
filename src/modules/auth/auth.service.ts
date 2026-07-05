@@ -54,7 +54,7 @@ export interface InverterAccess {
 export interface AuthResponse extends AuthTokens {
   user: PublicUser;
   sessionId: string;
-  inverterAccess?: InverterAccess[]
+  inverterAccess?: InverterAccess[];
 }
 
 @Injectable()
@@ -515,28 +515,33 @@ export class AuthService {
   }
 
   async getProfile(userId: string): Promise<{
-    user: User,
-    inverterAccess?: InverterAccess[]
+    user: User;
+    inverterAccess?: InverterAccess[];
   }> {
     const user = await this.usersService.findOne(userId);
     const ownedInverters = await this.invertersService.findByUserId(user.id);
-    const inverterMemberships = await this.teamAccessService.getUserMemberships(user.id);
+    const inverterMemberships = await this.teamAccessService.getUserMemberships(
+      user.id,
+    );
 
     const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
       inverterId: inv.id,
       role: InverterRole.OWNER,
     }));
 
-    const membershipsAccess: InverterAccess[] = inverterMemberships.map((mem) => ({
-      inverterId: mem.inverterId,
-      role: mem.role
-    }));
+    const membershipsAccess: InverterAccess[] = inverterMemberships.map(
+      (mem) => ({
+        inverterId: mem.inverterId,
+        role: mem.role,
+      }),
+    );
 
     const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
 
     return {
-      user, inverterAccess
-    }
+      user,
+      inverterAccess,
+    };
   }
 
   private async issueTokens(
@@ -547,21 +552,30 @@ export class AuthService {
     await this.persistRefreshToken(session.id, tokens.refreshToken);
 
     const ownedInverters = await this.invertersService.findByUserId(user.id);
-    const inverterMemberships = await this.teamAccessService.getUserMemberships(user.id);
+    const inverterMemberships = await this.teamAccessService.getUserMemberships(
+      user.id,
+    );
 
     const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
       inverterId: inv.id,
       role: InverterRole.OWNER,
     }));
 
-    const membershipsAccess: InverterAccess[] = inverterMemberships.map((mem) => ({
-      inverterId: mem.inverterId,
-      role: mem.role
-    }));
+    const membershipsAccess: InverterAccess[] = inverterMemberships.map(
+      (mem) => ({
+        inverterId: mem.inverterId,
+        role: mem.role,
+      }),
+    );
 
     const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
 
-    return { ...tokens, user: this.toPublicUser(user), sessionId: session.id, inverterAccess };
+    return {
+      ...tokens,
+      user: this.toPublicUser(user),
+      sessionId: session.id,
+      inverterAccess,
+    };
   }
 
   private async signTokens(user: User, session: Session): Promise<AuthTokens> {

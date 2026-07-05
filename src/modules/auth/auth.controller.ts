@@ -62,8 +62,8 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const sessionDto = this.buildSessionDto(req)
-    return this.authService.registerFromInvite(dto, res, sessionDto)
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.registerFromInvite(dto, res, sessionDto);
   }
 
   @Public()

@@ -26,7 +26,7 @@ import { InvertersModule } from '../inverters/inverters.module';
     UsersModule,
     EmailModule,
     forwardRef(() => TeamAccessModule),
-    InvertersModule
+    InvertersModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy],

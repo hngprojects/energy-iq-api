@@ -45,19 +45,20 @@ export class InverterMemberModelAction extends AbstractModelAction<InverterMembe
         email,
       },
       paginationPayload: {
-        page: 1, limit: 100
-      }
+        page: 1,
+        limit: 100,
+      },
     });
 
-    return res.payload
+    return res.payload;
   }
 
   findInviteWithStatusByUserId(userId: string, status: InverterMemberStatus) {
     return this.repository.find({
       where: {
         userId,
-        status
-      }
-    })
+        status,
+      },
+    });
   }
 }
