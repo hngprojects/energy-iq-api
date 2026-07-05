@@ -454,16 +454,146 @@ export class EmailProcessor extends WorkerHost {
   }
 
   private async handleInviteNewUser(
-    _job: Job<TeamInviteNewUserJobData>,
-  ): Promise<void> {}
+    job: Job<TeamInviteNewUserJobData>,
+  ): Promise<void> {
+    const { to, inviterName, inverterName, role, inviteToken } = job.data;
+    this.logger.log(`Sending new-user invite email to ${this.maskEmail(to)}`);
+
+    const acceptInviteUrl = `${this.appCfg.clientUrl}/accept-invite?token=${inviteToken}`;
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_NEW_USER, {
+      inviterName,
+      inverterName,
+      role,
+      acceptInviteUrl,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `${inviterName} invited you to join ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `New-user invite email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `New-user invite email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
 
   private async handleInviteExistingUser(
-    _job: Job<TeamInviteExistingUserJobData>,
-  ): Promise<void> {}
+    job: Job<TeamInviteExistingUserJobData>,
+  ): Promise<void> {
+    const { to, firstName, inviterName, inverterName, role, inviteToken } =
+      job.data;
+    this.logger.log(
+      `Sending existing-user invite email to ${this.maskEmail(to)}`,
+    );
+
+    const dashboardUrl = `${this.appCfg.clientUrl}/dashboard`;
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_EXISTING_USER, {
+      firstName,
+      inviterName,
+      inverterName,
+      role,
+      dashboardUrl,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `${inviterName} added you to ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Existing-user invite email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Existing-user invite email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
 
   private async handleTeamInviteAccepted(
-    _job: Job<TeamInviteAcceptedJobData>,
-  ): Promise<void> {}
+    job: Job<TeamInviteAcceptedJobData>,
+  ): Promise<void> {
+    const { to, firstName, inverterName, role } = job.data;
+    this.logger.log(
+      `Sending invite-accepted confirmation email to ${this.maskEmail(to)}`,
+    );
+
+    const roleDescriptions: Record<string, { label: string; description: string }> = {
+      inverter_admin: {
+        label: 'Admin',
+        description:
+          'As an Admin you have full access — dashboard, alerts, reports, settings, and team management.',
+      },
+      inverter_technician: {
+        label: 'Technician',
+        description:
+          'As a Technician you can view the dashboard and alerts for diagnostics and monitoring.',
+      },
+      inverter_viewer: {
+        label: 'Viewer',
+        description:
+          'As a Viewer you have read-only access to the dashboard and relevant reports.',
+      },
+    };
+
+    const { label: roleLabel, description: roleDescription } =
+      roleDescriptions[role] ?? {
+        label: role,
+        description: `You have been granted access as ${role}.`,
+      };
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
+      firstName,
+      inverterName,
+      roleLabel,
+      roleDescription,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `You now have access to ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Invite-accepted email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Invite-accepted email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
 
   private renderTemplate(
     name: string,
