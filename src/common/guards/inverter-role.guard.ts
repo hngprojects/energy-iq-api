@@ -8,6 +8,7 @@ import { Request } from 'express';
 import { AuthenticatedUser } from '../decorators/current-user.decorator';
 import { InverterMemberModelAction } from '../../modules/team-access/action/inverter-member.action';
 import {
+  INVERTER_ROLE_RANK,
   InverterMemberStatus,
   InverterRole,
 } from '../enums/inverter-role.enum';
@@ -15,7 +16,7 @@ import { SYS_MSG } from '../constants/sys-msg';
 import { Reflector } from '@nestjs/core';
 import { INVERTER_ROLES_KEY } from '../decorators/inverter-roles.decorator';
 import { InvertersService } from '../../modules/inverters/inverters.service';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { IS_INVERTER_OUTSIDER_KEY } from '../decorators/inverter-outsider.decorator';
 
 @Injectable()
 export class InverterRoleGuard implements CanActivate {
@@ -30,13 +31,14 @@ export class InverterRoleGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { user?: AuthenticatedUser }>();
 
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+    const isInverterOutsider = this.reflector.getAllAndOverride<boolean>(IS_INVERTER_OUTSIDER_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
+    if (isInverterOutsider) return true;
 
     const inverterId = request.params['inverterId'].toString();
+    console.log("InvertedId: ", inverterId);
     if (!inverterId) return false;
     const user = request.user;
     if (!user) return false;
@@ -63,6 +65,9 @@ export class InverterRoleGuard implements CanActivate {
       return true;
     }
 
-    return requiredRoles.some((role) => inverterMember.role === role);
+    const memberRank = INVERTER_ROLE_RANK[inverterMember.role];
+    return requiredRoles.some(
+      (role) => memberRank >= INVERTER_ROLE_RANK[role],
+    );
   }
 }
