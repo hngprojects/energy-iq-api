@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import type { StringValue } from 'ms';
@@ -11,6 +11,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { EmailModule } from '../email/email.module';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { TeamAccessModule } from '../team-access/team-access.module';
+import { InvertersModule } from '../inverters/inverters.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { TeamAccessModule } from '../team-access/team-access.module';
     }),
     UsersModule,
     EmailModule,
-    TeamAccessModule,
+    forwardRef(() => TeamAccessModule),
+    InvertersModule
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy],

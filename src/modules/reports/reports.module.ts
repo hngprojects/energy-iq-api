@@ -20,8 +20,8 @@ import { UploadedReport } from './entities/uploaded-report.entity';
   imports: [
     TypeOrmModule.forFeature([Report, UploadedReport]),
     BullModule.registerQueue({ name: QUEUES.REPORT_DISPATCH }),
-    InvertersModule,
-    UsersModule,
+    forwardRef(() => InvertersModule),
+    forwardRef(() => UsersModule),
     InvertersMetricsModule,
     AlertsModule,
     forwardRef(() => EmailModule),

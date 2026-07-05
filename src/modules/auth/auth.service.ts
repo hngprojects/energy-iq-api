@@ -39,6 +39,7 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { registerFromInviteDto } from './dto/register-from-invite.dto';
 import { TeamAccessService } from '../team-access/team-access.service';
 import { InverterRole } from '../../common/enums/inverter-role.enum';
+import { InvertersService } from '../inverters/inverters.service';
 
 export interface AuthTokens {
   accessToken: string;
@@ -53,6 +54,7 @@ export interface InverterAccess {
 export interface AuthResponse extends AuthTokens {
   user: PublicUser;
   sessionId: string;
+  inverterAccess?: InverterAccess[]
 }
 
 @Injectable()
@@ -71,6 +73,7 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
     private readonly teamAccessService: TeamAccessService,
+    private readonly invertersService: InvertersService,
   ) {
     this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
   }
@@ -118,7 +121,7 @@ export class AuthService {
       '',
       invite.role,
     );
-    await this.teamAccessService.activateMembership(invite);
+    await this.teamAccessService.activateMembership(invite, user.id);
 
     const session = await this.usersService.createSession(user.id, sessionDto);
 
@@ -145,7 +148,7 @@ export class AuthService {
       user.email,
     );
 
-    await this.teamAccessService.activateMembership(invite);
+    await this.teamAccessService.activateMembership(invite, user.id);
     // Send invite accept email
     await this.emailService.sendTeamInviteAcceptedEmail(
       user.email,
@@ -511,8 +514,29 @@ export class AuthService {
     }
   }
 
-  async getProfile(userId: string): Promise<User> {
-    return this.usersService.findOne(userId);
+  async getProfile(userId: string): Promise<{
+    user: User,
+    inverterAccess?: InverterAccess[]
+  }> {
+    const user = await this.usersService.findOne(userId);
+    const ownedInverters = await this.invertersService.findByUserId(user.id);
+    const inverterMemberships = await this.teamAccessService.getUserMemberships(user.id);
+
+    const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
+      inverterId: inv.id,
+      role: InverterRole.OWNER,
+    }));
+
+    const membershipsAccess: InverterAccess[] = inverterMemberships.map((mem) => ({
+      inverterId: mem.inverterId,
+      role: mem.role
+    }));
+
+    const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
+
+    return {
+      user, inverterAccess
+    }
   }
 
   private async issueTokens(
@@ -522,7 +546,22 @@ export class AuthService {
     const tokens = await this.signTokens(user, session);
     await this.persistRefreshToken(session.id, tokens.refreshToken);
 
-    return { ...tokens, user: this.toPublicUser(user), sessionId: session.id };
+    const ownedInverters = await this.invertersService.findByUserId(user.id);
+    const inverterMemberships = await this.teamAccessService.getUserMemberships(user.id);
+
+    const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
+      inverterId: inv.id,
+      role: InverterRole.OWNER,
+    }));
+
+    const membershipsAccess: InverterAccess[] = inverterMemberships.map((mem) => ({
+      inverterId: mem.inverterId,
+      role: mem.role
+    }));
+
+    const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
+
+    return { ...tokens, user: this.toPublicUser(user), sessionId: session.id, inverterAccess };
   }
 
   private async signTokens(user: User, session: Session): Promise<AuthTokens> {
