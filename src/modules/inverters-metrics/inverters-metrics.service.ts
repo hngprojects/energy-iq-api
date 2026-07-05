@@ -258,12 +258,16 @@ export class InvertersMetricsService {
   // ENDPOINT 2 — Power Consumption (placeholder)
   getPowerConsumption(_inverterId: string): void {}
 
-  async getEnergyUsageHttp(inverterId: string, period: 'hourly' | 'daily' | 'weekly' | 'monthly', userId: string) {
+  async getEnergyUsageHttp(
+    inverterId: string,
+    period: 'hourly' | 'daily' | 'weekly' | 'monthly',
+    userId: string,
+  ) {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    await this.validateRequestingUser(inverter, userId)
+    await this.validateRequestingUser(inverter, userId);
   }
 
   async getEnergyUsage(
