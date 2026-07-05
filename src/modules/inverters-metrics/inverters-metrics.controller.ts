@@ -53,8 +53,9 @@ export class InvertersMetricsController {
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
     @Query('period')
     period: 'hourly' | 'daily' | 'weekly' | 'monthly' = 'daily',
+    @CurrentUser('sub') userId: string
   ) {
-    return this.metricsService.getEnergyUsage(inverterId, period);
+    return this.metricsService.getEnergyUsageHttp(inverterId, period, userId);
   }
 
   @Get(':inverterId/savings')

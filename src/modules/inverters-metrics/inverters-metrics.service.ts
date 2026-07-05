@@ -258,6 +258,14 @@ export class InvertersMetricsService {
   // ENDPOINT 2 — Power Consumption (placeholder)
   getPowerConsumption(_inverterId: string): void {}
 
+  async getEnergyUsageHttp(inverterId: string, period: 'hourly' | 'daily' | 'weekly' | 'monthly', userId: string) {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    await this.validateRequestingUser(inverter, userId)
+  }
+
   async getEnergyUsage(
     inverterId: string,
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
@@ -835,8 +843,9 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    // if (inverter.userId !== userId)
+    //   throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    await this.validateRequestingUser(inverter, userId);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -1005,8 +1014,9 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    // if (inverter.userId !== userId)
+    //   throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    await this.validateRequestingUser(inverter, userId);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
