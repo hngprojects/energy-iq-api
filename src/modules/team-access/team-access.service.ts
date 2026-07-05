@@ -39,7 +39,7 @@ export class TeamAccessService {
         dto.email,
       );
 
-    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
+    if (existing) throw new ConflictException("Pending invite or membership exists for this user");
 
     const inverter = await this.invertersService.findOne(inverterId);
     const inviter = await this.usersService.findOne(invitedById);
@@ -58,7 +58,7 @@ export class TeamAccessService {
           status: InverterMemberStatus.INVITED,
           invitedById,
           inviteToken,
-          inviteTokenExpiresAt: new Date(INVITE_TTL_MS),
+          inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
         },
       });
 
@@ -88,7 +88,7 @@ export class TeamAccessService {
         status: InverterMemberStatus.INVITED,
         invitedById,
         inviteToken,
-        inviteTokenExpiresAt: new Date(INVITE_TTL_MS),
+        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
       },
     });
 
@@ -105,6 +105,24 @@ export class TeamAccessService {
     );
 
     return member;
+  }
+
+  async refreshUserInvite(inviteId: string, inverterId: string): Promise<InverterMember> {
+    console.log("Refreshing...")
+    const newToken = randomUUID();
+
+    const updated = await this.inverterMemberModelAction.update({
+      ...noTransaction(),
+      identifierOptions: { id: inviteId, status: InverterMemberStatus.INVITED, inverterId },
+      updatePayload: {
+        inviteToken: newToken,
+        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS)
+      }
+    });
+
+    if (!updated) throw new NotFoundException("No invite exists with this id or user already accepted");
+
+    return updated;
   }
 
   async findInviteByTokenAndEmail(
@@ -129,7 +147,7 @@ export class TeamAccessService {
     return member;
   }
 
-  async activateMembership(invite: InverterMember): Promise<void> {
+  async activateMembership(invite: InverterMember, userId: string): Promise<void> {
     const updated = await this.inverterMemberModelAction.update({
       ...noTransaction(),
       identifierOptions: { id: invite.id },
@@ -139,6 +157,7 @@ export class TeamAccessService {
           Date.now() < invite.inviteTokenExpiresAt.getTime() && {
             inviteTokenExpiresAt: new Date(Date.now()),
           }),
+        userId,
       },
     });
 
@@ -161,9 +180,9 @@ export class TeamAccessService {
     return members.payload;
   }
 
-  async getMember(inverterId: string, userId: string): Promise<InverterMember> {
+  async getMember(inverterId: string, memberId: string): Promise<InverterMember> {
     const member = await this.inverterMemberModelAction.get({
-      identifierOptions: { inverterId, userId },
+      identifierOptions: { inverterId, id: memberId },
     });
     if (!member)
       throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
@@ -186,12 +205,28 @@ export class TeamAccessService {
     return invites.payload
   }
 
+  async getUserMemberships(userId: string): Promise<InverterMember[]> {
+    const invites = await this.inverterMemberModelAction.find({
+        ...noTransaction(),
+        findOptions: {
+            userId,
+            status: InverterMemberStatus.ACTIVE
+        },
+        paginationPayload: {
+            page: 1,
+            limit: 100,
+        },
+    });
+
+    return invites.payload
+  }
+
   async updateMemberRole(
     inverterId: string,
-    userId: string,
+    memberId: string,
     role: InverterRole,
   ): Promise<InverterMember> {
-    const member = await this.getMember(inverterId, userId);
+    const member = await this.getMember(inverterId, memberId);
 
     const updated = await this.inverterMemberModelAction.update({
       ...noTransaction(),
@@ -204,8 +239,8 @@ export class TeamAccessService {
     return updated;
   }
 
-  async revokeMemberAccess(inverterId: string, userId: string): Promise<void> {
-    const member = await this.getMember(inverterId, userId);
+  async revokeMemberAccess(inverterId: string, memberId: string): Promise<void> {
+    const member = await this.getMember(inverterId, memberId);
     await this.inverterMemberModelAction.update({
       ...noTransaction(),
       identifierOptions: { id: member.id },

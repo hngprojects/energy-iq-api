@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TeamAccessService } from './team-access.service';
 import { TeamAccessController } from './team-access.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,10 +11,9 @@ import { EmailModule } from '../email/email.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([InverterMember]),
-    InvertersModule,
-    UsersModule,
+    forwardRef(() => InvertersModule),
+    forwardRef(() => UsersModule),
     EmailModule,
-    InvertersModule,
   ],
   providers: [TeamAccessService, InverterMemberModelAction],
   controllers: [TeamAccessController],

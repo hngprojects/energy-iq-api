@@ -11,7 +11,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InverterRoleGuard } from '../../common/guards/inverter-role.guard';
 import { InverterRoles } from '../../common/decorators/inverter-roles.decorator';
 import { InverterRole } from '../../common/enums/inverter-role.enum';
@@ -19,13 +19,34 @@ import { TeamAccessService } from './team-access.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
-import { Public } from '../../common/decorators/public.decorator';
+import { InverterOutsider } from '../../common/decorators/inverter-outsider.decorator';
 
+@ApiTags('Team Access')
 @ApiBearerAuth()
 @UseGuards(InverterRoleGuard)
 @Controller('team-access')
 export class TeamAccessController {
   constructor(private readonly teamAccessService: TeamAccessService) {}
+
+  @InverterOutsider()
+  @Get('invites')
+  @ApiOperation({ summary: 'Get all invites for a user' })
+  @HttpCode(HttpStatus.OK)
+  getUserInvites(
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.teamAccessService.getUserInvites(userId);
+  }
+
+  @InverterOutsider()
+  @Get('memberships')
+  @ApiOperation({ summary: 'Get all invites for a user' })
+  @HttpCode(HttpStatus.OK)
+  getUserMemberships(
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.teamAccessService.getUserMemberships(userId);
+  }
 
   @InverterRoles(InverterRole.ADMIN)
   @Post(':inverterId/invite')
@@ -48,50 +69,51 @@ export class TeamAccessController {
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Get(':inverterId/:userId')
+  @Get(':inverterId/:memberId')
   @ApiOperation({ summary: 'Get one member' })
   @HttpCode(HttpStatus.OK)
   getMember(
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
-    return this.teamAccessService.getMember(inverterId, userId);
+    return this.teamAccessService.getMember(inverterId, memberId);
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Patch(':inverterId/:userId')
+  @Patch(':inverterId/:memberId')
   @ApiOperation({ summary: 'update a user role' })
   @HttpCode(HttpStatus.OK)
   updateMemberRole(
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
     return this.teamAccessService.updateMemberRole(
       inverterId,
-      userId,
+      memberId,
       dto.role,
     );
   }
 
   @InverterRoles(InverterRole.ADMIN)
-  @Delete(':inverterId/:userId')
+  @Delete(':inverterId/:memberId')
   @ApiOperation({ summary: "Revoke a user's access" })
   @HttpCode(HttpStatus.OK)
   revokeUserAccess(
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
-    @Param('userId', ParseUUIDPipe) userId: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
-    return this.teamAccessService.revokeMemberAccess(inverterId, userId);
+    return this.teamAccessService.revokeMemberAccess(inverterId, memberId);
   }
 
-  @Public()
-  @Get('invites')
-  @ApiOperation({ summary: 'Get all invites for a user' })
+  @InverterRoles(InverterRole.ADMIN)
+  @Post(':inverterId/:inviteId')
+  @ApiOperation({ summary: 'Refresh an invite if it has expired' })
   @HttpCode(HttpStatus.OK)
-  getUserInvites(
-    @CurrentUser('sub') userId: string,
+  refreshInvite(
+    @Param('inviteId') inviteId: string,
+    @Param('inverterId') inverterId: string,
   ) {
-    return this.teamAccessService.getUserInvites(userId);
+    return this.teamAccessService.refreshUserInvite(inviteId, inverterId);
   }
 }

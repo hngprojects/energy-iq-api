@@ -3,6 +3,8 @@ import { InverterMember } from '../entities/inverter-members.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { noTransaction } from '../../../common/constants/transaction-options';
+import { InverterMemberStatus } from '../../../common/enums/inverter-role.enum';
 
 @Injectable()
 export class InverterMemberModelAction extends AbstractModelAction<InverterMember> {
@@ -34,5 +36,28 @@ export class InverterMemberModelAction extends AbstractModelAction<InverterMembe
         email,
       },
     });
+  }
+
+  async findByEmail(email: string): Promise<InverterMember[]> {
+    const res = await this.find({
+      ...noTransaction(),
+      findOptions: {
+        email,
+      },
+      paginationPayload: {
+        page: 1, limit: 100
+      }
+    });
+
+    return res.payload
+  }
+
+  findInviteWithStatusByUserId(userId: string, status: InverterMemberStatus) {
+    return this.repository.find({
+      where: {
+        userId,
+        status
+      }
+    })
   }
 }
