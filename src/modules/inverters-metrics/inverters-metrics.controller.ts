@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -17,9 +18,11 @@ import {
   type AuthenticatedUser,
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
+import { InverterRoleGuard } from '../../common/guards/inverter-role.guard';
 
 @ApiTags('Inverter Metrics')
 @ApiBearerAuth()
+@UseGuards(InverterRoleGuard)
 @Controller({ path: 'inverter-metrics', version: '1' })
 export class InvertersMetricsController {
   constructor(private readonly metricsService: InvertersMetricsService) {}

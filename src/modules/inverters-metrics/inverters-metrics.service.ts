@@ -26,6 +26,8 @@ import {
 } from '../../common/enums/reports.type';
 import { CostSavingsReport, SolarReport } from '../reports/types/reports.type';
 import { Report } from '../reports/entities/report.entity';
+import { TeamAccessService } from '../team-access/team-access.service';
+import { Inverter } from '../inverters/entities/inverters.entity';
 
 type Period = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -45,6 +47,7 @@ export class InvertersMetricsService {
     @InjectRepository(UserSettings)
     private readonly userSettingsRepository: Repository<UserSettings>,
     private readonly inverterModelAction: InverterModelAction,
+    private readonly teamAccessService: TeamAccessService,
   ) {}
 
   /**
@@ -65,6 +68,16 @@ export class InvertersMetricsService {
         : 50;
   }
 
+  private async validateRequestingUser(inverter: Inverter, requestingUserId: string): Promise<void> {
+    const members = await this.teamAccessService.listMembers(inverter.id);
+    let allowedUsers = members.map((m) => m.userId).filter((m) => m !== undefined);
+    allowedUsers = [...allowedUsers, inverter.userId];
+
+    if (!allowedUsers.includes(requestingUserId)) {
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    }
+  }
+
   // ENDPOINT 1 — Dashboard Metrics
   async getDashboardMetrics(inverterId: string, requestingUserId: string) {
     const inverter = await this.inverterModelAction.get({
@@ -75,10 +88,8 @@ export class InvertersMetricsService {
       throw new NotFoundException(SYS_MSG.NOT_FOUND);
     }
 
-    // Ownership check — only the inverter owner can view its dashboard
-    if (inverter.userId !== requestingUserId) {
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
-    }
+    // If calling from outside, role guard already stopped it in its tracks
+    await this.validateRequestingUser(inverter, requestingUserId);
 
     const tz = 'Africa/Lagos';
 
