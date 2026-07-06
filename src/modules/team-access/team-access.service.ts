@@ -84,7 +84,12 @@ export class TeamAccessService {
   async refreshUserInvite(
     inviteId: string,
     inverterId: string,
+    userId: string,
   ): Promise<InverterMember> {
+    const [caller, inverter] = await Promise.all([
+      this.usersService.findOne(userId),
+      this.invertersService.findOne(inverterId),
+    ]);
     const newToken = randomUUID();
 
     const updated = await this.inverterMemberModelAction.update({
@@ -104,6 +109,22 @@ export class TeamAccessService {
       throw new NotFoundException(
         'No invite exists with this id or user already accepted',
       );
+
+    const inviterName = `${caller.firstName} ${caller.lastName}`;
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+
+    let existingUser: User | undefined = undefined;
+    if (updated.userId) {
+      existingUser = await this.usersService.findOne(updated.userId);
+    }
+    await this.sendInviteEmail(
+      updated.email,
+      updated.role,
+      updated.inviteToken,
+      inviterName,
+      inverterName,
+      existingUser,
+    );
 
     return updated;
   }
@@ -151,15 +172,17 @@ export class TeamAccessService {
   async listMembers(
     inverterId: string,
     page?: number,
+    limit?: number,
   ): Promise<InverterMember[]> {
     const members = await this.inverterMemberModelAction.find({
       ...noTransaction(),
       findOptions: {
         inverterId,
+        status: InverterMemberStatus.ACTIVE,
       },
       paginationPayload: {
         page: page ?? 1,
-        limit: 100,
+        limit: limit ?? 100,
       },
     });
 
@@ -272,25 +295,43 @@ export class TeamAccessService {
     const inverterName = `${inverter.brand} ${inverter.model}`;
 
     // Send email that user can now accept access
+    await this.sendInviteEmail(
+      member.email,
+      member.role,
+      member.inviteToken,
+      inviterName,
+      inverterName,
+      existingUser,
+    );
+
+    return member;
+  }
+
+  private async sendInviteEmail(
+    email: string,
+    role: InverterRole,
+    inviteToken: string,
+    inviterName: string,
+    inverterName: string,
+    existingUser?: User,
+  ): Promise<void> {
     if (existingUser) {
       await this.emailService.sendTeamInviteExistingUserEmail(
-        member.email,
+        email,
         existingUser.firstName,
         inviterName,
         inverterName,
-        dto.role,
-        member.inviteToken,
+        role,
+        inviteToken,
       );
     } else {
       await this.emailService.sendTeamInviteNewUserEmail(
-        member.email,
+        email,
         inviterName,
         inverterName,
-        dto.role,
-        member.inviteToken,
+        role,
+        inviteToken,
       );
     }
-
-    return member;
   }
 }
