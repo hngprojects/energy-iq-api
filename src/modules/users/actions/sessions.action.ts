@@ -61,4 +61,33 @@ export class SessionModelAction extends AbstractModelAction<Session> {
 
     return (result.affected ?? 0) > 0;
   }
+
+  async atomicallySwapFid(
+    sessionId: string,
+    userId: string,
+    token: string,
+  ): Promise<boolean> {
+    const now = new Date();
+    const result = await this.repository
+      .createQueryBuilder()
+      .update(Session)
+      .set({
+        deviceToken: token,
+        lastActivityAt: now,
+      })
+      .where(
+        `id = :id
+         AND user_id = :userId
+         AND is_active = true
+         AND expires_at > :now`,
+        {
+          id: sessionId,
+          userId,
+          now,
+        },
+      )
+      .execute();
+
+    return (result.affected ?? 0) > 0;
+  }
 }

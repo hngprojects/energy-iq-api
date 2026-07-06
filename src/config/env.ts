@@ -117,6 +117,25 @@ export const env = createEnv({
     CLOUDINARY_API_KEY: z.string().nonoptional(),
     CLOUDINARY_API_SECRET: z.string().nonoptional(),
     CLOUDINARY_RESOURCE_URL: z.url().default('https://res.cloudinary.com'),
+
+    // # Firebase Admin SDK
+    FIREBASE_PROJECT_ID: z.string().nonoptional(),
+    FIREBASE_CLIENT_EMAIL: z.email(),
+    FIREBASE_PRIVATE_KEY: z
+      .string()
+      .min(50, 'Key too short')
+      .refine(
+        (val) =>
+          val.includes('-----BEGIN RSA PRIVATE KEY-----') ||
+          val.includes('-----BEGIN PRIVATE KEY-----'),
+        { message: 'Invalid RSA private key format. Must be PEM' },
+      )
+      .refine(
+        (val) =>
+          val.includes('-----END RSA PRIVATE KEY-----') ||
+          val.includes('-----END PRIVATE KEY-----'),
+        { message: 'Invalid RSA private key format. Missing END header' },
+      ),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
