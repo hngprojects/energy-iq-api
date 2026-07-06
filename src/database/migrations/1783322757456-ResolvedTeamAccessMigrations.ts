@@ -26,7 +26,7 @@ export class ResolvedTeamAccessMigrations1783322757456 implements MigrationInter
       `DROP TYPE "public"."inverter_members_role_enum_old"`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_307d33f2236732c3831616d355" ON "inverter_members" ("inverter_id", "email") WHERE "status" != deactivated`,
+      `CREATE UNIQUE INDEX "IDX_307d33f2236732c3831616d355" ON "inverter_members" ("inverter_id", "email") WHERE "status" != 'deactivated'`,
     );
     await queryRunner.query(
       `ALTER TABLE "inverter_members" ADD CONSTRAINT "FK_a626669cf750724d142ccc06145" FOREIGN KEY ("invited_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE NO ACTION`,

@@ -10,7 +10,7 @@ import { User } from '../../users/entities/user.entity';
 @Entity('inverter_members')
 @Index(['inverterId', 'email'], {
   unique: true,
-  where: '"status" != deactivated',
+  where: `"status" != 'deactivated'`,
 })
 @Index(['inviteToken', 'email'])
 export class InverterMember extends AbstractBaseEntity {
@@ -33,7 +33,7 @@ export class InverterMember extends AbstractBaseEntity {
   })
   status: InverterMemberStatus;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', nullable: true })
   invitedById: string;
 
   @Column({ type: 'uuid' })
