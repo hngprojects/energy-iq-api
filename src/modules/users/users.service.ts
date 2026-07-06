@@ -250,6 +250,37 @@ export class UsersService {
     if (!updated) throw new NotFoundException(SYS_MSG.INVALID_SESSION_ID);
   }
 
+  async getUserDeviceTokens(userId: string): Promise<string[]> {
+    const sessionsResponse = await this.sessionModelAction.find({
+      ...noTransaction(),
+      findOptions: {
+        userId,
+      },
+      paginationPayload: {
+        page: 1,
+        limit: 100,
+      },
+    });
+    const sessions = sessionsResponse.payload;
+    const activeSessionTokens = sessions
+      .map((sess) => sess.deviceToken)
+      .filter((sess) => sess !== undefined);
+
+    return activeSessionTokens;
+  }
+
+  async setDeviceToken(
+    userId: string,
+    sessionId: string,
+    token: string,
+  ): Promise<boolean> {
+    return await this.sessionModelAction.atomicallySwapFid(
+      sessionId,
+      userId,
+      token,
+    );
+  }
+
   async setEmailVerified(id: string, emailVerified: boolean): Promise<void> {
     await this.userModelAction.update({
       ...noTransaction(),

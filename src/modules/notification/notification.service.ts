@@ -4,6 +4,7 @@ import { GetNotificationsDto } from './dto/get-notifications-dto';
 import { NotificationModelAction } from './actions/notification.action';
 import { noTransaction } from '../../common/constants/transaction-options';
 import { UsersService } from '../users/users.service';
+import { ProcessingStatus } from '../../common/constants/processing-status';
 
 @Injectable()
 export class NotificationService {
@@ -41,6 +42,22 @@ export class NotificationService {
     await this.usersService.findOne(userId);
 
     return userId;
+  }
+
+  async getActiveSessionsFids(userId: string): Promise<string[]> {
+    return await this.usersService.getUserDeviceTokens(userId);
+  }
+
+  async updatePushDeliveryStatus(
+    notificationId: string,
+    userId: string,
+    status: ProcessingStatus,
+  ) {
+    return await this.notificationAction.updateNotification(
+      notificationId,
+      userId,
+      { pushDeliveryStatus: status },
+    );
   }
 
   async markAsRead(notificationId: string, userId: string) {
