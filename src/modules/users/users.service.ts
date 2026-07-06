@@ -47,11 +47,15 @@ export class UsersService {
     private readonly sessionModelAction: SessionModelAction,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  private async validateAndHashPassword(dto: CreateUserDto): Promise<string> {
     const existing = await this.userModelAction.findByEmail(dto.email);
     if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
 
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    return await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+  }
+
+  async create(dto: CreateUserDto): Promise<User> {
+    const passwordHash = await this.validateAndHashPassword(dto);
     return this.userModelAction.create({
       ...noTransaction(),
       createPayload: {
@@ -67,10 +71,7 @@ export class UsersService {
   }
 
   async createTeamInvitedUser(dto: CreateUserDto): Promise<User> {
-    const existing = await this.userModelAction.findByEmail(dto.email);
-    if (existing) throw new ConflictException(SYS_MSG.CONFLICT);
-
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const passwordHash = await this.validateAndHashPassword(dto);
     return this.userModelAction.create({
       ...noTransaction(),
       createPayload: {

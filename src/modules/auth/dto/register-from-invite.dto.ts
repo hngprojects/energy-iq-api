@@ -7,7 +7,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-export class registerFromInviteDto {
+export class RegisterFromInviteDto {
   @ApiProperty({
     description: 'Invite token generated for that invite',
   })

@@ -33,7 +33,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { SYS_MSG } from '../../common/constants/sys-msg';
-import { registerFromInviteDto } from './dto/register-from-invite.dto';
+import { RegisterFromInviteDto } from './dto/register-from-invite.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 
 @ApiTags('Auth')
@@ -56,9 +56,9 @@ export class AuthController {
   @Public()
   @Post('invite-register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new user from am invite' })
+  @ApiOperation({ summary: 'Register a new user from an invite' })
   registerFromInvite(
-    @Body() dto: registerFromInviteDto,
+    @Body() dto: RegisterFromInviteDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -175,7 +175,9 @@ export class AuthController {
   }
 
   @Post('accept-invite')
-  @ApiOperation({ summary: '' })
+  @ApiOperation({
+    summary: 'Accept a team invite as an existing, authenticated user',
+  })
   @ApiBearerAuth()
   acceptInvite(
     @CurrentUser('sub') userId: string,

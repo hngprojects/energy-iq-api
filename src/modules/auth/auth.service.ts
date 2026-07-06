@@ -36,7 +36,7 @@ import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
 import { Session } from '../users/entities/sessions.entity';
 import * as crypto from 'crypto';
 import { CreateSessionDto } from './dto/create-session.dto';
-import { registerFromInviteDto } from './dto/register-from-invite.dto';
+import { RegisterFromInviteDto } from './dto/register-from-invite.dto';
 import { TeamAccessService } from '../team-access/team-access.service';
 import { InverterRole } from '../../common/enums/inverter-role.enum';
 import { InvertersService } from '../inverters/inverters.service';
@@ -91,7 +91,7 @@ export class AuthService {
   }
 
   async registerFromInvite(
-    dto: registerFromInviteDto,
+    dto: RegisterFromInviteDto,
     res: Response,
     sessionDto: CreateSessionDto,
   ): Promise<Omit<AuthResponse, 'refreshToken'>> {
@@ -107,6 +107,8 @@ export class AuthService {
       password: dto.password,
     });
 
+    const inverter = await this.invertersService.findOne(invite.inverterId);
+    const inverterName = `${inverter.brand} ${inverter.model}`;
     /**
      * A user getting the inviteToken from their email is equivalent
      * to the user checking an OTP and verifying their email, it serves
@@ -114,14 +116,14 @@ export class AuthService {
      * (sending welcome email).
      */
     await this.sendWelcomeEmail(user);
+    await this.teamAccessService.activateMembership(invite, user.id);
     // Send invite accept email
     await this.emailService.sendTeamInviteAcceptedEmail(
       user.email,
       user.firstName,
-      '',
+      inverterName,
       invite.role,
     );
-    await this.teamAccessService.activateMembership(invite, user.id);
 
     const session = await this.usersService.createSession(user.id, sessionDto);
 
@@ -129,7 +131,7 @@ export class AuthService {
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: this.appCfg.nodeEnv !== 'development',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/api/v1/auth/refresh',
@@ -148,12 +150,15 @@ export class AuthService {
       user.email,
     );
 
+    const inverter = await this.invertersService.findOne(invite.inverterId);
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+
     await this.teamAccessService.activateMembership(invite, user.id);
     // Send invite accept email
     await this.emailService.sendTeamInviteAcceptedEmail(
       user.email,
       user.firstName,
-      '',
+      inverterName,
       invite.role,
     );
 
@@ -514,15 +519,12 @@ export class AuthService {
     }
   }
 
-  async getProfile(userId: string): Promise<{
-    user: User;
-    inverterAccess?: InverterAccess[];
-  }> {
-    const user = await this.usersService.findOne(userId);
-    const ownedInverters = await this.invertersService.findByUserId(user.id);
-    const inverterMemberships = await this.teamAccessService.getUserMemberships(
-      user.id,
-    );
+  private async computeInverterAccess(
+    userId: string,
+  ): Promise<InverterAccess[]> {
+    const ownedInverters = await this.invertersService.findByUserId(userId);
+    const inverterMemberships =
+      await this.teamAccessService.getUserMemberships(userId);
 
     const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
       inverterId: inv.id,
@@ -536,7 +538,16 @@ export class AuthService {
       }),
     );
 
-    const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
+    return [...userOwnedAccess, ...membershipsAccess];
+  }
+
+  async getProfile(userId: string): Promise<{
+    user: User;
+    inverterAccess?: InverterAccess[];
+  }> {
+    const user = await this.usersService.findOne(userId);
+
+    const inverterAccess = await this.computeInverterAccess(userId);
 
     return {
       user,
@@ -551,24 +562,7 @@ export class AuthService {
     const tokens = await this.signTokens(user, session);
     await this.persistRefreshToken(session.id, tokens.refreshToken);
 
-    const ownedInverters = await this.invertersService.findByUserId(user.id);
-    const inverterMemberships = await this.teamAccessService.getUserMemberships(
-      user.id,
-    );
-
-    const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
-      inverterId: inv.id,
-      role: InverterRole.OWNER,
-    }));
-
-    const membershipsAccess: InverterAccess[] = inverterMemberships.map(
-      (mem) => ({
-        inverterId: mem.inverterId,
-        role: mem.role,
-      }),
-    );
-
-    const inverterAccess = [...userOwnedAccess, ...membershipsAccess];
+    const inverterAccess = await this.computeInverterAccess(user.id);
 
     return {
       ...tokens,

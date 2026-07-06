@@ -262,18 +262,27 @@ export class InvertersMetricsService {
     inverterId: string,
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
     userId: string,
-  ) {
+  ): ReturnType<typeof this.getEnergyUsage> {
     const inverter = await this.inverterModelAction.get({
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     await this.validateRequestingUser(inverter, userId);
+    return this.getEnergyUsage(inverterId, period);
   }
 
   async getEnergyUsage(
     inverterId: string,
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
-  ) {
+  ): Promise<{
+    period: 'hourly' | 'daily' | 'weekly' | 'monthly';
+    data: {
+      date: string;
+      solarKwh: number;
+      avgBatterySoc: number;
+      avgLoadKw: number;
+    }[];
+  }> {
     if (!['hourly', 'daily', 'weekly', 'monthly'].includes(period)) {
       throw new BadRequestException(SYS_MSG.BAD_REQUEST);
     }
@@ -1150,8 +1159,8 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
+
+    await this.validateRequestingUser(inverter, userId);
 
     if (startDate >= endDate) {
       throw new BadRequestException('startDate must be before endDate');
