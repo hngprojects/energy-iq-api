@@ -233,7 +233,6 @@ export class InvertersService {
 
   async findByUserId(userId: string): Promise<Inverter[]> {
     const inverters = await this.inverterModelAction.findActiveByUserId(userId);
-    if (!inverters?.length) throw new NotFoundException(SYS_MSG.NOT_FOUND);
     return inverters;
   }
 

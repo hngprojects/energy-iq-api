@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ParseUUIDPipe } from '@nestjs/common/pipes/parse-uuid.pipe';
 import {
@@ -7,6 +15,9 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { InverterConnectorDto } from './dto/inverter-connector.dto';
 import { InvertersService } from './inverters.service';
+import { InverterRoleGuard } from '../../common/guards/inverter-role.guard';
+import { InverterRoles } from '../../common/decorators/inverter-roles.decorator';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
 
 @ApiTags('Inverters')
 @ApiBearerAuth()
@@ -35,18 +46,22 @@ export class InvertersController {
     return this.invertersService.getSupportedInverterBrands();
   }
 
-  @Patch(':id/deactivate')
+  @InverterRoles(InverterRole.OWNER)
+  @UseGuards(InverterRoleGuard)
+  @Patch(':inverterId/deactivate')
   @ApiOperation({ summary: 'Deactivate an inverter (owner only)' })
   deactivate(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('inverterId', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.invertersService.deactivateInverter(id, user.sub);
   }
 
-  @Get(':id')
+  @InverterRoles(InverterRole.VIEWER)
+  @UseGuards(InverterRoleGuard)
+  @Get(':inverterId')
   @ApiOperation({ summary: 'Get a single inverter by ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  findOne(@Param('inverterId', ParseUUIDPipe) id: string) {
     return this.invertersService.findOne(id);
   }
 }

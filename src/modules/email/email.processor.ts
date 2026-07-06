@@ -15,6 +15,9 @@ import {
   AlertNotificationJobData,
   WaitlistJoinedJobData,
   SendReportJobData,
+  TeamInviteNewUserJobData,
+  TeamInviteExistingUserJobData,
+  TeamInviteAcceptedJobData,
 } from './email.jobs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -24,6 +27,33 @@ import { AlertSeverity } from '../../common/enums';
 import { ReportsService } from '../reports/reports.service';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { ReportStatus } from '../../common/enums/reports.type';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
+
+const INVERTER_ROLE_DESCRIPTIONS: Record<
+  InverterRole,
+  { label: string; description: string }
+> = {
+  [InverterRole.OWNER]: {
+    label: 'Owner',
+    description:
+      'As the owner you have full access - dashboard, alerts, reports, settings, team management, and you can delete the inverter',
+  },
+  [InverterRole.ADMIN]: {
+    label: 'Admin',
+    description:
+      'As an Admin you have full access — dashboard, alerts, reports, settings, and team management.',
+  },
+  [InverterRole.TECHNICIAN]: {
+    label: 'Technician',
+    description:
+      'As a Technician you can view the dashboard and alerts for diagnostics and monitoring.',
+  },
+  [InverterRole.VIEWER]: {
+    label: 'Viewer',
+    description:
+      'As a Viewer you have read-only access to the dashboard and relevant reports.',
+  },
+};
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -65,6 +95,16 @@ export class EmailProcessor extends WorkerHost {
         return this.handleWaitlistJoined(job as Job<WaitlistJoinedJobData>);
       case EMAIL_JOBS.SEND_REPORT:
         return this.handleSendReport(job as Job<SendReportJobData>);
+      case EMAIL_JOBS.TEAM_INVITE_NEW_USER:
+        return this.handleInviteNewUser(job as Job<TeamInviteNewUserJobData>);
+      case EMAIL_JOBS.TEAM_INVITE_EXISTING_USER:
+        return this.handleInviteExistingUser(
+          job as Job<TeamInviteExistingUserJobData>,
+        );
+      case EMAIL_JOBS.TEAM_INVITE_ACCEPTED:
+        return this.handleTeamInviteAccepted(
+          job as Job<TeamInviteAcceptedJobData>,
+        );
       default: {
         const message = `Unknown job type: ${job.name}`;
         this.logger.warn(message);
@@ -438,6 +478,130 @@ export class EmailProcessor extends WorkerHost {
     }
 
     this.logger.log(`Pdf report successfully sent to ${this.maskEmail(to)}`);
+  }
+
+  private async handleInviteNewUser(
+    job: Job<TeamInviteNewUserJobData>,
+  ): Promise<void> {
+    const { to, inviterName, inverterName, role, inviteToken } = job.data;
+    this.logger.log(`Sending new-user invite email to ${this.maskEmail(to)}`);
+
+    const acceptInviteUrl = `${this.appCfg.clientUrl}/accept-invite?token=${inviteToken}`;
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_NEW_USER, {
+      inviterName,
+      inverterName,
+      role,
+      acceptInviteUrl,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `${inviterName} invited you to join ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `New-user invite email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `New-user invite email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
+
+  private async handleInviteExistingUser(
+    job: Job<TeamInviteExistingUserJobData>,
+  ): Promise<void> {
+    const { to, firstName, inviterName, inverterName, role, inviteToken } =
+      job.data;
+    this.logger.log(
+      `Sending existing-user invite email to ${this.maskEmail(to)}`,
+    );
+
+    const dashboardUrl = `${this.appCfg.clientUrl}/invites/${inviteToken}`;
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_EXISTING_USER, {
+      firstName,
+      inviterName,
+      inverterName,
+      role,
+      dashboardUrl,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `${inviterName} added you to ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Existing-user invite email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Existing-user invite email sent successfully to ${this.maskEmail(to)}`,
+    );
+  }
+
+  private async handleTeamInviteAccepted(
+    job: Job<TeamInviteAcceptedJobData>,
+  ): Promise<void> {
+    const { to, firstName, inverterName, role } = job.data;
+    this.logger.log(
+      `Sending invite-accepted confirmation email to ${this.maskEmail(to)}`,
+    );
+
+    const { label: roleLabel, description: roleDescription } =
+      INVERTER_ROLE_DESCRIPTIONS[role] ?? {
+        label: role,
+        description: `You have been granted access as ${role}.`,
+      };
+
+    const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
+      firstName,
+      inverterName,
+      roleLabel,
+      roleDescription,
+    });
+
+    const fromAddress = this.appCfg.resendFrom;
+    const { error } = await this.resend.emails.send({
+      from: `Energy IQ <${fromAddress}>`,
+      to,
+      subject: `You now have access to ${inverterName} on EnergyIQ`,
+      html,
+    });
+
+    if (error) {
+      this.logger.error(
+        `Invite-accepted email failed for ${this.maskEmail(to)}`,
+        error.name,
+        error.message,
+        error.statusCode,
+      );
+      throw new Error(error.message);
+    }
+
+    this.logger.log(
+      `Invite-accepted email sent successfully to ${this.maskEmail(to)}`,
+    );
   }
 
   private renderTemplate(
