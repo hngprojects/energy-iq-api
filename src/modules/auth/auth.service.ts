@@ -387,11 +387,15 @@ export class AuthService {
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const bodyRefreshToken = this.setRefreshToken(res, newRefreshToken, isMobile);
+    const bodyRefreshToken = this.setRefreshToken(
+      res,
+      newRefreshToken,
+      isMobile,
+    );
 
     return {
       ...tokens,
-      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken })
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
     };
   }
 
@@ -495,7 +499,11 @@ export class AuthService {
     );
   }
 
-  private setRefreshToken(res: Response, refreshToken: string, isMobile: boolean,): string | undefined {
+  private setRefreshToken(
+    res: Response,
+    refreshToken: string,
+    isMobile: boolean,
+  ): string | undefined {
     if (isMobile) {
       return refreshToken;
     }

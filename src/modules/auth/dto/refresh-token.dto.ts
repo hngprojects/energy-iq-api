@@ -10,8 +10,8 @@ export class RefreshTokenDto {
   sessionId: string;
 
   @ApiProperty({
-    name: 'refresh token',
-    description: 'raw refresh token, if the client is mobile'
+    name: 'refreshToken',
+    description: 'raw refresh token, if the client is mobile',
   })
   @IsOptional()
   @IsString()
