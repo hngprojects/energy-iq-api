@@ -214,6 +214,7 @@ describe('TeamAccessController — RBAC', () => {
       expect(mockTeamAccessService.refreshUserInvite).toHaveBeenCalledWith(
         MEMBER_ID,
         INVERTER_ID,
+        undefined,
       );
     });
 
@@ -221,6 +222,8 @@ describe('TeamAccessController — RBAC', () => {
       await agent(allowedApp).get(`/team-access/${INVERTER_ID}`).expect(200);
       expect(mockTeamAccessService.listMembers).toHaveBeenCalledWith(
         INVERTER_ID,
+        undefined,
+        undefined,
       );
     });
 

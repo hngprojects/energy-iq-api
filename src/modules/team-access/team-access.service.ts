@@ -84,7 +84,12 @@ export class TeamAccessService {
   async refreshUserInvite(
     inviteId: string,
     inverterId: string,
+    userId: string,
   ): Promise<InverterMember> {
+    const [caller, inverter] = await Promise.all([
+      this.usersService.findOne(userId),
+      this.invertersService.findOne(inverterId),
+    ]);
     const newToken = randomUUID();
 
     const updated = await this.inverterMemberModelAction.update({
@@ -104,6 +109,29 @@ export class TeamAccessService {
       throw new NotFoundException(
         'No invite exists with this id or user already accepted',
       );
+
+    const inviterName = `${caller.firstName} ${caller.lastName}`;
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+
+    if (updated.userId) {
+      const existingUser = await this.usersService.findOne(updated.userId);
+      await this.emailService.sendTeamInviteExistingUserEmail(
+        updated.email,
+        existingUser.firstName,
+        inviterName,
+        inverterName,
+        updated.role,
+        updated.inviteToken,
+      );
+    } else {
+      await this.emailService.sendTeamInviteNewUserEmail(
+        updated.email,
+        inviterName,
+        inverterName,
+        updated.role,
+        updated.inviteToken,
+      );
+    }
 
     return updated;
   }
@@ -151,15 +179,17 @@ export class TeamAccessService {
   async listMembers(
     inverterId: string,
     page?: number,
+    limit?: number,
   ): Promise<InverterMember[]> {
     const members = await this.inverterMemberModelAction.find({
       ...noTransaction(),
       findOptions: {
         inverterId,
+        status: InverterMemberStatus.ACTIVE,
       },
       paginationPayload: {
         page: page ?? 1,
-        limit: 100,
+        limit: limit ?? 100,
       },
     });
 

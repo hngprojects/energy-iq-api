@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { InviteMemberDto } from './dto/invite-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { InverterOutsider } from '../../common/decorators/inverter-outsider.decorator';
+import { ListMembersDto } from './dto/list-members.dto';
 
 @ApiTags('Team Access')
 @ApiBearerAuth()
@@ -63,16 +65,28 @@ export class TeamAccessController {
   refreshInvite(
     @Param('inviteId', ParseUUIDPipe) inviteId: string,
     @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @CurrentUser('sub') userId: string,
   ) {
-    return this.teamAccessService.refreshUserInvite(inviteId, inverterId);
+    return this.teamAccessService.refreshUserInvite(
+      inviteId,
+      inverterId,
+      userId,
+    );
   }
 
   @InverterRoles(InverterRole.ADMIN)
   @Get(':inverterId')
   @ApiOperation({ summary: 'List members' })
   @HttpCode(HttpStatus.OK)
-  listMembers(@Param('inverterId', ParseUUIDPipe) inverterId: string) {
-    return this.teamAccessService.listMembers(inverterId);
+  listMembers(
+    @Param('inverterId', ParseUUIDPipe) inverterId: string,
+    @Query() dto: ListMembersDto,
+  ) {
+    return this.teamAccessService.listMembers(
+      inverterId,
+      dto.page,
+      dto.pageSize,
+    );
   }
 
   @InverterRoles(InverterRole.ADMIN)
