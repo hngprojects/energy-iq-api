@@ -38,7 +38,7 @@ export class TeamAccessController {
 
   @InverterOutsider()
   @Get('memberships')
-  @ApiOperation({ summary: 'Get all invites for a user' })
+  @ApiOperation({ summary: 'Get all memberships for a user' })
   @HttpCode(HttpStatus.OK)
   getUserMemberships(@CurrentUser('sub') userId: string) {
     return this.teamAccessService.getUserMemberships(userId);
@@ -54,6 +54,17 @@ export class TeamAccessController {
     @Body() dto: InviteMemberDto,
   ) {
     return this.teamAccessService.inviteMember(dto, inverterId, userId);
+  }
+
+  @InverterRoles(InverterRole.ADMIN)
+  @Post(':inverterId/invites/:inviteId/refresh')
+  @ApiOperation({ summary: 'Refresh an invite if it has expired' })
+  @HttpCode(HttpStatus.OK)
+  refreshInvite(
+    @Param('inviteId', ParseUUIDPipe) inviteId: string,
+    @Param('inverterId', ParseUUIDPipe) inverterId: string,
+  ) {
+    return this.teamAccessService.refreshUserInvite(inviteId, inverterId);
   }
 
   @InverterRoles(InverterRole.ADMIN)
@@ -100,16 +111,5 @@ export class TeamAccessController {
     @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
     return this.teamAccessService.revokeMemberAccess(inverterId, memberId);
-  }
-
-  @InverterRoles(InverterRole.ADMIN)
-  @Post(':inverterId/:inviteId')
-  @ApiOperation({ summary: 'Refresh an invite if it has expired' })
-  @HttpCode(HttpStatus.OK)
-  refreshInvite(
-    @Param('inviteId') inviteId: string,
-    @Param('inverterId') inverterId: string,
-  ) {
-    return this.teamAccessService.refreshUserInvite(inviteId, inverterId);
   }
 }

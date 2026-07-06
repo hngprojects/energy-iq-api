@@ -1,10 +1,13 @@
 import { AbstractModelAction } from '@hng-sdk/orm';
 import { InverterMember } from '../entities/inverter-members.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { noTransaction } from '../../../common/constants/transaction-options';
-import { InverterMemberStatus } from '../../../common/enums/inverter-role.enum';
+import {
+  InverterMemberStatus,
+  InverterRole,
+} from '../../../common/enums/inverter-role.enum';
 
 @Injectable()
 export class InverterMemberModelAction extends AbstractModelAction<InverterMember> {
@@ -60,5 +63,40 @@ export class InverterMemberModelAction extends AbstractModelAction<InverterMembe
         status,
       },
     });
+  }
+
+  async atomicReInviteExistingRecord(
+    id: string,
+    role: InverterRole,
+    inviteToken: string,
+    inviterId: string,
+    expiry: Date,
+  ): Promise<InverterMember> {
+    await this.repository
+      .createQueryBuilder()
+      .update(InverterMember)
+      .set({
+        status: InverterMemberStatus.INVITED,
+        role,
+        inviteToken,
+        invitedById: inviterId,
+        inviteTokenExpiresAt: expiry,
+      })
+      .where(
+        `id = :id
+         AND status = :expectedStatus`,
+        {
+          id,
+          expectedStatus: InverterMemberStatus.DEACTIVATED,
+        },
+      )
+      .execute();
+
+    const updated = await this.get({ identifierOptions: { id } });
+    if (!updated || updated.status !== InverterMemberStatus.INVITED) {
+      throw new InternalServerErrorException('Failed to load upserted user');
+    }
+
+    return updated;
   }
 }

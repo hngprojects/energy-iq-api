@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsEnum, MaxLength } from 'class-validator';
+import { IsEmail, IsEnum, MaxLength, NotEquals } from 'class-validator';
 import { InverterRole } from '../../../common/enums/inverter-role.enum';
+
+export type AllowedRoles = Exclude<InverterRole, InverterRole.OWNER>;
 
 export class InviteMemberDto {
   @ApiProperty({ example: 'john@example.com' })
@@ -10,5 +12,6 @@ export class InviteMemberDto {
 
   @ApiProperty({ enum: InverterRole, example: InverterRole.VIEWER })
   @IsEnum(InverterRole)
-  role: InverterRole;
+  @NotEquals(InverterRole.OWNER)
+  role: AllowedRoles;
 }

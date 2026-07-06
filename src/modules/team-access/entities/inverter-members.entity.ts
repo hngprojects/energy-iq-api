@@ -8,7 +8,10 @@ import { Inverter } from '../../inverters/entities/inverters.entity';
 import { User } from '../../users/entities/user.entity';
 
 @Entity('inverter_members')
-@Index(['inverterId', 'email'])
+@Index(['inverterId', 'email'], {
+  unique: true,
+  where: '"status" != deactivated',
+})
 @Index(['inviteToken', 'email'])
 export class InverterMember extends AbstractBaseEntity {
   @Column({ type: 'uuid' })
@@ -46,4 +49,8 @@ export class InverterMember extends AbstractBaseEntity {
   @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'user_id' })
   user: User;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'invited_by_id' })
+  invitedBy: User;
 }

@@ -16,6 +16,8 @@ import {
 } from '../../common/enums/inverter-role.enum';
 import { randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
+import { Inverter } from '../inverters/entities/inverters.entity';
+import { User } from '../users/entities/user.entity';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -39,73 +41,42 @@ export class TeamAccessService {
         dto.email,
       );
 
-    if (existing)
+    if (existing && existing.status !== InverterMemberStatus.DEACTIVATED)
       throw new ConflictException(
         'Pending invite or membership exists for this user',
       );
+
+    /**
+     * If a previously-revoked record exists, reuse/reactivate it instead
+     * of creating a duplicate row for the same (inverterId, email) pair
+     */
+
+    if (existing && existing.status === InverterMemberStatus.DEACTIVATED) {
+      const newInviteToken = randomUUID();
+
+      const reInvited =
+        await this.inverterMemberModelAction.atomicReInviteExistingRecord(
+          existing.id,
+          dto.role,
+          newInviteToken,
+          invitedById,
+          new Date(Date.now() + INVITE_TTL_MS),
+        );
+
+      return reInvited;
+    }
 
     const inverter = await this.invertersService.findOne(inverterId);
     const inviter = await this.usersService.findOne(invitedById);
 
     const existingUser = await this.usersService.findByEmail(dto.email);
 
+    let member: InverterMember;
     if (existingUser) {
-      const inviteToken = randomUUID();
-      const member = await this.inverterMemberModelAction.create({
-        ...noTransaction(),
-        createPayload: {
-          inverterId,
-          userId: existingUser.id,
-          email: dto.email,
-          role: dto.role,
-          status: InverterMemberStatus.INVITED,
-          invitedById,
-          inviteToken,
-          inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
-        },
-      });
-
-      const inviterName = `${inviter.firstName} ${inviter.lastName}`;
-      const inverterName = `${inverter.brand} ${inverter.model}`;
-
-      // Send email that user can now accept access
-      await this.emailService.sendTeamInviteExistingUserEmail(
-        member.email,
-        existingUser.firstName,
-        inviterName,
-        inverterName,
-        dto.role,
-        member.inviteToken,
-      );
-
-      return member;
+      member = await this.invite(inverter, dto, inviter, existingUser);
+    } else {
+      member = await this.invite(inverter, dto, inviter);
     }
-
-    const inviteToken = randomUUID();
-    const member = await this.inverterMemberModelAction.create({
-      ...noTransaction(),
-      createPayload: {
-        inverterId,
-        email: dto.email,
-        role: dto.role,
-        status: InverterMemberStatus.INVITED,
-        invitedById,
-        inviteToken,
-        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
-      },
-    });
-
-    const inviterName = `${inviter.firstName} ${inviter.lastName}`;
-    const inverterName = `${inverter.brand} ${inverter.model}`;
-
-    // Send them an email, they'd have to register and accept invite in one step
-    await this.emailService.sendTeamInviteNewUserEmail(
-      member.email,
-      inviterName,
-      inverterName,
-      dto.role,
-      member.inviteToken,
-    );
 
     return member;
   }
@@ -114,7 +85,6 @@ export class TeamAccessService {
     inviteId: string,
     inverterId: string,
   ): Promise<InverterMember> {
-    console.log('Refreshing...');
     const newToken = randomUUID();
 
     const updated = await this.inverterMemberModelAction.update({
@@ -169,10 +139,7 @@ export class TeamAccessService {
       identifierOptions: { id: invite.id },
       updatePayload: {
         status: InverterMemberStatus.ACTIVE,
-        ...(invite.inviteTokenExpiresAt &&
-          Date.now() < invite.inviteTokenExpiresAt.getTime() && {
-            inviteTokenExpiresAt: new Date(Date.now()),
-          }),
+        inviteTokenExpiresAt: new Date(),
         userId,
       },
     });
@@ -181,14 +148,17 @@ export class TeamAccessService {
       throw new NotFoundException(SYS_MSG.INVERTER_MEMBERSHIP_NOT_FOUND);
   }
 
-  async listMembers(inverterId: string): Promise<InverterMember[]> {
+  async listMembers(
+    inverterId: string,
+    page?: number,
+  ): Promise<InverterMember[]> {
     const members = await this.inverterMemberModelAction.find({
       ...noTransaction(),
       findOptions: {
         inverterId,
       },
       paginationPayload: {
-        page: 1,
+        page: page ?? 1,
         limit: 100,
       },
     });
@@ -208,7 +178,10 @@ export class TeamAccessService {
     return member;
   }
 
-  async getUserInvites(userId: string): Promise<InverterMember[]> {
+  async getUserInvites(
+    userId: string,
+    page?: number,
+  ): Promise<InverterMember[]> {
     const invites = await this.inverterMemberModelAction.find({
       ...noTransaction(),
       findOptions: {
@@ -216,7 +189,7 @@ export class TeamAccessService {
         status: InverterMemberStatus.INVITED,
       },
       paginationPayload: {
-        page: 1,
+        page: page ?? 1,
         limit: 100,
       },
     });
@@ -224,7 +197,10 @@ export class TeamAccessService {
     return invites.payload;
   }
 
-  async getUserMemberships(userId: string): Promise<InverterMember[]> {
+  async getUserMemberships(
+    userId: string,
+    page?: number,
+  ): Promise<InverterMember[]> {
     const invites = await this.inverterMemberModelAction.find({
       ...noTransaction(),
       findOptions: {
@@ -232,7 +208,7 @@ export class TeamAccessService {
         status: InverterMemberStatus.ACTIVE,
       },
       paginationPayload: {
-        page: 1,
+        page: page ?? 1,
         limit: 100,
       },
     });
@@ -268,5 +244,53 @@ export class TeamAccessService {
       identifierOptions: { id: member.id },
       updatePayload: { status: InverterMemberStatus.DEACTIVATED },
     });
+  }
+
+  private async invite(
+    inverter: Inverter,
+    dto: InviteMemberDto,
+    inviter: User,
+    existingUser?: User,
+  ): Promise<InverterMember> {
+    const inviteToken = randomUUID();
+    const member = await this.inverterMemberModelAction.create({
+      ...noTransaction(),
+      createPayload: {
+        inverterId: inverter.id,
+        // userId: existingUser.id,
+        ...(existingUser && { userId: existingUser.id }),
+        email: dto.email,
+        role: dto.role,
+        status: InverterMemberStatus.INVITED,
+        invitedById: inviter.id,
+        inviteToken,
+        inviteTokenExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+    });
+
+    const inviterName = `${inviter.firstName} ${inviter.lastName}`;
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+
+    // Send email that user can now accept access
+    if (existingUser) {
+      await this.emailService.sendTeamInviteExistingUserEmail(
+        member.email,
+        existingUser.firstName,
+        inviterName,
+        inverterName,
+        dto.role,
+        member.inviteToken,
+      );
+    } else {
+      await this.emailService.sendTeamInviteNewUserEmail(
+        member.email,
+        inviterName,
+        inverterName,
+        dto.role,
+        member.inviteToken,
+      );
+    }
+
+    return member;
   }
 }
