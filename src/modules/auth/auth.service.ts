@@ -180,7 +180,8 @@ export class AuthService {
     dto: LoginDto,
     sessionDto: CreateSessionDto,
     res: Response,
-  ): Promise<Omit<AuthResponse, 'refreshToken'>> {
+    isMobile = false,
+  ): Promise<Partial<AuthResponse>> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
 
@@ -195,16 +196,12 @@ export class AuthService {
     const session = await this.usersService.createSession(user.id, sessionDto);
 
     const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+    const bodyRefreshToken = this.setRefreshToken(res, refreshToken, isMobile);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: this.appCfg.nodeEnv !== 'development',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth/refresh',
-    });
-
-    return tokens;
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
   async googleMobileLogin(
@@ -298,7 +295,8 @@ export class AuthService {
     dto: VerifyEmailDto,
     sessionDto: CreateSessionDto,
     res: Response,
-  ): Promise<Omit<AuthResponse, 'refreshToken'> | PublicUser> {
+    isMobile = false,
+  ): Promise<Partial<AuthResponse> | PublicUser> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_OTP);
 
@@ -329,17 +327,14 @@ export class AuthService {
     user.emailVerified = true;
     const { refreshToken, ...tokens } = await this.issueTokens(user, session);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: this.appCfg.nodeEnv !== 'development',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth/refresh',
-    });
+    const bodyRefreshToken = this.setRefreshToken(res, refreshToken, isMobile);
 
     await this.sendWelcomeEmail(user);
 
-    return tokens;
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
   async resendVerificationEmail(dto: ResendVerificationDto) {
@@ -447,7 +442,8 @@ export class AuthService {
     refreshToken: string,
     sessionId: string,
     res: Response,
-  ): Promise<Omit<AuthTokens, 'refreshToken'>> {
+    isMobile = false,
+  ): Promise<Partial<AuthTokens>> {
     const session = await this.usersService.findSessionById(sessionId);
 
     const user = await this.usersService.findOne(session.userId);
@@ -481,14 +477,16 @@ export class AuthService {
     if (!swapped)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    res.cookie('refresh_token', newRefreshToken, {
-      httpOnly: true,
-      secure: this.appCfg.nodeEnv !== 'development',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/api/v1/auth/refresh',
-    });
-    return tokens;
+    const bodyRefreshToken = this.setRefreshToken(
+      res,
+      newRefreshToken,
+      isMobile,
+    );
+
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
   compareRefreshTokenHash(received: string, storedHash: string): boolean {
@@ -628,5 +626,23 @@ export class AuthService {
       `${user.firstName} ${user.lastName}`,
       this.appCfg.clientUrl,
     );
+  }
+
+  private setRefreshToken(
+    res: Response,
+    refreshToken: string,
+    isMobile: boolean,
+  ): string | undefined {
+    if (isMobile) {
+      return refreshToken;
+    }
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: this.appCfg.nodeEnv !== 'development',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+    return undefined;
   }
 }

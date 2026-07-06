@@ -21,13 +21,6 @@ export class AlertModelAction extends AbstractModelAction<Alert> {
     super(repository, Alert);
   }
 
-  // async createalert(alert: Partial<Alert>) {
-  //   return this.create({
-  //     ...noTransaction(),
-  //     createPayload: alert,
-  //   });
-  // }
-
   findById(id: string) {
     return this.get({
       identifierOptions: {

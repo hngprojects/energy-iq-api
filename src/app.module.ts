@@ -36,6 +36,8 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { TeamAccessModule } from './modules/team-access/team-access.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { firebaseConfig } from './config/firebase.config';
 
 @Module({
   imports: [
@@ -50,6 +52,7 @@ import { TeamAccessModule } from './modules/team-access/team-access.module';
         googleConfig,
         whatsAppConfig,
         cloudinaryConfig,
+        firebaseConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
@@ -79,6 +82,7 @@ import { TeamAccessModule } from './modules/team-access/team-access.module';
     ReportsModule,
     CloudinaryModule,
     TeamAccessModule,
+    NotificationModule,
   ],
   providers: [
     {

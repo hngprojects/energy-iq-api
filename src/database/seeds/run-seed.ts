@@ -4,8 +4,14 @@ import { Seeder } from './seeder.interface';
 import { userSeeder } from './user.seeder';
 import { inverterSeeder } from './inverter.seeder';
 import { inverterMetricsSeeder } from './inverter-metrics.seeder';
+import { notificationSeeder } from './notification-seeder';
 
-const seeders: Seeder[] = [userSeeder, inverterSeeder, inverterMetricsSeeder];
+const seeders: Seeder[] = [
+  userSeeder,
+  inverterSeeder,
+  inverterMetricsSeeder,
+  notificationSeeder,
+];
 
 async function run() {
   await dataSource.initialize();
