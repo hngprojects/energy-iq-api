@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
@@ -17,7 +17,7 @@ import { QUEUES } from '../../common/constants/queue';
     ScheduleModule.forRoot(),
     TypeOrmModule.forFeature([InvertersMetrics, Alert]),
     BullModule.registerQueue({ name: QUEUES.ALERT_DISPATCH }),
-    InvertersModule,
+    forwardRef(() => InvertersModule),
     InvertersMetricsModule,
     MetricsPubSubModule,
   ],

@@ -1,4 +1,5 @@
 import { AlertSeverity, AlertType } from '../../common/enums';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
 
 export const EMAIL_JOBS = {
   WELCOME: 'welcome',
@@ -10,6 +11,9 @@ export const EMAIL_JOBS = {
   ALERT_ALERT: 'alert-notification',
   WAITLIST_JOINED: 'waitlist-joined',
   SEND_REPORT: 'send-report',
+  TEAM_INVITE_NEW_USER: 'team-invite-new-user',
+  TEAM_INVITE_EXISTING_USER: 'team-invite-existing-user',
+  TEAM_INVITE_ACCEPTED: 'team-invite-accepted',
 } as const;
 
 // clientUrl here is the redirect to login
@@ -90,6 +94,30 @@ export interface SendReportJobData {
   firstName: string;
 }
 
+export interface TeamInviteNewUserJobData {
+  to: string;
+  inviterName: string;
+  inverterName: string;
+  role: InverterRole;
+  inviteToken: string;
+}
+
+export interface TeamInviteExistingUserJobData {
+  to: string;
+  firstName: string;
+  inviterName: string;
+  inverterName: string;
+  role: InverterRole;
+  inviteToken: string;
+}
+
+export interface TeamInviteAcceptedJobData {
+  to: string;
+  firstName: string;
+  inverterName: string;
+  role: InverterRole;
+}
+
 export type EmailJobData =
   | WelcomeJobData
   | PasswordResetJobData
@@ -98,4 +126,7 @@ export type EmailJobData =
   | LinkExpiredJobData
   | ContactUsJobData
   | AlertNotificationJobData
-  | SendReportJobData;
+  | SendReportJobData
+  | TeamInviteNewUserJobData
+  | TeamInviteExistingUserJobData
+  | TeamInviteAcceptedJobData;
