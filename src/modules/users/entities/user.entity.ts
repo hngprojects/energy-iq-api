@@ -36,6 +36,9 @@ export class User extends AbstractBaseEntity {
   onboardingComplete: boolean;
 
   @Column({ type: 'boolean', default: false })
+  isInvitedUser: boolean;
+
+  @Column({ type: 'boolean', default: false })
   isActive: boolean;
 
   @Column({ type: 'timestamptz', nullable: true })
