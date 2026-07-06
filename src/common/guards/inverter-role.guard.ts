@@ -37,9 +37,9 @@ export class InverterRoleGuard implements CanActivate {
     );
     if (isInverterOutsider) return true;
 
-    const inverterId = request.params['inverterId'].toString();
-    console.log('InvertedId: ', inverterId);
-    if (!inverterId) return false;
+    const inverterIdParam = request.params['inverterId'];
+    if (!inverterIdParam) return false;
+    const inverterId = inverterIdParam.toString();
     const user = request.user;
     if (!user) return false;
 
