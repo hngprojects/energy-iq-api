@@ -27,6 +27,7 @@ import { PaginationDto } from '../../common/dto/pagination.do';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserPersonalSettingsDto } from './dto/update-user-personal-settings.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { UpdateFidDto } from './dto/update-fid.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -53,6 +54,17 @@ export class UsersController {
     );
     res.status(created ? HttpStatus.CREATED : HttpStatus.OK);
     return inverter;
+  }
+
+  @Post('firebase-fid')
+  @ApiOperation({
+    summary: 'Update the Firebase ID of a user after login',
+  })
+  updateSessionWithFid(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: UpdateFidDto,
+  ) {
+    return this.usersService.setDeviceToken(userId, dto.sessionId, dto.token);
   }
 
   @Get('onboard/status')

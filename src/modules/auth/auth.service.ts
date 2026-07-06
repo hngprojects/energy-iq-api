@@ -33,14 +33,28 @@ import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
 import type { Response } from 'express';
 import { ValidateRedirectUrl } from '../../common/utils/redirect.util';
+import { Session } from '../users/entities/sessions.entity';
+import * as crypto from 'crypto';
+import { CreateSessionDto } from './dto/create-session.dto';
+import { RegisterFromInviteDto } from './dto/register-from-invite.dto';
+import { TeamAccessService } from '../team-access/team-access.service';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
+import { InvertersService } from '../inverters/inverters.service';
 
 export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
 
+export interface InverterAccess {
+  inverterId: string;
+  role: InverterRole;
+}
+
 export interface AuthResponse extends AuthTokens {
   user: PublicUser;
+  sessionId: string;
+  inverterAccess?: InverterAccess[];
 }
 
 @Injectable()
@@ -58,6 +72,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly emailService: EmailService,
     private readonly redis: RedisService,
+    private readonly teamAccessService: TeamAccessService,
+    private readonly invertersService: InvertersService,
   ) {
     this.googleClient = new OAuth2Client(this.googleCfg.googleClientId);
   }
@@ -74,14 +90,98 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
+  async registerFromInvite(
+    dto: RegisterFromInviteDto,
+    res: Response,
+    sessionDto: CreateSessionDto,
+  ): Promise<Omit<AuthResponse, 'refreshToken'>> {
+    // ValidateInvite
+    const invite = await this.teamAccessService.findInviteByTokenAndEmail(
+      dto.inviteToken,
+      dto.email,
+    );
+    const user = await this.usersService.createTeamInvitedUser({
+      email: invite.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      password: dto.password,
+    });
+
+    const inverter = await this.invertersService.findOne(invite.inverterId);
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+    /**
+     * A user getting the inviteToken from their email is equivalent
+     * to the user checking an OTP and verifying their email, it serves
+     * the same purpose. So we go straight to onboarding step 2
+     * (sending welcome email).
+     */
+    await this.sendWelcomeEmail(user);
+    await this.teamAccessService.activateMembership(invite, user.id);
+    // Send invite accept email
+    await this.emailService.sendTeamInviteAcceptedEmail(
+      user.email,
+      user.firstName,
+      inverterName,
+      invite.role,
+    );
+
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: this.appCfg.nodeEnv !== 'development',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
+    return tokens;
+  }
+
+  async existingUserAcceptInvite(
+    inviteToken: string,
+    userId: string,
+  ): Promise<InverterAccess> {
+    const user = await this.usersService.findOne(userId);
+    const invite = await this.teamAccessService.findInviteByTokenAndEmail(
+      inviteToken,
+      user.email,
+    );
+
+    const inverter = await this.invertersService.findOne(invite.inverterId);
+    const inverterName = `${inverter.brand} ${inverter.model}`;
+
+    await this.teamAccessService.activateMembership(invite, user.id);
+    // Send invite accept email
+    await this.emailService.sendTeamInviteAcceptedEmail(
+      user.email,
+      user.firstName,
+      inverterName,
+      invite.role,
+    );
+
+    return {
+      inverterId: invite.inverterId,
+      role: invite.role,
+    };
+  }
+
   async findOrCreateGoogleOAuthUser(
     dto: GoogleOAuthDto,
   ): Promise<AuthResponse> {
     const user = await this.usersService.findOrCreateByGoogle(dto);
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id);
+    return this.issueTokens(user, session);
   }
 
-  async login(dto: LoginDto): Promise<AuthResponse> {
+  async login(
+    dto: LoginDto,
+    sessionDto: CreateSessionDto,
+    res: Response,
+    isMobile = false,
+  ): Promise<Partial<AuthResponse>> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_CREDENTIALS);
 
@@ -93,10 +193,21 @@ export class AuthService {
       throw new ForbiddenException(SYS_MSG.EMAIL_NOT_VERIFIED);
     }
 
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+    const bodyRefreshToken = this.setRefreshToken(res, refreshToken, isMobile);
+
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
-  async googleMobileLogin(dto: GoogleMobileLoginDto): Promise<AuthResponse> {
+  async googleMobileLogin(
+    dto: GoogleMobileLoginDto,
+    sessionDto: CreateSessionDto,
+  ): Promise<AuthResponse> {
     let payload: TokenPayload | undefined;
     try {
       const ticket = await this.googleClient.verifyIdToken({
@@ -134,7 +245,8 @@ export class AuthService {
 
     const user = await this.usersService.findOrCreateByGoogle(googleOAuthDto);
 
-    return this.issueTokens(user);
+    const session = await this.usersService.createSession(user.id, sessionDto);
+    return this.issueTokens(user, session);
   }
 
   googleCallbackRedirect(
@@ -142,10 +254,18 @@ export class AuthService {
     res: Response,
     authResponse: AuthResponse,
   ) {
+    res.cookie('refresh_token', authResponse.refreshToken, {
+      httpOnly: true,
+      secure: this.appCfg.nodeEnv !== 'development',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+
     if (state === 'mobile') {
       return res.json({
         accessToken: authResponse.accessToken,
-        refreshToken: authResponse.refreshToken,
+        sessionId: authResponse.sessionId,
         user: authResponse.user,
       });
     }
@@ -166,10 +286,17 @@ export class AuthService {
 
     const redirectUrl = `${redirectBase}/onboarding`;
     ValidateRedirectUrl(redirectUrl, this.appCfg.allowedRedirectOrigins);
-    return res.redirect(`${redirectUrl}#token=${authResponse.accessToken}`);
+    return res.redirect(
+      `${redirectUrl}#token=${authResponse.accessToken}&sessionId=${authResponse.sessionId}`,
+    );
   }
 
-  async verifyEmail(dto: VerifyEmailDto): Promise<AuthResponse | PublicUser> {
+  async verifyEmail(
+    dto: VerifyEmailDto,
+    sessionDto: CreateSessionDto,
+    res: Response,
+    isMobile = false,
+  ): Promise<Partial<AuthResponse> | PublicUser> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException(SYS_MSG.INVALID_OTP);
 
@@ -195,9 +322,19 @@ export class AuthService {
     await this.redis.delete(dto.email, 'otp');
     await this.redis.delete(attemptKey, 'otp_attempts');
 
+    const session = await this.usersService.createSession(user.id, sessionDto);
+
     user.emailVerified = true;
+    const { refreshToken, ...tokens } = await this.issueTokens(user, session);
+
+    const bodyRefreshToken = this.setRefreshToken(res, refreshToken, isMobile);
+
     await this.sendWelcomeEmail(user);
-    return this.issueTokens(user);
+
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
   async resendVerificationEmail(dto: ResendVerificationDto) {
@@ -301,65 +438,159 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
-  async refresh(refreshToken: string): Promise<AuthTokens> {
-    let payload: JwtPayload;
-    try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken, {
-        secret: this.jwtCfg.refreshSecret,
-      });
-    } catch {
-      throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
-    }
+  async refresh(
+    refreshToken: string,
+    sessionId: string,
+    res: Response,
+    isMobile = false,
+  ): Promise<Partial<AuthTokens>> {
+    const session = await this.usersService.findSessionById(sessionId);
 
-    const user = await this.usersService.findOne(payload.sub);
-    if (!user.refreshTokenHash)
+    const user = await this.usersService.findOne(session.userId);
+
+    if (!session.refreshTokenHash)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const matches = await bcrypt.compare(refreshToken, user.refreshTokenHash);
+    const matches = this.compareRefreshTokenHash(
+      refreshToken,
+      session.refreshTokenHash,
+    );
     if (!matches)
       throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
 
-    const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
-    return tokens;
+    const { refreshToken: newRefreshToken, ...tokens } = await this.signTokens(
+      user,
+      session,
+    );
+    const newHash = crypto
+      .createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
+    // Atomic compare-and-swap: only succeeds if no concurrent request has
+    // already rotated the token since we read it above.
+    const swapped = await this.usersService.compareAndSwapRefreshToken(
+      session.id,
+      session.refreshTokenHash,
+      newHash,
+      session.createdAt,
+    );
+    if (!swapped)
+      throw new UnauthorizedException(SYS_MSG.INVALID_REFRESH_TOKEN);
+
+    const bodyRefreshToken = this.setRefreshToken(
+      res,
+      newRefreshToken,
+      isMobile,
+    );
+
+    return {
+      ...tokens,
+      ...(bodyRefreshToken && { refreshToken: bodyRefreshToken }),
+    };
   }
 
-  async logout(userId: string): Promise<void> {
-    await this.usersService.setRefreshTokenHash(userId, null);
+  compareRefreshTokenHash(received: string, storedHash: string): boolean {
+    const receivedHash = crypto
+      .createHash('sha256')
+      .update(received)
+      .digest('hex');
+
+    return crypto.timingSafeEqual(
+      Buffer.from(receivedHash, 'hex'),
+      Buffer.from(storedHash, 'hex'),
+    );
   }
 
-  async getProfile(userId: string): Promise<User> {
-    return this.usersService.findOne(userId);
+  async logout(sessionId: string, accessToken: string): Promise<void> {
+    try {
+      const decoded: JwtPayload & { exp: number } =
+        this.jwtService.decode(accessToken);
+
+      if (decoded.jti && decoded.exp) {
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+        if (ttl > 0) {
+          await this.redis.set(decoded.jti, '1', 'blacklist', ttl);
+        }
+      }
+    } finally {
+      await this.usersService.deactivateSession(sessionId);
+    }
   }
 
-  private async issueTokens(user: User): Promise<AuthResponse> {
-    const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
+  private async computeInverterAccess(
+    userId: string,
+  ): Promise<InverterAccess[]> {
+    const ownedInverters = await this.invertersService.findByUserId(userId);
+    const inverterMemberships =
+      await this.teamAccessService.getUserMemberships(userId);
 
-    return { ...tokens, user: this.toPublicUser(user) };
-  }
+    const userOwnedAccess: InverterAccess[] = ownedInverters.map((inv) => ({
+      inverterId: inv.id,
+      role: InverterRole.OWNER,
+    }));
 
-  private async signTokens(user: User): Promise<AuthTokens> {
-    const payload: JwtPayload = { sub: user.id, email: user.email };
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtCfg.accessSecret,
-        expiresIn: this.jwtCfg.accessExpiresIn as StringValue,
+    const membershipsAccess: InverterAccess[] = inverterMemberships.map(
+      (mem) => ({
+        inverterId: mem.inverterId,
+        role: mem.role,
       }),
-      this.jwtService.signAsync(payload, {
-        secret: this.jwtCfg.refreshSecret,
-        expiresIn: this.jwtCfg.refreshExpiresIn as StringValue,
-      }),
-    ]);
+    );
+
+    return [...userOwnedAccess, ...membershipsAccess];
+  }
+
+  async getProfile(userId: string): Promise<{
+    user: User;
+    inverterAccess?: InverterAccess[];
+  }> {
+    const user = await this.usersService.findOne(userId);
+
+    const inverterAccess = await this.computeInverterAccess(userId);
+
+    return {
+      user,
+      inverterAccess,
+    };
+  }
+
+  private async issueTokens(
+    user: User,
+    session: Session,
+  ): Promise<AuthResponse> {
+    const tokens = await this.signTokens(user, session);
+    await this.persistRefreshToken(session.id, tokens.refreshToken);
+
+    const inverterAccess = await this.computeInverterAccess(user.id);
+
+    return {
+      ...tokens,
+      user: this.toPublicUser(user),
+      sessionId: session.id,
+      inverterAccess,
+    };
+  }
+
+  private async signTokens(user: User, session: Session): Promise<AuthTokens> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      sessionId: session.id,
+      jti: crypto.randomUUID(),
+    };
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.jwtCfg.accessSecret,
+      expiresIn: this.jwtCfg.accessExpiresIn as StringValue,
+    });
+    const refreshToken = crypto.randomBytes(32).toString('hex');
     return { accessToken, refreshToken };
   }
 
   private async persistRefreshToken(
-    userId: string,
+    sessionId: string,
     refreshToken: string,
   ): Promise<void> {
-    const hash = await bcrypt.hash(refreshToken, 10);
-    await this.usersService.setRefreshTokenHash(userId, hash);
+    const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    await this.usersService.setRefreshTokenHash(sessionId, hash);
   }
 
   private toPublicUser(user: User): PublicUser {
@@ -395,5 +626,23 @@ export class AuthService {
       `${user.firstName} ${user.lastName}`,
       this.appCfg.clientUrl,
     );
+  }
+
+  private setRefreshToken(
+    res: Response,
+    refreshToken: string,
+    isMobile: boolean,
+  ): string | undefined {
+    if (isMobile) {
+      return refreshToken;
+    }
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: this.appCfg.nodeEnv !== 'development',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/api/v1/auth/refresh',
+    });
+    return undefined;
   }
 }

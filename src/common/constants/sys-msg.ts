@@ -14,8 +14,12 @@ export const SYS_MSG = {
   VALIDATION_FAILED: 'Request validation failed',
   INTERNAL_SERVER_ERROR: 'An unexpected server error occurred',
   INVALID_CREDENTIALS: 'The provided email or password is incorrect',
+  MISSING_REFRESH_TOKEN: 'Missing refresh token',
   INVALID_REFRESH_TOKEN:
     'The refresh token is invalid, expired, or cannot be used',
+  INVALID_SESSION_ID: 'The session id is invalid or does not exist',
+  SESSION_EXPIRED: 'Session expired or inactive',
+  SESSION_UPDATE_FAILED: 'Failed to update session',
   INVALID_OTP: 'The verification code is invalid or has expired',
   OTP_ATTEMPTS_EXCEEDED: 'Too many verification attempts. Try again later',
   EMAIL_NOT_VERIFIED: 'This user email is not verified',
@@ -51,4 +55,11 @@ export const SYS_MSG = {
     'Recurring reports must use a period (weekly/monthly), not a custom date range.',
   SHAREABLE_LINK_EXPIRED:
     'This shareable link has expired. Please generate a new one.',
+  INVERTER_MEMBERSHIP_NOT_FOUND:
+    'The requested inverter membership does not exist or has been deactivated',
+  INVITE_TOKEN_EXPIRED:
+    'This invite link has expired. Please request a new one.',
+  INVITE_TOKEN_INVALID: 'This invite link is invalid.',
+  INVITE_ALREADY_ACCEPTED: 'This invite has already been accepted.',
+  MEMBER_INVITE_SENT: 'Invitation sent successfully',
 } as const;

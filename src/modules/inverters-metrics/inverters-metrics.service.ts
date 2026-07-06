@@ -26,6 +26,8 @@ import {
 } from '../../common/enums/reports.type';
 import { CostSavingsReport, SolarReport } from '../reports/types/reports.type';
 import { Report } from '../reports/entities/report.entity';
+import { TeamAccessService } from '../team-access/team-access.service';
+import { Inverter } from '../inverters/entities/inverters.entity';
 
 type Period = 'hourly' | 'daily' | 'weekly' | 'monthly';
 
@@ -45,6 +47,7 @@ export class InvertersMetricsService {
     @InjectRepository(UserSettings)
     private readonly userSettingsRepository: Repository<UserSettings>,
     private readonly inverterModelAction: InverterModelAction,
+    private readonly teamAccessService: TeamAccessService,
   ) {}
 
   /**
@@ -65,6 +68,21 @@ export class InvertersMetricsService {
         : 50;
   }
 
+  private async validateRequestingUser(
+    inverter: Inverter,
+    requestingUserId: string,
+  ): Promise<void> {
+    const members = await this.teamAccessService.listMembers(inverter.id);
+    let allowedUsers = members
+      .map((m) => m.userId)
+      .filter((m) => m !== undefined);
+    allowedUsers = [...allowedUsers, inverter.userId];
+
+    if (!allowedUsers.includes(requestingUserId)) {
+      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    }
+  }
+
   // ENDPOINT 1 — Dashboard Metrics
   async getDashboardMetrics(inverterId: string, requestingUserId: string) {
     const inverter = await this.inverterModelAction.get({
@@ -75,10 +93,8 @@ export class InvertersMetricsService {
       throw new NotFoundException(SYS_MSG.NOT_FOUND);
     }
 
-    // Ownership check — only the inverter owner can view its dashboard
-    if (inverter.userId !== requestingUserId) {
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
-    }
+    // If calling from outside, role guard already stopped it in its tracks
+    await this.validateRequestingUser(inverter, requestingUserId);
 
     const tz = 'Africa/Lagos';
 
@@ -242,10 +258,31 @@ export class InvertersMetricsService {
   // ENDPOINT 2 — Power Consumption (placeholder)
   getPowerConsumption(_inverterId: string): void {}
 
+  async getEnergyUsageHttp(
+    inverterId: string,
+    period: 'hourly' | 'daily' | 'weekly' | 'monthly',
+    userId: string,
+  ): ReturnType<typeof this.getEnergyUsage> {
+    const inverter = await this.inverterModelAction.get({
+      identifierOptions: { id: inverterId },
+    });
+    if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
+    await this.validateRequestingUser(inverter, userId);
+    return this.getEnergyUsage(inverterId, period);
+  }
+
   async getEnergyUsage(
     inverterId: string,
     period: 'hourly' | 'daily' | 'weekly' | 'monthly',
-  ) {
+  ): Promise<{
+    period: 'hourly' | 'daily' | 'weekly' | 'monthly';
+    data: {
+      date: string;
+      solarKwh: number;
+      avgBatterySoc: number;
+      avgLoadKw: number;
+    }[];
+  }> {
     if (!['hourly', 'daily', 'weekly', 'monthly'].includes(period)) {
       throw new BadRequestException(SYS_MSG.BAD_REQUEST);
     }
@@ -819,8 +856,9 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    // if (inverter.userId !== userId)
+    //   throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    await this.validateRequestingUser(inverter, userId);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -989,8 +1027,9 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    // if (inverter.userId !== userId)
+    //   throw new ForbiddenException(SYS_MSG.FORBIDDEN);
+    await this.validateRequestingUser(inverter, userId);
 
     const settings = await this.userSettingsRepository.findOne({
       where: { user: { id: inverter.userId } },
@@ -1120,8 +1159,8 @@ export class InvertersMetricsService {
       identifierOptions: { id: inverterId },
     });
     if (!inverter) throw new NotFoundException(SYS_MSG.NOT_FOUND);
-    if (inverter.userId !== userId)
-      throw new ForbiddenException(SYS_MSG.NOT_INVERTER_OWNER);
+
+    await this.validateRequestingUser(inverter, userId);
 
     if (startDate >= endDate) {
       throw new BadRequestException('startDate must be before endDate');

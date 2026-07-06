@@ -2,15 +2,18 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
   Post,
   Query,
+  Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
@@ -28,6 +31,10 @@ import { type ConfigType } from '@nestjs/config';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { GoogleMobileLoginDto } from './dto/google-mobile-login.dto';
+import { CreateSessionDto } from './dto/create-session.dto';
+import { SYS_MSG } from '../../common/constants/sys-msg';
+import { RegisterFromInviteDto } from './dto/register-from-invite.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
 
 @ApiTags('Auth')
 @Controller({ path: 'auth', version: '1' })
@@ -47,12 +54,35 @@ export class AuthController {
   }
 
   @Public()
+  @Post('invite-register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user from an invite' })
+  registerFromInvite(
+    @Body() dto: RegisterFromInviteDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.registerFromInvite(dto, res, sessionDto);
+  }
+
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with email and password' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.login(
+      dto,
+      sessionDto,
+      res,
+      this.isMobileClient(req),
+    );
   }
 
   @Public()
@@ -60,8 +90,13 @@ export class AuthController {
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify a user email address' })
-  verifyEmail(@Body() dto: VerifyEmailDto) {
-    return this.authService.verifyEmail(dto);
+  verifyEmail(
+    @Body() dto: VerifyEmailDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.verifyEmail(dto, sessionDto, res);
   }
 
   @Public()
@@ -102,8 +137,9 @@ export class AuthController {
       'Verifies the Google ID token provided by the mobile application and returns ' +
       'local application tokens.',
   })
-  async googleMobile(@Body() dto: GoogleMobileLoginDto): Promise<AuthResponse> {
-    return this.authService.googleMobileLogin(dto);
+  async googleMobile(@Body() dto: GoogleMobileLoginDto, @Req() req: Request) {
+    const sessionDto = this.buildSessionDto(req);
+    return this.authService.googleMobileLogin(dto, sessionDto);
   }
 
   @Public()
@@ -111,16 +147,38 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Issue a new access token from a refresh token' })
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refresh(dto.refreshToken);
+  refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokenParam = req.cookies['refresh_token'] as string;
+    if (!tokenParam.length || !dto.refreshToken) {
+      throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN);
+    }
+    const refreshToken: string = tokenParam ?? dto.refreshToken;
+    if (!refreshToken)
+      throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN);
+    return this.authService.refresh(
+      refreshToken,
+      dto.sessionId,
+      res,
+      this.isMobileClient(req),
+    );
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke the current refresh token' })
   @ApiBearerAuth()
-  logout(@CurrentUser('sub') userId: string) {
-    return this.authService.logout(userId);
+  logout(
+    @CurrentUser('sessionId') sessionId: string,
+    @Headers('authorization') authHeader: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const accessToken = authHeader.replace('Bearer ', '');
+    res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
+    return this.authService.logout(sessionId, accessToken);
   }
 
   @Get('me')
@@ -128,6 +186,18 @@ export class AuthController {
   @ApiBearerAuth()
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user.sub);
+  }
+
+  @Post('accept-invite')
+  @ApiOperation({
+    summary: 'Accept a team invite as an existing, authenticated user',
+  })
+  @ApiBearerAuth()
+  acceptInvite(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: AcceptInviteDto,
+  ) {
+    return this.authService.existingUserAcceptInvite(dto.inviteToken, userId);
   }
 
   @Public()
@@ -154,5 +224,18 @@ export class AuthController {
   @ApiOperation({ summary: 'Set password after requesting reset' })
   resetPasword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  private buildSessionDto(req: Request): CreateSessionDto {
+    return {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      platform: req.headers['sec-ch-ua-platform']?.toString(),
+      deviceName: req.headers['sec-ch-ua-model']?.toString(),
+    };
+  }
+
+  private isMobileClient(req: Request): boolean {
+    return req.headers['x-client-type'] === 'mobile';
   }
 }

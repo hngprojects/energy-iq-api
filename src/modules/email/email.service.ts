@@ -14,8 +14,12 @@ import {
   AlertStat,
   WaitlistJoinedJobData,
   SendReportJobData,
+  TeamInviteNewUserJobData,
+  TeamInviteExistingUserJobData,
+  TeamInviteAcceptedJobData,
 } from './email.jobs';
 import { AlertSeverity, AlertType } from '../../common/enums';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
 
 @Injectable()
 export class EmailService {
@@ -148,5 +152,53 @@ export class EmailService {
       // reportType,
       // dateDelivered,
     } satisfies SendReportJobData);
+  }
+
+  async sendTeamInviteNewUserEmail(
+    to: string,
+    inviterName: string,
+    inverterName: string,
+    role: InverterRole,
+    inviteToken: string,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_NEW_USER, {
+      to,
+      inviterName,
+      inverterName,
+      role,
+      inviteToken,
+    } satisfies TeamInviteNewUserJobData);
+  }
+
+  async sendTeamInviteExistingUserEmail(
+    to: string,
+    firstName: string,
+    inviterName: string,
+    inverterName: string,
+    role: InverterRole,
+    inviteToken: string,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_EXISTING_USER, {
+      to,
+      firstName,
+      inviterName,
+      inverterName,
+      role,
+      inviteToken,
+    } satisfies TeamInviteExistingUserJobData);
+  }
+
+  async sendTeamInviteAcceptedEmail(
+    to: string,
+    firstName: string,
+    inverterName: string,
+    role: InverterRole,
+  ): Promise<void> {
+    await this.emailQueue.add(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
+      to,
+      firstName,
+      inverterName,
+      role,
+    } satisfies TeamInviteAcceptedJobData);
   }
 }
