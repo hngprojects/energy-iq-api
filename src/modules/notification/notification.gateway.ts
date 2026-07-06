@@ -5,9 +5,11 @@ import {
   OnGatewayConnection,
   WsException,
   ConnectedSocket,
+  OnGatewayInit,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { NotificationService } from './notification.service';
-import { Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { NotificationSocketEvent } from './helpers/events';
 import { Inject, Logger } from '@nestjs/common';
 import { type ConfigType } from '@nestjs/config';
@@ -22,7 +24,7 @@ interface AuthenticatedSocketData {
 
 @WebSocketGateway()
 export class NotificationGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   private readonly logger = new Logger(NotificationGateway.name);
   constructor(
@@ -31,6 +33,12 @@ export class NotificationGateway
     private readonly jwtCfg: ConfigType<typeof jwtConfig>,
     private readonly jwtService: JwtService,
   ) {}
+
+  @WebSocketServer() server: Server;
+
+  afterInit() {
+    this.notificationService.setIoServer(this.server);
+  }
 
   async handleConnection(socket: Socket) {
     /**

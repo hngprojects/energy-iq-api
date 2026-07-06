@@ -5,13 +5,27 @@ import { NotificationModelAction } from './actions/notification.action';
 import { noTransaction } from '../../common/constants/transaction-options';
 import { UsersService } from '../users/users.service';
 import { ProcessingStatus } from '../../common/constants/processing-status';
+import { InjectQueue } from '@nestjs/bullmq';
+import { QUEUES } from '../../common/constants/queue';
+import { Queue } from 'bullmq';
+import { Server } from 'socket.io';
+import { NotificationSocketEvent } from './helpers/events';
+import { PUSH_JOBS, SendPushJobData } from './notifications.jobs';
 
 @Injectable()
 export class NotificationService {
   constructor(
     private readonly notificationAction: NotificationModelAction,
     private readonly usersService: UsersService,
+    @InjectQueue(QUEUES.SEND_PUSH)
+    private readonly pushQueue: Queue,
   ) {}
+
+  private ioServer: Server | null = null;
+
+  setIoServer(server: Server) {
+    this.ioServer = server;
+  }
 
   async create(createNotificationDto: CreateNotificationDto) {
     const { userId, title, subtitle, textContent } = createNotificationDto;
@@ -27,7 +41,18 @@ export class NotificationService {
       },
     });
 
-    return 'This action adds a new notification' + JSON.stringify(notification);
+    this.ioServer
+      ?.to(userId)
+      .emit(NotificationSocketEvent.NEW_NOTIFICATION, notification);
+
+    await this.pushQueue.add(PUSH_JOBS.SEND_PUSH, {
+      notificationId: notification.id,
+      userId,
+      title,
+      body: subtitle,
+    } satisfies SendPushJobData);
+
+    return notification;
   }
 
   async getUserNotifications(dto: GetNotificationsDto) {
