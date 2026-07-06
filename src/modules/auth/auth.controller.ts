@@ -62,7 +62,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const sessionDto = this.buildSessionDto(req);
-    return this.authService.login(dto, sessionDto, res);
+    return this.authService.login(dto, sessionDto, res, this.isMobileClient(req));
   }
 
   @Public()
@@ -132,7 +132,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies['refresh_token'] as string;
+    const refreshToken = req.cookies['refresh_token'] ?? dto.refreshToken;
     if (!refreshToken)
       throw new UnauthorizedException(SYS_MSG.MISSING_REFRESH_TOKEN);
     return this.authService.refresh(refreshToken, dto.sessionId, res);
@@ -192,5 +192,9 @@ export class AuthController {
       platform: req.headers['sec-ch-ua-platform']?.toString(),
       deviceName: req.headers['sec-ch-ua-model']?.toString(),
     };
+  }
+
+  private isMobileClient(req: Request): boolean {
+    return req.headers['x-client-type'] === "mobile";
   }
 }
