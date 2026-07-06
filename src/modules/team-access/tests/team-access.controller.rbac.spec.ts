@@ -162,6 +162,12 @@ describe('TeamAccessController — RBAC', () => {
         .expect(403);
     });
 
+    it('POST /:inverterId/invites/:inviteId/refresh', async () => {
+      await agent(deniedApp)
+        .post(`/team-access/${INVERTER_ID}/invites/${MEMBER_ID}/refresh`)
+        .expect(403);
+    });
+
     it('GET /:inverterId', async () => {
       await agent(deniedApp).get(`/team-access/${INVERTER_ID}`).expect(403);
     });
@@ -198,6 +204,16 @@ describe('TeamAccessController — RBAC', () => {
         { email: 'new@example.com', role: InverterRole.TECHNICIAN },
         INVERTER_ID,
         undefined, // CurrentUser is undefined without JWT in test context
+      );
+    });
+
+    it('POST /:inverterId/invites/:inviteId/refresh', async () => {
+      await agent(allowedApp)
+        .post(`/team-access/${INVERTER_ID}/invites/${MEMBER_ID}/refresh`)
+        .expect(200);
+      expect(mockTeamAccessService.refreshUserInvite).toHaveBeenCalledWith(
+        MEMBER_ID,
+        INVERTER_ID,
       );
     });
 

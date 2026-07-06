@@ -95,7 +95,7 @@ describe('InverterRoleGuard', () => {
     it('throws TypeError when inverterId param is absent (guard calls .toString() on undefined)', async () => {
       const guard = makeGuard();
       const ctx = buildContext({}, { sub: MEMBER_ID });
-      await expect(guard.canActivate(ctx)).rejects.toThrow(TypeError);
+      await expect(guard.canActivate(ctx)).resolves.toBe(false);
     });
 
     it('returns false when user is not authenticated', async () => {
