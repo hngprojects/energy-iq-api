@@ -36,6 +36,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CloudinaryModule } from './common/cloudinary/cloudinary.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { firebaseConfig } from './config/firebase.config';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { NotificationModule } from './modules/notification/notification.module';
         googleConfig,
         whatsAppConfig,
         cloudinaryConfig,
+        firebaseConfig
       ],
     }),
     TypeOrmModule.forRootAsync({
