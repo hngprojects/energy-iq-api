@@ -1,4 +1,5 @@
 import { AlertSeverity, AlertType } from '../../common/enums';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
 
 export const EMAIL_JOBS = {
   WELCOME: 'welcome',
@@ -97,7 +98,7 @@ export interface TeamInviteNewUserJobData {
   to: string;
   inviterName: string;
   inverterName: string;
-  role: string;
+  role: InverterRole;
   inviteToken: string;
 }
 
@@ -106,7 +107,7 @@ export interface TeamInviteExistingUserJobData {
   firstName: string;
   inviterName: string;
   inverterName: string;
-  role: string;
+  role: InverterRole;
   inviteToken: string;
 }
 
@@ -114,7 +115,7 @@ export interface TeamInviteAcceptedJobData {
   to: string;
   firstName: string;
   inverterName: string;
-  role: string;
+  role: InverterRole;
 }
 
 export type EmailJobData =

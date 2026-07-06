@@ -27,6 +27,33 @@ import { AlertSeverity } from '../../common/enums';
 import { ReportsService } from '../reports/reports.service';
 import { SYS_MSG } from '../../common/constants/sys-msg';
 import { ReportStatus } from '../../common/enums/reports.type';
+import { InverterRole } from '../../common/enums/inverter-role.enum';
+
+const INVERTER_ROLE_DESCRIPTIONS: Record<
+  InverterRole,
+  { label: string; description: string }
+> = {
+  [InverterRole.OWNER]: {
+    label: 'Owner',
+    description:
+      'As the owner you have full access - dashboard, alerts, reports, settings, team management, and you can delete the inverter',
+  },
+  [InverterRole.ADMIN]: {
+    label: 'Admin',
+    description:
+      'As an Admin you have full access — dashboard, alerts, reports, settings, and team management.',
+  },
+  [InverterRole.TECHNICIAN]: {
+    label: 'Technician',
+    description:
+      'As a Technician you can view the dashboard and alerts for diagnostics and monitoring.',
+  },
+  [InverterRole.VIEWER]: {
+    label: 'Viewer',
+    description:
+      'As a Viewer you have read-only access to the dashboard and relevant reports.',
+  },
+};
 
 @Processor(QUEUES.EMAIL)
 export class EmailProcessor extends WorkerHost {
@@ -541,33 +568,11 @@ export class EmailProcessor extends WorkerHost {
       `Sending invite-accepted confirmation email to ${this.maskEmail(to)}`,
     );
 
-    const roleDescriptions: Record<
-      string,
-      { label: string; description: string }
-    > = {
-      inverter_admin: {
-        label: 'Admin',
-        description:
-          'As an Admin you have full access — dashboard, alerts, reports, settings, and team management.',
-      },
-      inverter_technician: {
-        label: 'Technician',
-        description:
-          'As a Technician you can view the dashboard and alerts for diagnostics and monitoring.',
-      },
-      inverter_viewer: {
-        label: 'Viewer',
-        description:
-          'As a Viewer you have read-only access to the dashboard and relevant reports.',
-      },
-    };
-
-    const { label: roleLabel, description: roleDescription } = roleDescriptions[
-      role
-    ] ?? {
-      label: role,
-      description: `You have been granted access as ${role}.`,
-    };
+    const { label: roleLabel, description: roleDescription } =
+      INVERTER_ROLE_DESCRIPTIONS[role] ?? {
+        label: role,
+        description: `You have been granted access as ${role}.`,
+      };
 
     const html = this.renderTemplate(EMAIL_JOBS.TEAM_INVITE_ACCEPTED, {
       firstName,
