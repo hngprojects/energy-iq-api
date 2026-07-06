@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class RefreshTokenDto {
   @ApiProperty({
@@ -8,4 +8,12 @@ export class RefreshTokenDto {
   })
   @IsUUID()
   sessionId: string;
+
+  @ApiProperty({
+    name: 'refreshToken',
+    description: 'raw refresh token, if the client is mobile',
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
 }
