@@ -51,7 +51,7 @@ import { firebaseConfig } from './config/firebase.config';
         googleConfig,
         whatsAppConfig,
         cloudinaryConfig,
-        firebaseConfig
+        firebaseConfig,
       ],
     }),
     TypeOrmModule.forRootAsync({
