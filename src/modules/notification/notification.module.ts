@@ -12,6 +12,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Notification } from './entities/notification.entity';
 import { BullModule } from '@nestjs/bullmq';
 import { QUEUES } from '../../common/constants/queue';
+import { NotificationProcessor } from './notification.processor';
 
 @Module({
   imports: [
@@ -30,7 +31,9 @@ import { QUEUES } from '../../common/constants/queue';
     NotificationGateway,
     NotificationModelAction,
     NotificationService,
+    NotificationProcessor,
   ],
+  exports: [NotificationService, NotificationModelAction],
   controllers: [NotificationController],
 })
 export class NotificationModule {}
