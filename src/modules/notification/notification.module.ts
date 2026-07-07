@@ -10,11 +10,15 @@ import { ConfigType } from '@nestjs/config';
 import { StringValue } from 'ms';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Notification } from './entities/notification.entity';
+import { BullModule } from '@nestjs/bullmq';
+import { QUEUES } from '../../common/constants/queue';
+import { NotificationProcessor } from './notification.processor';
 
 @Module({
   imports: [
     UsersModule,
     TypeOrmModule.forFeature([Notification]),
+    BullModule.registerQueue({ name: QUEUES.SEND_PUSH }),
     JwtModule.registerAsync({
       inject: [jwtConfig.KEY],
       useFactory: (jwt: ConfigType<typeof jwtConfig>) => ({
@@ -27,7 +31,9 @@ import { Notification } from './entities/notification.entity';
     NotificationGateway,
     NotificationModelAction,
     NotificationService,
+    NotificationProcessor,
   ],
+  exports: [NotificationService, NotificationModelAction],
   controllers: [NotificationController],
 })
 export class NotificationModule {}
